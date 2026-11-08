@@ -1240,6 +1240,25 @@ const ri=(a,b)=>Math.floor(rnd(a,b+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const fmt=n=>Math.round(n).toLocaleString("ja-JP");
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+/* セーブ由来データの無害化：引き継ぎコード／JSONファイル／端末内セーブなど外部から取り込んだ
+   文字列が、画面表示用HTMLへそのまま埋め込まれて script として実行されるのを防ぐ。
+   危険な文字（< > & " '）は取り除き、危険なキー（__proto__ 等）も落とす */
+function sanitizeSaveData(d){
+  const seen=new WeakSet();
+  const clean=v=>typeof v==="string"? v.replace(/[<>&"']/g,"") : v;
+  const walk=(o,depth)=>{
+    if(!o||typeof o!=="object"||depth>14) return;
+    if(seen.has(o)) return; seen.add(o);
+    if(Array.isArray(o)){ for(let i=0;i<o.length;i++){ o[i]=clean(o[i]); walk(o[i],depth+1); } return; }
+    Object.keys(o).forEach(k=>{
+      if(k==="__proto__"||k==="constructor"||k==="prototype"){ delete o[k]; return; }
+      o[k]=clean(o[k]); walk(o[k],depth+1);
+    });
+  };
+  walk(d,0);
+  return d;
+}
 function gauss(){return (Math.random()+Math.random()+Math.random())/1.5-1;} // -1..1
 
 /* ============ サウンド（Web Audioで生成する自作音源のみ・外部ファイルなし） ============
@@ -2539,7 +2558,7 @@ function registerEntry(h,raceLike,absWeek){
   h.entry={name:raceLike.name, course:raceLike.course, dist:raceLike.dist, surf:raceLike.surf, cls:raceLike.cls,
     month:raceLike.month!=null?raceLike.month:month(), week:raceLike.week!=null?raceLike.week:weekInMonth(), absWeek};
   h.nextPlan=h.entry.name+"（"+h.entry.course+" "+h.entry.surf+h.entry.dist+"m）";
-  log(`${h.name} が ${entryLabel(h.entry)} にエントリー（あと${Math.max(0,absWeek-S.week)}週）`);
+  log(`${h.name} が ${esc(entryLabel(h.entry))} にエントリー（あと${Math.max(0,absWeek-S.week)}週）`);
 }
 function cancelEntry(h){
   if(!h||!h.entry)return;
@@ -2549,7 +2568,7 @@ function cancelEntry(h){
 function entriesHTML(){
   const list=allEntries();
   if(!list.length) return `<div class="entryline">エントリー中のレースはありません。レース画面で出走したいレースを選んでエントリーすると、そのレースに向けて予定が組まれ、レース週を勝手に過ぎることはなくなります。</div>`;
-  return list.map(x=>`<div class="entryline ${x.left<=0?"now":""}"><b>${x.h.name}</b> → <b>${entryLabel(x.e)}</b>
+  return list.map(x=>`<div class="entryline ${x.left<=0?"now":""}"><b>${esc(x.h.name)}</b> → <b>${esc(entryLabel(x.e))}</b>
     <span class="bigcount ${x.left<=0?"now":""}">${x.left<=0?"今週出走！":"あと"+x.left+"週"}</span>
     ${x.left<=0?`<button class="btn gold sm" data-entry-go="${x.h.id}">出馬表へ</button>`:""}
     <button class="btn ghost sm" data-entry-cancel="${x.h.id}">エントリー取消</button></div>`).join("");
@@ -2558,7 +2577,7 @@ function wireEntryButtons(root){
   if(!root)return;
   root.querySelectorAll("[data-entry-cancel]").forEach(b=>b.addEventListener("click",()=>{
     const h=S.horses.find(x=>x.id===+b.dataset.entryCancel); if(!h||!h.entry)return;
-    confirm2("エントリーを取り消しますか？",`${h.name} の「${h.entry.name}」へのエントリーを取り消します。取り消すと週を進められるようになります。`,()=>{ cancelEntry(h); renderAll(); });
+    confirm2("エントリーを取り消しますか？",`${esc(h.name)} の「${esc(h.entry.name)}」へのエントリーを取り消します。取り消すと週を進められるようになります。`,()=>{ cancelEntry(h); renderAll(); });
   }));
   root.querySelectorAll("[data-entry-go]").forEach(b=>b.addEventListener("click",()=>{
     const h=S.horses.find(x=>x.id===+b.dataset.entryGo); if(!h)return;
@@ -2573,10 +2592,10 @@ function showEntryBlock(){
   const blocked=blockedEntries(); if(!blocked.length)return;
   const x=blocked[0];
   showOverlay(`<h2>🏁 出走レースがあります</h2>
-  <p><b>${x.h.name}</b> が <b>${entryLabel(x.e)}</b> にエントリー中です。<br>今週がレース週のため、レースを走るか、エントリーを取り消さない限り「次の週へ」は進めません。${blocked.length>1?`<br>ほかにも今週出走予定が ${blocked.length-1}件 あります。`:""}</p>
+  <p><b>${esc(x.h.name)}</b> が <b>${esc(entryLabel(x.e))}</b> にエントリー中です。<br>今週がレース週のため、レースを走るか、エントリーを取り消さない限り「次の週へ」は進めません。${blocked.length>1?`<br>ほかにも今週出走予定が ${blocked.length-1}件 あります。`:""}</p>
   <div class="flex" style="justify-content:center"><button class="btn gold" id="eb-go">🏁 出馬表へ行く</button><button class="btn red" id="eb-cancel">エントリーを取り消す</button><button class="btn ghost" id="eb-stay">この週にとどまる</button></div>`);
   $("#eb-go").addEventListener("click",()=>{ $("#overlay").style.display="none"; S.selected=x.h.id; const r=S.races.find(rr=>rr.name===x.e.name); if(r){ S.selRace=r.id; raceState.rivals=null; } cardFocus=true; switchView("race"); });
-  $("#eb-cancel").addEventListener("click",()=>{ $("#overlay").style.display="none"; confirm2("エントリーを取り消しますか？",`${x.h.name} の「${x.e.name}」へのエントリーを取り消します。`,()=>{ cancelEntry(x.h); renderAll(); }); });
+  $("#eb-cancel").addEventListener("click",()=>{ $("#overlay").style.display="none"; confirm2("エントリーを取り消しますか？",`${esc(x.h.name)} の「${esc(x.e.name)}」へのエントリーを取り消します。`,()=>{ cancelEntry(x.h); renderAll(); }); });
   $("#eb-stay").addEventListener("click",()=>{ $("#overlay").style.display="none"; });
 }
 function ratingOf(h){ ensureFullHorse(h); return Math.round(((h.spd+h.sta+h.pow+h.bst+h.gut+h.flx+h.smt)*0.11) + h.wins*2.2 + Math.min(18,h.earnings/1800)); }
@@ -2599,7 +2618,7 @@ function radarSVG(h){
   const grid=[100,66,33].map(g=>`<polygon points="${axes.map((_,i)=>pt(i,g).join(",")).join(" ")}" fill="none" stroke="#c8d2c4" stroke-width="1"/>`).join("");
   const poly=axes.map((a,i)=>pt(i,a[1]).join(",")).join(" ");
   const labels=axes.map((a,i)=>{const [x,y]=pt(i,122); return `<text x="${x}" y="${y+3}" font-size="9" font-weight="700" text-anchor="middle" fill="var(--ink2)">${a[0]} ${a[1]}</text>`;}).join("");
-  return `<svg viewBox="0 0 220 200" style="width:100%;max-width:280px;display:block;margin:0 auto" role="img" aria-label="${h.name}の能力レーダーチャート">${grid}<polygon points="${poly}" fill="rgba(44,138,79,.28)" stroke="#1d6b3c" stroke-width="2"/>${axes.map((a,i)=>{const [x,y]=pt(i,a[1]);return `<circle cx="${x}" cy="${y}" r="2.6" fill="#c9a227"/>`;}).join("")}${labels}</svg>`;
+  return `<svg viewBox="0 0 220 200" style="width:100%;max-width:280px;display:block;margin:0 auto" role="img" aria-label="${esc(h.name)}の能力レーダーチャート">${grid}<polygon points="${poly}" fill="rgba(44,138,79,.28)" stroke="#1d6b3c" stroke-width="2"/>${axes.map((a,i)=>{const [x,y]=pt(i,a[1]);return `<circle cx="${x}" cy="${y}" r="2.6" fill="#c9a227"/>`;}).join("")}${labels}</svg>`;
 }
 function growthSVG(h){
   const ages=[2,3,4,5,6,7,8];
@@ -2857,7 +2876,7 @@ function condChips(h){
   ensurePublicRecord(h);
   const wdiff= h.wPrev? h.weight-h.wPrev : 0;
   let s=`<span class="mini ${cond[1]}">調子：${cond[0]} ${h.cond}</span><span class="mini ${fat[1]}">疲労：${fat[0]} ${h.fat}</span><span class="mini">馬体重 ${h.weight}kg${h.races>0&&h.wPrev?`（前走比 ${wdiff>=0?"+":""}${wdiff}）`:""}</span>`;
-  if(h.entry) s+=`<span class="mini ${entryWeeksLeft(h)<=0?"bad":"warn"}">🏁 ${h.entry.name} ${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}</span>`;
+  if(h.entry) s+=`<span class="mini ${entryWeeksLeft(h)<=0?"bad":"warn"}">🏁 ${esc(h.entry.name)} ${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}</span>`;
   if(h.injured>0) s+=`<span class="mini bad">故障 休養${h.injured}週</span>`;
   if(h.trainsLeft>0&&h.injured===0) s+=`<span class="mini">今週調教 あと${h.trainsLeft}回</span>`;
   return s;
@@ -2867,11 +2886,11 @@ function horseCard(h,extraBtns){
   const sel=S.selected===h.id?"sel":"";
   return `<div class="hcard ${sel}" data-hid="${h.id}">
     <div class="art">${horseArt(h)}</div>
-    <div class="top" style="margin-top:8px"><div><div class="hname">${h.name} <span class="badge">レーティング ${ratingOf(h)}</span></div>
+    <div class="top" style="margin-top:8px"><div><div class="hname">${esc(h.name)} <span class="badge">レーティング ${ratingOf(h)}</span></div>
     <div class="hmeta">${h.sex}${h.age}歳・${COATS[h.coat].n}・<span class="badge ${h.wins>=4?"g1":""}">${classLabel(h)}</span><br>
-    ${h.races}戦${h.wins}勝・賞金${fmt(h.earnings)}万円<br>父 ${h.sire}／母 ${h.dam}</div></div></div>
-    <div class="stats">${statBar("スピード",h.spd)}${statBar("スタミナ",h.sta)}${statBar("パワー",h.pow)}${statBar("瞬発力",h.bst)}${statBar("根性",h.gut)}${statBar("柔軟性",h.flx)}${statBar("精神力",h.men)}${statBar("賢さ",h.smt)}${statBar("健康",h.hlt)}<div class="stat"><span class="lb">成長型</span><span style="font-weight:800">${h.growth}</span></div></div>
-    <div class="apt">芝<b>${h.turf}</b> ダート<b>${h.dirt}</b> 重馬場<b>${h.heavy}</b> 距離 <b>${h.dmin}〜${h.dmax}m</b> 脚質 <b>${h.style}</b> 作戦 <b>${tacOf(h).n}</b> 主戦 <b>${JOCKEYS[h.jockey].name}</b><br>作戦適性 逃げ<b>${ensureTacApt(h)["逃げ"]}</b> 先行<b>${ensureTacApt(h)["先行"]}</b> 差し<b>${ensureTacApt(h)["差し"]}</b> 追い込み<b>${ensureTacApt(h)["追い込み"]}</b>（得意：<b>${bestTacStyle(h)}</b>）</div>
+    ${h.races}戦${h.wins}勝・賞金${fmt(h.earnings)}万円<br>父 ${esc(h.sire)}／母 ${esc(h.dam)}</div></div></div>
+    <div class="stats">${statBar("スピード",h.spd)}${statBar("スタミナ",h.sta)}${statBar("パワー",h.pow)}${statBar("瞬発力",h.bst)}${statBar("根性",h.gut)}${statBar("柔軟性",h.flx)}${statBar("精神力",h.men)}${statBar("賢さ",h.smt)}${statBar("健康",h.hlt)}<div class="stat"><span class="lb">成長型</span><span style="font-weight:800">${esc(h.growth)}</span></div></div>
+    <div class="apt">芝<b>${h.turf}</b> ダート<b>${h.dirt}</b> 重馬場<b>${h.heavy}</b> 距離 <b>${h.dmin}〜${h.dmax}m</b> 脚質 <b>${esc(h.style)}</b> 作戦 <b>${tacOf(h).n}</b> 主戦 <b>${JOCKEYS[h.jockey].name}</b><br>作戦適性 逃げ<b>${ensureTacApt(h)["逃げ"]}</b> 先行<b>${ensureTacApt(h)["先行"]}</b> 差し<b>${ensureTacApt(h)["差し"]}</b> 追い込み<b>${ensureTacApt(h)["追い込み"]}</b>（得意：<b>${bestTacStyle(h)}</b>）</div>
     <div>${traitsHTML(h)}</div>
     <div class="condrow">${condChips(h)}</div>
     <div class="cardbtns">${extraBtns||""}</div></div>`;
@@ -2880,10 +2899,10 @@ function horseCard(h,extraBtns){
 function horseMini(h){
   ensureFullHorse(h);
   const cs=condStateOf(h);
-  const nx= h.entry? `次走：${h.entry.name}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : h.injured>0? `故障休養中（あと${h.injured}週）` : "次走：未定";
+  const nx= h.entry? `次走：${esc(h.entry.name)}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : h.injured>0? `故障休養中（あと${h.injured}週）` : "次走：未定";
   const wd= h.wPrev? h.weight-h.wPrev : 0;
   const cls= h.races===0? "新馬" : classLabel(h);
-  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${h.name}のイラスト"><div class="hr-main"><div class="hr-name">${h.name}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span></div><div class="hr-stat"><span class="seg">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span></span> <span class="seg"><span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</span></div><div class="hr-stat">${nx}</div></div></div>`;
+  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${esc(h.name)}のイラスト"><div class="hr-main"><div class="hr-name">${esc(h.name)}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span></div><div class="hr-stat"><span class="seg">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span></span> <span class="seg"><span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</span></div><div class="hr-stat">${nx}</div></div></div>`;
 }
 /* ============ 次走提案（ベストな次走） ============
    「今週出られるレース」ではなく、今後12週の中からその馬にとってベストな1戦を探す。
@@ -3124,7 +3143,7 @@ function trainerFaceSVG(){
 function horseDetailHTML(h, sugs){
  const jk=JOCKEYS[h.jockey]||JOCKEYS[0]; const fr=friendshipOf(h.jockey);
  const er=effRange(h);
- const nextTxt= h.entry? `🏁 ${entryLabel(h.entry)}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : (h.injured>0?`故障休養中（あと${h.injured}週）`:(h.nextPlan||"未定"));
+ const nextTxt= h.entry? `🏁 ${esc(entryLabel(h.entry))}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : (h.injured>0?`故障休養中（あと${h.injured}週）`:esc(h.nextPlan||"未定"));
  const condState=condStateOf(h);
  const trendStars=Object.keys(TRENDS).map(k=>{ const a=(h.trendApt||{})[k]||50; const st=a>=75?5:a>=65?4:a>=55?3:a>=45?2:1; return `<div>${TRENDS[k].n} <span class="stars">${"★".repeat(st)}${"☆".repeat(5-st)}</span> <span class="small">${a}</span></div>`; }).join("");
  const titles=titlesOf(h); const pr=popRankOf(h);
@@ -3140,16 +3159,16 @@ function horseDetailHTML(h, sugs){
    <dt>馬場適性</dt><dd><span class="aptchip ${rankVal(h.turf)>=3?"strong":""}">芝 ${h.turf} ${aptMark4(h.turf)}</span> <span class="aptchip ${rankVal(h.dirt)>=3?"strong":""}">ダート ${h.dirt} ${aptMark4(h.dirt)}</span> <span class="aptchip">重 ${heavy4(h)}</span></dd>
    <dt>傾向適応</dt><dd>${Object.keys(TRENDS).map(k=>{const a=(h.trendApt||{})[k]||50; return `<span class="aptchip ${a>=65?"strong":""}">${TRENDS[k].n.replace("勝負型","").replace("型","")} ${a}</span>`;}).join(" ")}</dd>
    <dt>脚質</dt><dd><span class="stylearrows">${["逃げ","先行","差し","追い込み"].map((s,i)=>`${i?'<span class="arr">▶</span>':""}<span class="sa ${s===h.style?"on":""}">${s}</span>`).join("")}</span>${["自在先行","自在差し","自在"].includes(h.style)?` <span class="aptchip on">${h.style}</span>`:""}</dd>
-   <dt>成長型</dt><dd>${h.growth}（${growthNote(h.growth)}）</dd>
+   <dt>成長型</dt><dd>${esc(h.growth)}（${growthNote(h.growth)}）</dd>
    <dt>人気ランク</dt><dd>賞金ランク <b>${pr.rank}位</b>／評価 <span class="rankmark rank${pr.letter==="SS"||pr.letter==="S"?"S":pr.letter}">${pr.letter}</span></dd>
-   <dt>血統</dt><dd>父 ${h.sire} × 母 ${h.dam}</dd>
+   <dt>血統</dt><dd>父 ${esc(h.sire)} × 母 ${esc(h.dam)}</dd>
    </dl>
    <div class="mt" style="max-width:460px">${distBarHTML(h)}</div>
    <div class="mt" style="display:flex;gap:8px;align-items:center">${jockeyFaceSVG(jk)}<div><div class="small">主戦騎手・信頼</div><b>${jk.name}</b><br>${heartsHTML(fr)}<br><span class="small">絆 Lv.${h.bondLv||0}</span></div></div>`;
  const ctlHTML=`<div class="flex mt">
    <label class="small">主戦騎手 <select id="sel-jockey">${JOCKEYS.map(j=>`<option value="${j.id}" ${j.id===h.jockey?"selected":""}>${j.name}（${j.tier}級・友好度${friendshipOf(j.id)}）</option>`).join("")}</select></label>
    <label class="small">脚質 <select id="sel-style">${STYLES.concat(["自在先行","自在差し","自在"]).map(s=>`<option ${s===h.style?"selected":""}>${s}</option>`).join("")}</select></label>
-   <label class="small">馬名変更 <input type="text" id="inp-name" value="${h.name}" maxlength="12" style="width:130px"></label>
+   <label class="small">馬名変更 <input type="text" id="inp-name" value="${esc(h.name)}" maxlength="12" style="width:130px"></label>
    <button class="btn ghost sm" id="btn-rename">変更</button>
  </div>
  <div class="flex mt"><span class="small">勝負服</span><span class="silkpick">${SILKS.map((s,i)=>`<button data-silk="${i}" class="${i===S.silk?"on":""}" title="${s.n}"><svg width="26" height="20" viewBox="0 0 26 20"><rect x="4" y="2" width="18" height="16" rx="3" fill="${s.c1}"/><rect x="11" y="2" width="4" height="16" fill="${s.c2}" opacity="${s.pat==="stripe"?1:0}"/><circle cx="13" cy="10" r="3" fill="${s.c2}" opacity="${s.pat==="dot"?1:0}"/></svg></button>`).join("")}</span><span class="small">${SILKS[S.silk].n}（全所有馬共通）</span></div>`;
@@ -3164,7 +3183,7 @@ function horseDetailHTML(h, sugs){
    body=`<details class="fold"><summary>調教の指示・気性・作戦・識別マーク</summary><div class="foldbody"><dl class="kv">
    <dt>路線・次走</dt><dd>${route}／${nextTxt}</dd>
    <dt>調教の指示</dt><dd>${planText(h.plan)} <button class="btn ghost sm" data-goto="train">指示を変更</button></dd>
-   <dt>気性・性格・走法</dt><dd>気性：${h.temper||"普通"}／性格：${h.personality||"真面目"}／走法：${h.stride||"普通"}／重馬場：${heavy4(h)}（${h.heavy||"B"}）／芝質の好み：${h.turfPref||"標準"}</dd>
+   <dt>気性・性格・走法</dt><dd>気性：${esc(h.temper||"普通")}／性格：${esc(h.personality||"真面目")}／走法：${esc(h.stride||"普通")}／重馬場：${heavy4(h)}（${h.heavy||"B"}）／芝質の好み：${esc(h.turfPref||"標準")}</dd>
    <dt>作戦</dt><dd>「${tacOf(h).n}」目標 ${tacOf(h).target}／仕掛け ${tacOf(h).spurt}／温存度 ${tacOf(h).reserve}　得意作戦「${bestTacStyle(h)}」</dd>
    <dt>識別マーク</dt><dd><label class="small">形 <select id="sel-markshape">${[["diamond","ダイヤ"],["circle","丸"],["triangle","三角"],["star","星"]].map(([v,n])=>`<option value="${v}" ${h.mark&&h.mark.shape===v?"selected":""}>${n}</option>`).join("")}</select></label>
    <label class="small">色 <input type="color" id="sel-markcolor" value="${h.mark?h.mark.color:"#f2c41c"}" style="width:52px;min-height:32px"></label></dd>
@@ -3179,21 +3198,21 @@ function horseDetailHTML(h, sugs){
    const dr=dirRecOf(h); const cr=ensureCourseRec(h);
    const crTxt=Object.keys(cr).length? Object.keys(cr).map(c=>`${c} ${recText(cr[c])}`).join("／") : "―";
    body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<p style="margin:2px 0 8px"><b>通算 ${h.races}戦${h.wins}勝</b>／近走 ${formDisp(h)}／獲得賞金 ${fmt(h.earnings)}万円</p><details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
-   <div class="quad"><h4>全成績</h4><dl class="kv"><dt>通算</dt><dd>${h.races}戦 ${h.wins}勝（2着 ${Math.max(0,(h.top2||0)-h.wins)}回・3着 ${Math.max(0,(h.top3||0)-(h.top2||0))}回）</dd><dt>近走</dt><dd>${formDisp(h)}</dd><dt>前走</dt><dd>${h.lastRace||"―"}</dd><dt>休養</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd></dl></div>
+   <div class="quad"><h4>全成績</h4><dl class="kv"><dt>通算</dt><dd>${h.races}戦 ${h.wins}勝（2着 ${Math.max(0,(h.top2||0)-h.wins)}回・3着 ${Math.max(0,(h.top3||0)-(h.top2||0))}回）</dd><dt>近走</dt><dd>${formDisp(h)}</dd><dt>前走</dt><dd>${esc(h.lastRace||"―")}</dd><dt>休養</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd></dl></div>
    <div class="quad"><h4>芝・ダート別</h4><dl class="kv"><dt>芝</dt><dd>${h.surfRec&&h.surfRec["芝"]?recText(h.surfRec["芝"]):"―"}</dd><dt>ダート</dt><dd>${h.surfRec&&h.surfRec["ダート"]?recText(h.surfRec["ダート"]):"―"}</dd><dt>重馬場</dt><dd>${h.heavyRec?recText(h.heavyRec):"―"}</dd><dt>距離帯</dt><dd>${h.distRec? Object.keys(h.distRec).map(b=>BAND_JP[b]+" "+recText(h.distRec[b])).join("／"):"―"}</dd></dl></div>
    <div class="quad"><h4>左右・競馬場別</h4><dl class="kv"><dt>左回り</dt><dd>${recText(dr.left.r?dr.left:(h.dirRec||{})["左"])}</dd><dt>右回り</dt><dd>${recText(dr.right.r?dr.right:(h.dirRec||{})["右"])}</dd><dt>競馬場別</dt><dd>${crTxt}</dd></dl></div>
-   <div class="quad"><h4>主な勝鞍</h4><dl class="kv"><dt>重賞</dt><dd>${h.gWins||0}勝</dd><dt>重賞勝利競馬場</dt><dd>${(h.courseGWins&&h.courseGWins.length)?h.courseGWins.join("、"):"―"}</dd><dt>獲得賞金</dt><dd>${fmt(h.earnings)}万円</dd><dt>対戦した実在馬</dt><dd>${(h.metRivals&&h.metRivals.length)?h.metRivals.join("、"):"まだいない"}</dd></dl></div>
+   <div class="quad"><h4>主な勝鞍</h4><dl class="kv"><dt>重賞</dt><dd>${h.gWins||0}勝</dd><dt>重賞勝利競馬場</dt><dd>${(h.courseGWins&&h.courseGWins.length)?h.courseGWins.map(x=>esc(x)).join("、"):"―"}</dd><dt>獲得賞金</dt><dd>${fmt(h.earnings)}万円</dd><dt>対戦した実在馬</dt><dd>${(h.metRivals&&h.metRivals.length)?h.metRivals.map(x=>esc(x)).join("、"):"まだいない"}</dd></dl></div>
    </div></div></details>`;
  } else if(detailTab==="ped"){
    const L=lineOf(h.sire), DL=lineOf(h.damSireName||h.dam);
-   body=`<dl class="kv"><dt>父</dt><dd>${h.sire}<span class="mk">${L.parent}</span><span class="mk">${L.type==="SP"?"SP系統":L.type==="ST"?"ST系統":"中間"}</span>${L.grade?`<span class="mk hot">${L.grade}種牡馬</span>`:""}<span class="mk">${L.pop}</span></dd>
-   <dt>母</dt><dd>${h.dam}</dd>
+   body=`<dl class="kv"><dt>父</dt><dd>${esc(h.sire)}<span class="mk">${L.parent}</span><span class="mk">${L.type==="SP"?"SP系統":L.type==="ST"?"ST系統":"中間"}</span>${L.grade?`<span class="mk hot">${L.grade}種牡馬</span>`:""}<span class="mk">${L.pop}</span></dd>
+   <dt>母</dt><dd>${esc(h.dam)}</dd>
    <dt>父系因子</dt><dd>${(L.factors||[]).map(f=>ABNAME[f]).join("・")||"なし"}</dd>
    <dt>牝系</dt><dd>${h.famousDam?"名牝系":(h.damLine==="主流"?"主流牝系":"一般牝系")}</dd></dl>
    <p class="small">系統・因子は生産タブの配合評価で理論判定に使われます。</p>`;
  } else if(detailTab==="rival"){
    const world=(S.worldHorses||[]);
-   body= world.length? `<p class="small" style="margin-top:0">世界の有力馬（実在馬）と ${h.name} の比較です。対戦済みの馬には「対戦済」と表示します。</p><table><tr><th>馬名</th><th>性齢</th><th class="num">戦績</th><th class="num">重賞</th><th class="r">獲得賞金</th><th></th></tr>${world.map(w=>`<tr class="${w.name===h.name?"rank-me":""}"><td>${w.name}</td><td>${w.sex}${w.age}歳</td><td class="num">${w.races}戦${w.wins}勝</td><td class="num">${w.gWins||0}勝</td><td class="r">${fmt(w.earnings)}万円</td><td>${(h.metRivals||[]).includes(w.name)?'<span class="badge win">対戦済</span>':""}</td></tr>`).join("")}</table>` : `<p class="small">比較できる有力馬のデータがありません。</p>`;
+   body= world.length? `<p class="small" style="margin-top:0">世界の有力馬（実在馬）と ${esc(h.name)} の比較です。対戦済みの馬には「対戦済」と表示します。</p><table><tr><th>馬名</th><th>性齢</th><th class="num">戦績</th><th class="num">重賞</th><th class="r">獲得賞金</th><th></th></tr>${world.map(w=>`<tr class="${w.name===h.name?"rank-me":""}"><td>${esc(w.name)}</td><td>${w.sex}${w.age}歳</td><td class="num">${w.races}戦${w.wins}勝</td><td class="num">${w.gWins||0}勝</td><td class="r">${fmt(w.earnings)}万円</td><td>${(h.metRivals||[]).includes(w.name)?'<span class="badge win">対戦済</span>':""}</td></tr>`).join("")}</table>` : `<p class="small">比較できる有力馬のデータがありません。</p>`;
  } else if(detailTab==="ability"){
    body=`<div class="radarwrap"><h3 style="margin:0 0 4px">能力レーダー（ランク付き）</h3>${radarSVG(h)}</div>
    <details class="fold"><summary>能力の数値・特性をくわしく見る</summary><div class="foldbody"><div class="mt">${ABS9.map(([k,n])=>`<div class="stat"><span class="lb">${n}</span><span class="bar"><i style="width:${h[k]}%"></i></span><b>${h[k]}</b><span class="rankmark rank${statRank(h[k])}">${statRank(h[k])}</span><span>${shoeHTML(h.gauges?h.gauges[k]||0:0)} <span class="small">${Math.round(h.gauges?h.gauges[k]||0:0)}%</span></span></div>`).join("")}
@@ -3212,12 +3231,12 @@ function horseDetailHTML(h, sugs){
  }
  if(detailTab==="detail") body+=`<details class="fold"><summary>能力・適性・主戦騎手などをくわしく見る</summary><div class="foldbody">${sumHTML}</div></details><details class="fold"><summary>主戦騎手・脚質・馬名・勝負服を変更する</summary><div class="foldbody">${ctlHTML}</div></details>`;
  return `<h2 class="sec">馬詳細</h2><div class="panel">
- <div class="namebar"><span class="nb-name">${h.name}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span></div>
+ <div class="namebar"><span class="nb-name">${esc(h.name)}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span></div>
  <div class="detail-art" style="margin-top:9px">${horseArt(h, true)}</div>
  <div class="dstat"><span style="color:${condState.c}">●</span> <b>${condState.t}</b> ― 調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}<br>次走：${nextTxt}</div>
  <div class="gauges">${[["スピード",h.spd],["スタミナ",h.sta],["瞬発力",h.bst],["パワー",h.pow],["持続力",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]].map(([n,v])=>{ const rk=v>=90?"S":v>=80?"A":v>=68?"B":v>=55?"C":v>=42?"D":"E"; return `<div class="gauge"><span class="gname">${n}</span><span class="rankb rk${rk}">${rk}</span><span class="gtrack"><span class="gbar"><i style="width:${clamp(Math.round(v||0),0,100)}%"></i></span><span class="gscale"><span class="glo">LOW</span><span class="ghi">HIGH</span></span></span></div>`; }).join("")}</div>
  <div class="aptrow"><span class="small">適性</span><span class="aptchip">芝 <b>${h.turf||"-"}</b></span><span class="aptchip">ダ <b>${h.dirt||"-"}</b></span>${h.heavy?`<span class="aptchip">重 <b>${h.heavy}</b></span>`:""}${h.dmin&&h.dmax?`<span class="aptchip">距離 <b>${h.dmin}〜${h.dmax}m</b></span>`:""}<span class="aptchip">馬体重 <b>${h.weight}kg</b></span></div>
- <div class="talk"><img src="assets/secretary-normal.webp" alt="秘書・佐倉澪"><div><b>秘書・佐倉 澪</b><br>${h.name}は${condState.t}です（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）。次走：${nextTxt}</div></div>
+ <div class="talk"><img src="assets/secretary-normal.webp" alt="秘書・佐倉澪"><div><b>秘書・佐倉 澪</b><br>${esc(h.name)}は${condState.t}です（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）。次走：${nextTxt}</div></div>
  <div class="dtabs">${tabs.map(([k,n])=>`<button data-dtab="${k}" class="${detailTab===k?"on":""}">${n}</button>`).join("")}</div>
  ${body}
  </div>`;
@@ -3234,11 +3253,11 @@ function renderStable(){
   let html= allEntries().length? `<div class="panel" style="padding:10px 12px;margin-bottom:10px">${entriesHTML()}</div>` : "";
   let sugHTML=`<div class="panel" id="sec-suggest"><b>秘書の次走提案 ― 全馬（いまの疲労・調子・戦績で計算）</b>
   ${S.horses.length? S.horses.map(h=>{
-    if(h.entry){ const left=entryWeeksLeft(h); return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${h.name}</b> <span class="badge win">エントリー中</span><br><span class="small">${entryLabel(h.entry)}（${left<=0?"今週出走！":"あと"+left+"週"}）― エントリー済みのため提案はお休み中です</span></div><button class="btn sm" data-act="race" data-id="${h.id}">レースへ</button></div>`; }
+    if(h.entry){ const left=entryWeeksLeft(h); return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b> <span class="badge win">エントリー中</span><br><span class="small">${esc(entryLabel(h.entry))}（${left<=0?"今週出走！":"あと"+left+"週"}）― エントリー済みのため提案はお休み中です</span></div><button class="btn sm" data-act="race" data-id="${h.id}">レースへ</button></div>`; }
     const sg=suggestNextRaces(h); const top=sg.list[0];
-    if(!top) return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${h.name}</b><br><span class="small">出走条件に合うレースが当面ありません（年齢・クラスの条件を確認してください）</span></div><button class="btn ghost sm" data-sugsel="${h.id}">詳細を見る</button></div>`;
+    if(!top) return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b><br><span class="small">出走条件に合うレースが当面ありません（年齢・クラスの条件を確認してください）</span></div><button class="btn ghost sm" data-sugsel="${h.id}">詳細を見る</button></div>`;
     const r=top.race; const second=sg.list[1];
-    return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${h.name}</b> → <b>${r.name}</b> <span class="small">${r.course} ${r.surf}${r.dist}m・${r.when}${r.weeks?`（あと${r.weeks}週）`:"（今週）"}</span><br><span class="small">${top.reasons.join("／")}${second?`<br>次点：${second.race.name}（${second.race.when}）`:""}${sg.caution?`<br>⚠ ${sg.caution.reason}`:""}</span></div><div class="flex"><button class="btn gold sm" data-sugreg="${h.id}">このレースに登録</button><button class="btn ghost sm" data-sugsel="${h.id}">候補を詳細で見る</button></div></div>`;
+    return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b> → <b>${esc(r.name)}</b> <span class="small">${r.course} ${r.surf}${r.dist}m・${r.when}${r.weeks?`（あと${r.weeks}週）`:"（今週）"}</span><br><span class="small">${top.reasons.join("／")}${second?`<br>次点：${esc(second.race.name)}（${second.race.when}）`:""}${sg.caution?`<br>⚠ ${sg.caution.reason}`:""}</span></div><div class="flex"><button class="btn gold sm" data-sugreg="${h.id}">このレースに登録</button><button class="btn ghost sm" data-sugsel="${h.id}">候補を詳細で見る</button></div></div>`;
   }).join("") : `<p class="small">所有馬がいません。</p>`}
   <p class="small" style="margin:4px 0 0">提案は開くたびに現在の状態で計算し直します（週送り・レース・調教のあとでも古くなりません）。</p></div>`;
   html+=`<h2 class="sec">所有馬 <span class="tag">${S.horses.length}頭</span></h2><div id="owned-grid">`;
@@ -3249,12 +3268,12 @@ function renderStable(){
   if(h){
     ensureFullHorse(h);
     const sugs=h.entry?null:suggestNextRaces(h); /* エントリー済みの馬には新しい提案を出さない */
-    if(S.weekReport&&S.weekReport.length){ html+=`<div class="panel" style="background:var(--panel2)"><b>🗓 今週の調教（指示による自動実行）</b><br><span class="small">${S.weekReport.join("<br>")}</span></div>`; }
+    if(S.weekReport&&S.weekReport.length){ html+=`<div class="panel" style="background:var(--panel2)"><b>🗓 今週の調教（指示による自動実行）</b><br><span class="small">${S.weekReport.map(x=>esc(x)).join("<br>")}</span></div>`; }
     html+=`<div class="fold" id="hdetail-fold"><div class="foldbody"><div id="hdetail">${horseDetailHTML(h, sugs)}</div><div class="flex" style="margin-top:10px"><button class="btn sm" data-act="train" data-id="${h.id}">調教する</button><button class="btn ghost sm" data-act="race" data-id="${h.id}">レースへ</button><button class="btn ghost sm" data-act="retire" data-id="${h.id}">引退させる</button></div></div></div>`;
   }
   html+=`<details class="fold"><summary>その他（市場・全馬の次走提案・記録）</summary><div class="foldbody">${sugHTML}<h2 class="sec">競走馬市場 <span class="tag">毎週入替</span></h2><div class="hgrid">`;
   S.market.forEach(h=>{html+=horseCard(h,`<button class="btn gold sm" data-act="buy" data-id="${h.id}">購入 ${fmt(h.price)}万円</button>`);});
-  html+=`</div><h2 class="sec">厩舎の記録</h2><div class="panel" id="log">${S.log.length?S.log.map(l=>"・"+l).join("<br>"):"まだ記録がありません。"}</div></div></details>`;
+  html+=`</div><h2 class="sec">厩舎の記録</h2><div class="panel" id="log">${S.log.length?S.log.map(l=>"・"+esc(l)).join("<br>"):"まだ記録がありません。"}</div></div></details>`;
   el.innerHTML=html;
   wireGuide(el);
   wireEntryButtons(el);
@@ -3289,12 +3308,12 @@ function renderStable(){
     if(cur) return eligible(hh,cur);
     return eligibleAt(hh,race,ageAtRaceMonth(hh,race.month,race.week),race.weeks||0);
   };
-  el.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.plan]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${hh.name}は「${race.name}」の出走条件を満たしていません（${rs}）。`); return; } const doReg=()=>{ registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }; if(hh.entry&&hh.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${hh.name}は「${hh.entry.name}」にエントリー中です。取り消して「${race.name}」に登録し直します。`,doReg); return; } doReg(); }));
+  el.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.plan]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } const doReg=()=>{ registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }; if(hh.entry&&hh.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${esc(hh.name)}は「${esc(hh.entry.name)}」にエントリー中です。取り消して「${esc(race.name)}」に登録し直します。`,doReg); return; } doReg(); }));
   /* 秘書パネル（全馬提案）からの導線：詳細で候補を見る／ベスト候補をその場で登録 */
   el.querySelectorAll("[data-sugsel]").forEach(b=>b.addEventListener("click",()=>{ S.selected=+b.dataset.sugsel; detailOpen=true; renderAll(); const d=$("#hdetail"); if(d) d.scrollIntoView({behavior:"smooth",block:"start"}); }));
-  el.querySelectorAll("[data-sugreg]").forEach(b=>b.addEventListener("click",()=>{ const hh=S.horses.find(x=>x.id===+b.dataset.sugreg); if(!hh||hh.entry)return; const sgs=suggestNextRaces(hh); const pk=sgs.list[0]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${hh.name}は「${race.name}」の出走条件を満たしていません（${rs}）。`); return; } registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }));
+  el.querySelectorAll("[data-sugreg]").forEach(b=>b.addEventListener("click",()=>{ const hh=S.horses.find(x=>x.id===+b.dataset.sugreg); if(!hh||hh.entry)return; const sgs=suggestNextRaces(hh); const pk=sgs.list[0]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }));
   wireEntryButtons(el);
-  el.querySelectorAll("[data-plan-go]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.planGo]; if(!pk)return; const race=pk.race; const cur=S.races.find(x=>x.id===race.id); const rs=cur?eligible(hh,cur):"今週のレースではありません"; if(rs){ alert2("出走できません",`${hh.name}は「${race.name}」に出走できません（${rs}）。`); return; } hh.nextPlan=race.name; S.selRace=race.id; raceState.rivals=null; switchView("race"); }));
+  el.querySelectorAll("[data-plan-go]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.planGo]; if(!pk)return; const race=pk.race; const cur=S.races.find(x=>x.id===race.id); const rs=cur?eligible(hh,cur):"今週のレースではありません"; if(rs){ alert2("出走できません",`${esc(hh.name)}は「${esc(race.name)}」に出走できません（${rs}）。`); return; } hh.nextPlan=race.name; S.selRace=race.id; raceState.rivals=null; switchView("race"); }));
 }
 function buyHorse(id){
   const h=S.market.find(x=>x.id===id); if(!h)return;
@@ -3304,7 +3323,7 @@ function buyHorse(id){
 }
 function retireHorse(id){
   const h=S.horses.find(x=>x.id===id); if(!h)return;
-  confirm2(`${h.name} を引退させますか？`, h.sex==="牝"?"繁殖牝馬として生産パートで使えます。":h.sex==="牡"?"種牡馬として生産パートで使えます。":"騸馬は繁殖に使えません。",
+  confirm2(`${esc(h.name)} を引退させますか？`, h.sex==="牝"?"繁殖牝馬として生産パートで使えます。":h.sex==="牡"?"種牡馬として生産パートで使えます。":"騸馬は繁殖に使えません。",
   ()=>{
     S.horses=S.horses.filter(x=>x.id!==id);
     if(h.sex==="牝") S.mares.push(h);
@@ -3319,7 +3338,7 @@ function retireHorse(id){
 function renderTrain(){
   const el=$("#v-train"); const h=selHorse();
   if(!h){el.innerHTML=`<p class="small">所有馬がいません。</p>`;return;}
-  let html=`<h2 class="sec">調教する馬</h2><div class="flex">${S.horses.map(x=>`<button class="btn sm ${x.id===h.id?"":"ghost"}" data-th="${x.id}">${x.name}</button>`).join("")}</div>`;
+  let html=`<h2 class="sec">調教する馬</h2><div class="flex">${S.horses.map(x=>`<button class="btn sm ${x.id===h.id?"":"ghost"}" data-th="${x.id}">${esc(x.name)}</button>`).join("")}</div>`;
   html+=`<div class="mt">${horseMini(h)}</div>`;
   /* 調教師プロフィール */
   html+=`<details class="fold"><summary>調教師について（${TRAINER.name}）</summary><div class="foldbody"><div class="panel"><b>調教師：${TRAINER.name}</b> <span class="small">${TRAINER.desc}</span><br>
@@ -3341,7 +3360,7 @@ function renderTrain(){
    <label class="small"><input type="checkbox" id="plan-weak" ${p.weakFocus?"checked":""} style="min-height:0"> 弱点重点</label>
   </div>
   <p class="small">手動の調教は「今週だけ手動」として扱われ、その週は指示の自動実行より優先されます（翌週からは指示に戻ります）。</p></div>`;
-  if(h.entry) html+=`<div class="entryline ${entryWeeksLeft(h)<=0?"now":""}">🏁 <b>${h.name}</b> は <b>${entryLabel(h.entry)}</b> にエントリー中 <span class="bigcount ${entryWeeksLeft(h)<=0?"now":""}">${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}</span><span class="small">調教はこのレースの距離・馬場に向けた仕上げがおすすめです。</span></div>`;
+  if(h.entry) html+=`<div class="entryline ${entryWeeksLeft(h)<=0?"now":""}">🏁 <b>${esc(h.name)}</b> は <b>${esc(entryLabel(h.entry))}</b> にエントリー中 <span class="bigcount ${entryWeeksLeft(h)<=0?"now":""}">${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}</span><span class="small">調教はこのレースの距離・馬場に向けた仕上げがおすすめです。</span></div>`;
   /* 調教師のおすすめ提案（状態に応じて最大3件・ワンタップ実行） */
   const recs=trainerSuggest(h);
   html+=`<h2 class="sec">調教師のおすすめ <span class="tag">状態を見て提案</span></h2><div class="panel"><div class="flex" style="align-items:flex-start">${trainerFaceSVG()}<div style="flex:1;min-width:200px"><b>調教師・${TRAINER.name}</b> <span class="small">方針：${TRAINER.policy} ― ${TRAINER.desc}</span>
@@ -3538,7 +3557,7 @@ function breedEvalHTML(s,m){
   const ev=evalBreed(s,m); if(!ev)return `<p class="small">繁殖牝馬を選ぶと配合評価が表示されます。</p>`;
   const th=ev.theory; const P=pedigreeOf(s.name,m);
   const dangerStars="★".repeat(Math.min(5,Math.ceil(th.danger/2)))+"☆".repeat(Math.max(0,5-Math.ceil(th.danger/2)));
-  const pedRow=(a,label)=> a? `<td><b style="${th.inbred&&th.inbred.names.includes(a.name)?"color:#b02020":""}">${a.name}</b>${a.damSire?'<span class="mk hot">母</span>':""}${th.inbred&&th.inbred.full.includes(a.name)?'<span class="mk hot">全</span>':""}<span class="mk">${a.parent}</span>${a.grade?`<span class="mk hot">${a.grade}種牡馬</span>`:""}<span class="mk">${a.type==="SP"?"SP":a.type==="ST"?"ST":"中間"}</span><span class="mk">${lineOf(a.name).pop}</span>${(a.factors||[]).map(f=>`<span class="mk">${ABNAME[f]}</span>`).join("")}</td>`:`<td>―</td>`;
+  const pedRow=(a,label)=> a? `<td><b style="${th.inbred&&th.inbred.names.includes(a.name)?"color:#b02020":""}">${esc(a.name)}</b>${a.damSire?'<span class="mk hot">母</span>':""}${th.inbred&&th.inbred.full.includes(a.name)?'<span class="mk hot">全</span>':""}<span class="mk">${a.parent}</span>${a.grade?`<span class="mk hot">${a.grade}種牡馬</span>`:""}<span class="mk">${a.type==="SP"?"SP":a.type==="ST"?"ST":"中間"}</span><span class="mk">${lineOf(a.name).pop}</span>${(a.factors||[]).map(f=>`<span class="mk">${ABNAME[f]}</span>`).join("")}</td>`:`<td>―</td>`;
   const g2=P.anc.filter(a=>a.gen===2), g3=P.anc.filter(a=>a.gen===3).slice(0,4);
   const ss=sireStats(s); const sirePts=Math.round((ss.spd+ss.sta+ss.pow+ss.bst+ss.gut+ss.flx+ss.smt+ss.hlt)/8);
   ensureFullHorse(m); const damPts=Math.round(ABS9.reduce((a,[k])=>a+(m[k]||0),0)/9);
@@ -3555,11 +3574,11 @@ function breedEvalHTML(s,m){
   const modTxt=Object.keys(th.mods||{}).length? Object.keys(th.mods).map(k=>`${k==="life"?"競走寿命":ABNAME[k]} +${th.mods[k]}`).join("／") : "なし";
   const nickTxt = NICKS[P.sire.name+"×"+P.damSire.name] ? `<span style="color:#20548f;font-weight:800">繁栄</span>` : (P.sire.parent===P.damSire.parent? `<span style="color:#1d7a3c;font-weight:800">安定</span>` : `<span style="color:#b02020;font-weight:800">衰退寄り</span>`);
   return `<div class="parentgrid">
-   <div class="parentcard"><div class="small">父（種牡馬）</div><div class="pc-name">${s.name}</div>
+   <div class="parentcard"><div class="small">父（種牡馬）</div><div class="pc-name">${esc(s.name)}</div>
     <div class="small">系統：${sL.parent}／${sL.type==="SP"?"SP系統":sL.type==="ST"?"ST系統":"中間"}${sL.grade?`／${sL.grade}種牡馬`:""}／${sL.pop}</div>
     <div class="small">因子：${(sL.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ")||"なし"}</div>
     <div class="small">素質点 <b style="font-size:16px">${sirePts}</b>／種付料 ${s.fee?fmt(s.fee)+"万円":"自家（無料）"}</div></div>
-   <div class="parentcard"><div class="small">母（繁殖牝馬）</div><div class="pc-name">${m.name}</div>
+   <div class="parentcard"><div class="small">母（繁殖牝馬）</div><div class="pc-name">${esc(m.name)}</div>
     <div class="small">母父系統：${dL.parent}／${dL.type==="SP"?"SP系統":dL.type==="ST"?"ST系統":"中間"}／牝系：${m.famousDam?"名牝系":(m.damLine==="主流"?"主流牝系":"一般牝系")}</div>
     <div class="small">因子：${(dL.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ")||"なし"}／戦績 ${m.races}戦${m.wins}勝</div>
     <div class="small">素質点 <b style="font-size:16px">${damPts}</b>／芝${m.turf} ダ${m.dirt}／距離 ${m.dmin}〜${m.dmax}m</div></div>
@@ -3571,7 +3590,7 @@ function breedEvalHTML(s,m){
    <div class="evalbox"><div class="el">傾向の出やすさ</div><div class="ev" style="font-size:16px">${TRENDS[ev.domTrend].n}</div><div class="small">切${ev.trendChild.kire}／持${ev.trendChild.jizoku}／消${ev.trendChild.shoumo}／ニックス傾向 ${nickTxt}</div></div>
   </div>
   <details class="fold"><summary>配合理論・血統表をくわしく見る</summary><div class="foldbody"><div class="mt"><b>成立する配合理論</b>${th.theories.length? th.theories.map(x=>`<div class="theoryrow"><span class="trait plus">${x.n}</span> <span class="stars">${starsStr(x.spdStar||0)}</span> <span class="small">爆発力寄与 ${x.spdStar? "★×"+x.spdStar : "スピード以外"}</span><br><span class="small">${x.txt}</span></div>`).join("") : `<div class="small">成立する理論はありません</div>`}</div>
-  <div class="mt"><b>活力源化</b><div class="small">${vigor.length? vigor.map(a=>`${a.name}（${a.gen}代・${a.grade?a.grade+"種牡馬・":""}${(a.factors||[]).map(f=>ABNAME[f]).join("／")||"因子なし"}）`).join("、") : "対象となる先祖はいません"}<br>格付けのある先祖や因子を持つ先祖が、産駒の生命力（競走寿命）を底上げします。</div></div>
+  <div class="mt"><b>活力源化</b><div class="small">${vigor.length? vigor.map(a=>`${esc(a.name)}（${a.gen}代・${a.grade?a.grade+"種牡馬・":""}${(a.factors||[]).map(f=>ABNAME[f]).join("／")||"因子なし"}）`).join("、") : "対象となる先祖はいません"}<br>格付けのある先祖や因子を持つ先祖が、産駒の生命力（競走寿命）を底上げします。</div></div>
   <div class="mt"><b>因子の遺伝確率</b><div style="margin-top:5px">${facProb.length? facProb.map(x=>{ const d=Math.round(30+x.prob*0.55); return `<span style="display:inline-block;text-align:center;margin:0 7px 4px 0"><span class="faccirc" style="width:${d}px;height:${d}px;font-size:${d>=52?14:11.5}px">${x.prob}%</span><br><span class="small">${ABNAME[x.f]}</span></span>`; }).join("") : '<span class="small">継承しうる因子はありません</span>'}<div class="small">丸の大きさ＝遺伝確率（血統内にその因子を持つ先祖が多いほど高くなります）</div></div></div>
   ${breedSel.sub?`<div class="mt panel" style="background:var(--panel2)"><b>サブパラ評価</b><div class="small" style="margin-top:4px">能力補正の内訳：${modTxt}<br>サブパラ爆発：${subTxt}<br>産駒の傾向適応の目安：切れ味 ${ev.trendChild.kire}／持続力 ${ev.trendChild.jizoku}／消耗戦 ${ev.trendChild.shoumo}</div></div>`:`<div class="mt small">能力補正・サブパラ爆発の内訳は「サブパラ評価」ボタンで表示できます。</div>`}
   <table class="pedigree mt"><tr><th>世代</th><th>父系</th><th>母系</th></tr>
@@ -3588,23 +3607,23 @@ function renderBreed(){
   ${(month()===5||month()===6)?`<p class="small">🌸 いまは種付け期間です。受胎結果は月末に判明します。</p>`:`<p class="small">現在 ${month()}月：種付け期間（5〜6月）ではありません。配合評価・シミュレートは年中できます。</p>`}
   <p class="small">繁殖牝馬の繋養上限 ${mares.length}/${mareCap()}頭（厩舎の拡張で増加）</p>
   <div class="flex">
-   <label class="small">種牡馬 <select id="br-s">${ownSt.map((s,i)=>`<option value="${i}" ${breedSel.s===i?"selected":""}>${s.name}（速${s.spd>0?"+"+s.spd:s.spd}／ス${s.sta>0?"+"+s.sta:s.sta}／パ${s.pow>0?"+"+s.pow:s.pow}／瞬${s.bst>0?"+"+s.bst:s.bst}／根${s.gut>0?"+"+s.gut:s.gut}${s.fee?`・種付料${s.fee}万`:"・自家"}）</option>`).join("")}</select></label>
-   <label class="small">繁殖牝馬 <select id="br-m">${mares.length?mares.map((m,i)=>`<option value="${i}" ${breedSel.m===i?"selected":""}>${m.name}（${m.races}戦${m.wins}勝・速${m.spd} ス${m.sta}）</option>`).join(""):`<option value="-1">（引退した牝馬がいません）</option>`}</select></label>
+   <label class="small">種牡馬 <select id="br-s">${ownSt.map((s,i)=>`<option value="${i}" ${breedSel.s===i?"selected":""}>${esc(s.name)}（速${s.spd>0?"+"+s.spd:s.spd}／ス${s.sta>0?"+"+s.sta:s.sta}／パ${s.pow>0?"+"+s.pow:s.pow}／瞬${s.bst>0?"+"+s.bst:s.bst}／根${s.gut>0?"+"+s.gut:s.gut}${s.fee?`・種付料${s.fee}万`:"・自家"}）</option>`).join("")}</select></label>
+   <label class="small">繁殖牝馬 <select id="br-m">${mares.length?mares.map((m,i)=>`<option value="${i}" ${breedSel.m===i?"selected":""}>${esc(m.name)}（${m.races}戦${m.wins}勝・速${m.spd} ス${m.sta}）</option>`).join(""):`<option value="-1">（引退した牝馬がいません）</option>`}</select></label>
    <button class="btn gold" id="btn-breed" ${mares.length?"":"disabled"}>種付けを登録する（種付料＋150万円）</button>
    <button class="btn ghost" id="btn-sim">${breedSel.sim?"シミュレートを閉じる":"🔍 配合シミュレート"}</button>
    <button class="btn ghost" id="btn-sub">${breedSel.sub?"サブパラ評価を閉じる":"サブパラ評価"}</button>
   </div>
   <div id="breed-eval">${mares.length?breedEvalHTML(ownSt[breedSel.s||0], mares[breedSel.m||0]):`<p class="small mt">繁殖牝馬がいると、相手を選ぶだけで種付け前に評価が見えます。</p>`}</div>
-  ${breedSel.sim&&mares.length?(()=>{ const s2=ownSt[breedSel.s||0], m2=mares[breedSel.m||0]; return `<div class="panel mt" style="background:var(--panel2)"><h3 style="margin-top:0">配合シミュレート（種付けはしません）</h3><table class="pedigree"><tr><th>世代</th><th>父系</th><th>母系</th></tr><tr><td>父母</td><td><b>${s2.name}</b></td><td><b>${m2.name}</b>（${m2.races}戦${m2.wins}勝）</td></tr><tr><td>祖父母</td><td>${s2.own?s2.own.sire:"名種牡馬系"} × ${s2.own?s2.own.dam:"名牝系"}</td><td>${m2.sire} × ${m2.dam}</td></tr><tr><td>産駒予測</td><td colspan="2">適性距離 ${m2.dmin}〜${m2.dmax}m付近／芝${m2.turf}・ダート${m2.dirt}を引き継ぎやすい／傾向は「${TRENDS[evalBreed(s2,m2).domTrend].n}」寄り</td></tr></table>${breedEvalHTML(s2,m2)}</div>`; })():""}
+  ${breedSel.sim&&mares.length?(()=>{ const s2=ownSt[breedSel.s||0], m2=mares[breedSel.m||0]; return `<div class="panel mt" style="background:var(--panel2)"><h3 style="margin-top:0">配合シミュレート（種付けはしません）</h3><table class="pedigree"><tr><th>世代</th><th>父系</th><th>母系</th></tr><tr><td>父母</td><td><b>${esc(s2.name)}</b></td><td><b>${esc(m2.name)}</b>（${m2.races}戦${m2.wins}勝）</td></tr><tr><td>祖父母</td><td>${s2.own?esc(s2.own.sire):"名種牡馬系"} × ${s2.own?esc(s2.own.dam):"名牝系"}</td><td>${esc(m2.sire)} × ${esc(m2.dam)}</td></tr><tr><td>産駒予測</td><td colspan="2">適性距離 ${m2.dmin}〜${m2.dmax}m付近／芝${m2.turf}・ダート${m2.dirt}を引き継ぎやすい／傾向は「${TRENDS[evalBreed(s2,m2).domTrend].n}」寄り</td></tr></table>${breedEvalHTML(s2,m2)}</div>`; })():""}
   ${(()=>{ const s3=ownSt[breedSel.s||0]; if(!s3) return ""; const ss3=sireStats(s3); const pts3=Math.round((ss3.spd+ss3.sta+ss3.pow+ss3.bst+ss3.gut+ss3.flx+ss3.smt+ss3.hlt)/8);
    const ranked=[...ownSt].map(x=>{ const q=sireStats(x); return {n:x.name, p:Math.round((q.spd+q.sta+q.pow+q.bst+q.gut+q.flx+q.smt+q.hlt)/8)}; }).sort((a,b)=>b.p-a.p);
    const rk=ranked.findIndex(x=>x.n===s3.name)+1; const sL3=lineOf(s3.name); const dom3=(lineDominance().find(d=>d.line===sL3.parent)||{pct:0}).pct;
-   return `<div class="mt"><b>種牡馬詳細：${s3.name}</b><div class="small">種付料 ${s3.fee?fmt(s3.fee)+"万円":"自家（無料）"}／サイアーランキング <b>${rk}位</b>（繋養 ${ownSt.length}頭中・素質点 ${pts3}）／系統：${sL3.parent}（支配率 ${dom3}%・${lineStatus(sL3.parent)}）<br>素質：速${ss3.spd} ス${ss3.sta} パ${ss3.pow} 瞬${ss3.bst} 根${ss3.gut} 柔${ss3.flx} 賢${ss3.smt} 健${ss3.hlt}</div></div>`; })()}
+   return `<div class="mt"><b>種牡馬詳細：${esc(s3.name)}</b><div class="small">種付料 ${s3.fee?fmt(s3.fee)+"万円":"自家（無料）"}／サイアーランキング <b>${rk}位</b>（繋養 ${ownSt.length}頭中・素質点 ${pts3}）／系統：${sL3.parent}（支配率 ${dom3}%・${lineStatus(sL3.parent)}）<br>素質：速${ss3.spd} ス${ss3.sta} パ${ss3.pow} 瞬${ss3.bst} 根${ss3.gut} 柔${ss3.flx} 賢${ss3.smt} 健${ss3.hlt}</div></div>`; })()}
   <details class="fold"><summary>系統一覧・ニックス表をくわしく見る</summary><div class="foldbody"><div class="mt"><b>系統一覧（支配率）</b>${lineDominance().map(d=>`<div class="stat"><span style="min-width:118px">${d.line}</span><span class="facbar"><i class="base" style="width:${Math.min(100,d.pct)}%"></i></span><b>${d.pct}%</b><span class="small">${lineStatus(d.line)}</span></div>`).join("")||'<div class="small">まだデータがありません</div>'}</div>
   <div class="mt"><b>ニックス表</b><table class="mt"><tr><th>父 × 母父</th><th>評価</th></tr>${Object.keys(NICKS).map(k=>`<tr><td>${k}</td><td><b>${NICKS[k]}級</b> ニックス</td></tr>`).join("")||'<tr><td colspan="2">登録なし</td></tr>'}</table></div>
   <p class="small mt">種付けは5〜6月のみ。受胎は月末に判明（不受胎なら6月に再種付け可）、受胎した牝馬から翌年4月に幼駒が誕生し、牧場で自動育成されます。配合理論（インブリード／ラインブリード／ニックス／昇華など）は評価に反映され、仔馬の素質・危険度・競走寿命に効きます。</p>
   <div class="mt"><b>血統支配率（系統の広がり）</b><br>${lineDominance().map(d=>`<span class="small">${d.line} ${d.pct}%（${lineStatus(d.line)}）</span>`).join(" ／ ")||'<span class="small">まだデータがありません</span>'}<br><span class="small">支配率が上がると子系統→親系統→世界系統へ昇格し、理論が成立しやすくなります（世界系統では芝質適性の幅も広がります）。</span></div></div></details></div>`;
-  html+=(()=>{ const s4=ownSt[breedSel.s||0], m4=mares[breedSel.m||0]; if(!s4||!m4) return ""; return `<div class="actionbar"><span class="ab-name">🌱 ${s4.name} × ${m4.name}</span><span class="ab-cost">種付料など ${fmt((s4.fee||0)+150)}万円／種付けは5〜6月</span><span style="flex:1"></span><button class="btn gold sm" id="btn-breed2">この配合で種付けを登録</button></div>`; })();
+  html+=(()=>{ const s4=ownSt[breedSel.s||0], m4=mares[breedSel.m||0]; if(!s4||!m4) return ""; return `<div class="actionbar"><span class="ab-name">🌱 ${esc(s4.name)} × ${esc(m4.name)}</span><span class="ab-cost">種付料など ${fmt((s4.fee||0)+150)}万円／種付けは5〜6月</span><span style="flex:1"></span><button class="btn gold sm" id="btn-breed2">この配合で種付けを登録</button></div>`; })();
   html+=`<h2 class="sec">繁殖牝馬 <span class="tag">${mares.length}頭</span></h2><div>`;
   if(!mares.length) html+=`<p class="small">まだいません。牝馬を引退させると繁殖入りします。</p>`;
   mares.forEach(m=>{html+=horseMini(m);});
@@ -3622,7 +3641,7 @@ function doBreed(){
   const s=S.stallions[breedSel.s||0], m=S.mares[breedSel.m||0]; if(!s||!m)return;
   const mo=month();
   if(!(mo===5||mo===6)){ alert2("種付け期間外です","種付けは5〜6月のみ可能です（受胎は月末に判明し、翌年4月に誕生します）。配合評価とシミュレートは年中できます。"); return; }
-  if(m.pregnant){ alert2("種付けできません",`${m.name} は今年すでに種付け済みです。`); return; }
+  if(m.pregnant){ alert2("種付けできません",`${esc(m.name)} は今年すでに種付け済みです。`); return; }
   if((S.mares||[]).length>mareCap()){ alert2("繋養上限","厩舎の繋養上限を超えています。牧場で厩舎を拡張してください。"); return; }
   const cost=(s.fee||0)+150;
   if(S.funds<cost){alert2("資金が足りません",`種付けには ${fmt(cost)}万円 が必要です。`);return;}
@@ -3634,7 +3653,7 @@ function doBreed(){
   S.pregnant.push({mareId:m.id, sireName:s.name, theory:{burst:th.burst, danger:th.danger, mods:th.mods, sub:th.sub, theories:th.theories, sireFactors:(P.sire.factors||[])}, judged:false, ok:false, dueYear:0});
   m.pregnant=true;
   log(`種付けを登録：${s.name} × ${m.name}（受胎判定は月末）`);
-  alert2("種付けを登録しました",`${s.name} × ${m.name}<br>受胎結果は月末に判明します。受胎すれば翌年4月に幼駒が誕生し、牧場で育成されます。<br><span class="small">成立理論：${th.theories.map(t=>t.n).join("、")||"なし"}</span>`);
+  alert2("種付けを登録しました",`${esc(s.name)} × ${esc(m.name)}<br>受胎結果は月末に判明します。受胎すれば翌年4月に幼駒が誕生し、牧場で育成されます。<br><span class="small">成立理論：${th.theories.map(t=>t.n).join("、")||"なし"}</span>`);
   renderAll();
 }
 /* 血統支配率と系統確立 */
@@ -3655,27 +3674,27 @@ function lineStatus(line){
 /* ============ 週進行 ============ */
 function showYearEnd(data){
   const box=$("#overlay-box"); box.classList.add("wide");
-  const retireList=data.retire.length?data.retire.map(h=>`<div class="ticket">${h.name}（${h.age}歳・${h.races}戦${h.wins}勝）― ${h.age>=7?"高齢のため繁殖・引退の検討を":"戦績と年齢から引退検討対象"} <button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
+  const retireList=data.retire.length?data.retire.map(h=>`<div class="ticket">${esc(h.name)}（${h.age}歳・${h.races}戦${h.wins}勝）― ${h.age>=7?"高齢のため繁殖・引退の検討を":"戦績と年齢から引退検討対象"} <button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
   /* 明け2歳の幼駒の処遇（入厩／売却／クラブ募集）と牧場長コメント */
   const young2=(S.youngStock||[]).filter(y=>y.age>=2);
-  const youngHTML= young2.length? `<p><b>明け2歳の処遇</b></p>`+young2.map(y=>{ const mgrC=`牧場長：${(y.spd+y.bst)>=150?"脚の速さは一級品。":(y.sta>=75?"スタミナ豊富で距離が持つ。":"バランス型で堅実。")}判明度${y.known||0}%`; return `<div class="ticket"><b>${y.name}</b>（父 ${y.sire}）<br><span class="small">${mgrC}</span><br><input type="text" id="ye-name-${y.id}" value="${y.name}" maxlength="12" style="width:130px"> <button class="btn sm" data-ye-in="${y.id}">入厩させる</button> <button class="btn ghost sm" data-ye-sell="${y.id}">売却（${fmt(Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12))}万円）</button> <button class="btn ghost sm" data-ye-club="${y.id}" ${S.club?"":"disabled"}>クラブ募集へ</button></div>`; }).join("") : "";
+  const youngHTML= young2.length? `<p><b>明け2歳の処遇</b></p>`+young2.map(y=>{ const mgrC=`牧場長：${(y.spd+y.bst)>=150?"脚の速さは一級品。":(y.sta>=75?"スタミナ豊富で距離が持つ。":"バランス型で堅実。")}判明度${y.known||0}%`; return `<div class="ticket"><b>${esc(y.name)}</b>（父 ${esc(y.sire)}）<br><span class="small">${mgrC}</span><br><input type="text" id="ye-name-${y.id}" value="${esc(y.name)}" maxlength="12" style="width:130px"> <button class="btn sm" data-ye-in="${y.id}">入厩させる</button> <button class="btn ghost sm" data-ye-sell="${y.id}">売却（${fmt(Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12))}万円）</button> <button class="btn ghost sm" data-ye-club="${y.id}" ${S.club?"":"disabled"}>クラブ募集へ</button></div>`; }).join("") : "";
   /* 年間表彰とお守り */
   let awardHTML="";
-  if(data.topEarner){ addCharm("copper",1); awardHTML=`<p>🏅 部門表彰：${data.topEarner.name} が厩舎の最高賞金馬（お守り・銅を獲得）</p>`; if((data.topEarner.yearEarnings||0)>=100000){ addCharm("silver",1); awardHTML+=`<p>🏅 年度代表級の活躍（年間1億円超）につき、お守り・銀を獲得</p>`; } }
+  if(data.topEarner){ addCharm("copper",1); awardHTML=`<p>🏅 部門表彰：${esc(data.topEarner.name)} が厩舎の最高賞金馬（お守り・銅を獲得）</p>`; if((data.topEarner.yearEarnings||0)>=100000){ addCharm("silver",1); awardHTML+=`<p>🏅 年度代表級の活躍（年間1億円超）につき、お守り・銀を獲得</p>`; } }
   /* 年末の特別入手（お守りの使い道）：輸入馬・特別な繁殖牝馬 */
   const charmHTML=`<p><b>お守りの使い道</b><br><span class="small">お守り（緑）3個で、年末に特別な繁殖牝馬を迎えられます。</span> ${(S.charms.green||0)>=3?`<button class="btn sm" id="ye-charm-mare">お守り（緑）3個で特別な繁殖牝馬を迎える</button>`:`<span class="small">現在 緑 ${(S.charms.green||0)}個</span>`}</p>
-  <p><b>クラブ</b><br>${S.club?`<span class="small">設立済み（${S.club.name}）</span>`:`<button class="btn sm" id="ye-club">クラブを設立する</button>`}</p>`;
+  <p><b>クラブ</b><br>${S.club?`<span class="small">設立済み（${esc(S.club.name)}）</span>`:`<button class="btn sm" id="ye-club">クラブを設立する</button>`}</p>`;
   showOverlay(`<h2>🎍 年末処理 ― ${data.year}年目のまとめ</h2>
   <p><b>厩舎表彰</b><br>最多勝馬：${data.mostWins?data.mostWins.name+"（"+(data.mostWins.yearWins||0)+"勝）":"該当なし"}<br>最高賞金馬：${data.topEarner?data.topEarner.name+"（今年 "+fmt(data.topEarner.yearEarnings||0)+"万円／通算 "+fmt(data.topEarner.earnings)+"万円）":"該当なし"}<br>G1勝利：通算 ${S.champions}回／生産：${S.foals}頭／資金：${fmt(S.funds)}万円</p>
   ${awardHTML}
-  ${data.topEarner?(()=>{ const ab=legendAboveBelow(data.topEarner.earnings||0); const lowest=[...LEGENDS].sort((a,b)=>a.earn-b.earn)[0]; return `<p><b>歴代名馬との比較</b><br>${data.topEarner.name}の通算獲得賞金 ${fmt(data.topEarner.earnings||0)}万円は、${ab.isTop?`歴代名馬の最高額を超えています。`:ab.below?`歴代名馬 <b>${ab.below.n}</b>（${fmt(ab.below.earn)}万円）を超えました。${ab.above?`次の目標は <b>${ab.above.n}</b>（${fmt(ab.above.earn)}万円）です。`:""}`:`歴代名馬の殿堂入りライン（${lowest.n} ${fmt(lowest.earn)}万円）まであと ${fmt(lowest.earn-(data.topEarner.earnings||0))}万円です。`}名馬ランキングで全馬と比較できます。</p>`; })():""}
+  ${data.topEarner?(()=>{ const ab=legendAboveBelow(data.topEarner.earnings||0); const lowest=[...LEGENDS].sort((a,b)=>a.earn-b.earn)[0]; return `<p><b>歴代名馬との比較</b><br>${esc(data.topEarner.name)}の通算獲得賞金 ${fmt(data.topEarner.earnings||0)}万円は、${ab.isTop?`歴代名馬の最高額を超えています。`:ab.below?`歴代名馬 <b>${ab.below.n}</b>（${fmt(ab.below.earn)}万円）を超えました。${ab.above?`次の目標は <b>${ab.above.n}</b>（${fmt(ab.above.earn)}万円）です。`:""}`:`歴代名馬の殿堂入りライン（${lowest.n} ${fmt(lowest.earn)}万円）まであと ${fmt(lowest.earn-(data.topEarner.earnings||0))}万円です。`}名馬ランキングで全馬と比較できます。</p>`; })():""}
   <p><b>世代更新</b><br>${data.aged.length?data.aged.map(h=>h.name+" → "+h.age+"歳").join("、"):"加齢対象なし"}</p>
   ${youngHTML}
   ${charmHTML}
   <p><b>引退勧告</b></p>${retireList}
   <div style="text-align:center;margin-top:12px"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none';document.getElementById('overlay-box').classList.remove('wide')">新年を始める</button></div>`);
   box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ document.getElementById('overlay').style.display='none'; box.classList.remove("wide"); retireHorse(+b.dataset.yeRetire); }));
-  box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; const nm=($("#ye-name-"+y.id)||{}).value; if(nm)y.name=nm.trim().replace(/[<>&"]/g,"")||y.name; y.age=2; y.known=100; S.horses.push(y); S.youngStock=S.youngStock.filter(x=>x!==y); log(`🐴 ${y.name} が入厩（明け2歳）`); b.parentElement.innerHTML=`<b>${y.name}</b> 入厩しました`; renderAll(); }));
+  box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; const nm=($("#ye-name-"+y.id)||{}).value; if(nm)y.name=nm.trim().replace(/[<>&"]/g,"")||y.name; y.age=2; y.known=100; S.horses.push(y); S.youngStock=S.youngStock.filter(x=>x!==y); log(`🐴 ${y.name} が入厩（明け2歳）`); b.parentElement.innerHTML=`<b>${esc(y.name)}</b> 入厩しました`; renderAll(); }));
   box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; const price=Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12); S.funds+=price; S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} を ${fmt(price)}万円で売却`); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; renderAll(); }));
   box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; S.club.offers=S.club.offers||[]; S.club.offers.push({name:y.name, price:Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*20), filled:false}); S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} をクラブ募集馬に回した`); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; renderAll(); }));
   const cm=$("#ye-charm-mare"); if(cm) cm.addEventListener("click",()=>{ if((S.charms.green||0)<3)return; S.charms.green-=3; const m=newHorse({base:74, age:5, sex:"牝"}); m.famousDam=true; S.mares.push(m); log(`🧧 お守りと引き換えに特別な繁殖牝馬「${m.name}」が来た（名牝系）`); cm.disabled=true; renderAll(); });
@@ -3936,15 +3955,15 @@ function renderRace(){
   if(cardFocus&&r) html=`<button class="btn ghost sm" id="btn-cardback" style="margin-bottom:10px">← レース一覧に戻る</button>`;
   if(r){
     const eh0=S.horses.find(h=>h.id===S.selected&&!eligible(h,r))||S.horses.find(h=>!eligible(h,r));
-    if(cardFocus){ const ph0=eh0||selHorse(); if(ph0) html+=`<div class="panel paddock"><div class="pad-art">${gallopArtHTML(ph0)}</div><div class="pad-info"><div class="pad-name">${ph0.name}</div><div class="small">${r.name}／${r.course} ${r.surf}${r.dist}m・馬場${r.ground}／${CLASSES[r.cls]}</div><div class="small">作戦・騎手・観戦方法と、自馬の単勝馬券は下の設定で完結します</div></div></div>`; }
+    if(cardFocus){ const ph0=eh0||selHorse(); if(ph0) html+=`<div class="panel paddock"><div class="pad-art">${gallopArtHTML(ph0)}</div><div class="pad-info"><div class="pad-name">${esc(ph0.name)}</div><div class="small">${r.name}／${r.course} ${r.surf}${r.dist}m・馬場${r.ground}／${CLASSES[r.cls]}</div><div class="small">作戦・騎手・観戦方法と、自馬の単勝馬券は下の設定で完結します</div></div></div>`; }
     html+=`<h2 class="sec">出馬表：${r.name}</h2><div class="panel" id="entry-panel">
     <div class="flex"><span class="small">出走させる馬</span>
-    <select id="entry-horse">${S.horses.map(h=>{const e=eligible(h,r);return `<option value="${h.id}" ${e?"disabled":""} ${eh0&&h.id===eh0.id?"selected":""}>${h.name}（${classLabel(h)}）${e?" ― "+e:""}</option>`;}).join("")}</select>
+    <select id="entry-horse">${S.horses.map(h=>{const e=eligible(h,r);return `<option value="${h.id}" ${e?"disabled":""} ${eh0&&h.id===eh0.id?"selected":""}>${esc(h.name)}（${classLabel(h)}）${e?" ― "+e:""}</option>`;}).join("")}</select>
     <button class="btn gold" id="btn-start">🏁 レース開始</button></div>
     ${eh0?(()=>{ const ent=entryOf(eh0); const isThis=ent&&ent.name===r.name&&ent.absWeek===S.week;
-      if(isThis) return `<div class="entryline now">📌 <b>${eh0.name}</b> はこのレースに <b>エントリー済み</b> です。今週がレース週のため、走るか取り消すまで週は進みません。<button class="btn ghost sm" data-entry-cancel="${eh0.id}">エントリー取消</button></div>`;
-      if(ent) return `<div class="entryline">📌 <b>${eh0.name}</b> は「${ent.name}」まであと <b>${Math.max(0,ent.absWeek-S.week)}週</b> にエントリー中です。このレースにも登録する場合は、先にそちらを取り消してください。</div>`;
-      return `<div class="entryline">📌 このレースを目標にする：<button class="btn sm" id="btn-entry">${eh0.name} をエントリーする</button><span class="small">エントリーすると、そのレースに向けて予定が組まれ、レース週を勝手に過ぎなくなります。</span></div>`; })():""}
+      if(isThis) return `<div class="entryline now">📌 <b>${esc(eh0.name)}</b> はこのレースに <b>エントリー済み</b> です。今週がレース週のため、走るか取り消すまで週は進みません。<button class="btn ghost sm" data-entry-cancel="${eh0.id}">エントリー取消</button></div>`;
+      if(ent) return `<div class="entryline">📌 <b>${esc(eh0.name)}</b> は「${esc(ent.name)}」まであと <b>${Math.max(0,ent.absWeek-S.week)}週</b> にエントリー中です。このレースにも登録する場合は、先にそちらを取り消してください。</div>`;
+      return `<div class="entryline">📌 このレースを目標にする：<button class="btn sm" id="btn-entry">${esc(eh0.name)} をエントリーする</button><span class="small">エントリーすると、そのレースに向けて予定が組まれ、レース週を勝手に過ぎなくなります。</span></div>`; })():""}
     <details class="fold"><summary>展開予想・傾向などの直前情報</summary><div class="foldbody"><div id="trend-box"></div><div id="formation-box" class="mt"></div></div></details>
     <div class="mt"><table id="card-table"></table></div>
     <p class="small">行をタップすると詳細が開きます。自馬の行を開くと作戦設定が出ます。</p>
@@ -3954,14 +3973,14 @@ function renderRace(){
   /* 先行エントリー：今後の重賞（最大12週先まで）に、選択中の馬で登録できる */
   const fh=selHorse();
   const futs=GRADED.concat(OVERSEAS_RACES, EXCHANGE_RACES).map(g=>({g,w:weeksUntilRace(g)})).filter(x=>x.w>=1&&x.w<=12).sort((a,b)=>a.w-b.w).slice(0,12);
-  html+=`<details class="fold"><summary>今後の重賞に先行エントリー（対象馬：${fh?fh.name:"なし"}）</summary><div class="foldbody"><div class="panel">
+  html+=`<details class="fold"><summary>今後の重賞に先行エントリー（対象馬：${fh?esc(fh.name):"なし"}）</summary><div class="foldbody"><div class="panel">
   <p class="small" style="margin-top:0">対象馬は厩舎画面や上の出馬表で選んだ馬です。エントリーすると、そのレースまで「あと○週」と表示され続け、レース週には週送りが止まります。</p>
   ${futs.map(x=>{ const g=x.g; const ent=fh?entryOf(fh):null; const isThis=ent&&ent.name===g.name; const rs=fh? eligibleAt(fh,g,ageAtRaceMonth(fh,g.month,g.week),x.w) : "所有馬がいません";
     return `<div class="entryline"><span class="gtag ${g.cls===8?"G1":g.cls===7?"G2":"G3"}">${CLASSES[g.cls]}</span><b>${g.name}</b><span>${g.course} ${g.surf}${g.dist}m・${g.month}月第${g.week}週</span><span class="bigcount">あと${x.w}週</span>
     ${isThis?`<b>エントリー済み</b><button class="btn ghost sm" data-entry-cancel="${fh.id}">取消</button>`
-      : ent?`<span class="small">（${fh.name}は「${ent.name}」にエントリー中）</span>`
+      : ent?`<span class="small">（${esc(fh.name)}は「${esc(ent.name)}」にエントリー中）</span>`
       : rs?`<span class="disreason">${fh?fh.name+"：":""}${rs}</span>`
-      : `<button class="btn sm" data-future-entry="${g.name}">${fh.name} でエントリー</button>`}</div>`; }).join("")}
+      : `<button class="btn sm" data-future-entry="${g.name}">${esc(fh.name)} でエントリー</button>`}</div>`; }).join("")}
   </div></div></details>
   <details class="fold"><summary>コース分析（競馬場ごとの特徴）</summary><div class="foldbody"><div class="panel">
   <label class="small">競馬場 <select id="course-ana">${COURSES.map(c=>`<option ${c===selCourseAna?"selected":""}>${c}</option>`).join("")}</select></label>
@@ -3974,7 +3993,7 @@ function renderRace(){
   </div></div></details>
   <details class="fold"><summary>レースカレンダー（今後16週の重賞）</summary><div class="foldbody"><div class="panel">
   <div class="calgrid">${[1,2,3,4,5,6,7,8,9,10,11,12].map(mo=>{ const gs=GRADED.filter(g=>g.month===mo); const g1=gs.filter(g=>g.cls===8); return `<div class="calcell"><b>${mo}月</b> 重賞${gs.length}鞍<br>${g1.length? g1.map(g=>`<span class="g1n">${g.name}</span>`).join("、") : '<span class="small">G1なし</span>'}</div>`; }).join("")}</div>
-  <div class="mt">${GRADED.concat(OVERSEAS_RACES, EXCHANGE_RACES).map(g=>({g,w:weeksUntilRace(g)})).filter(x=>x.w>=0&&x.w<=16).sort((a,b)=>a.w-b.w).slice(0,14).map(x=>{ const g=x.g; let fit="―"; if(fh){ const df=distFactorEff(fh,g.dist); const surfOk=(g.surf==="芝"?fh.turf:fh.dirt); fit= df>=1&&rankVal(surfOk)>=3?"◎":df>=0.9&&rankVal(surfOk)>=2?"○":df>=0.75?"△":"×"; } return `<div class="entryline"><span class="gtag ${g.cls===8?"G1":g.cls===7?"G2":"G3"}">${CLASSES[g.cls]}</span><b>${g.name}</b><span>${g.course} ${g.surf}${g.dist}m・${g.month}月第${g.week}週</span><span class="small">${fh?fh.name+"の適性":""}</span><b>${fit}</b><span class="bigcount">${x.w===0?"今週":"あと"+x.w+"週"}</span></div>`; }).join("")||'<p class="small">今後16週の重賞はありません。</p>'}</div>
+  <div class="mt">${GRADED.concat(OVERSEAS_RACES, EXCHANGE_RACES).map(g=>({g,w:weeksUntilRace(g)})).filter(x=>x.w>=0&&x.w<=16).sort((a,b)=>a.w-b.w).slice(0,14).map(x=>{ const g=x.g; let fit="―"; if(fh){ const df=distFactorEff(fh,g.dist); const surfOk=(g.surf==="芝"?fh.turf:fh.dirt); fit= df>=1&&rankVal(surfOk)>=3?"◎":df>=0.9&&rankVal(surfOk)>=2?"○":df>=0.75?"△":"×"; } return `<div class="entryline"><span class="gtag ${g.cls===8?"G1":g.cls===7?"G2":"G3"}">${CLASSES[g.cls]}</span><b>${g.name}</b><span>${g.course} ${g.surf}${g.dist}m・${g.month}月第${g.week}週</span><span class="small">${fh?esc(fh.name)+"の適性":""}</span><b>${fit}</b><span class="bigcount">${x.w===0?"今週":"あと"+x.w+"週"}</span></div>`; }).join("")||'<p class="small">今後16週の重賞はありません。</p>'}</div>
   </div></div></details>
   <p class="small mt">人気・オッズは、戦績・近走・馬場／距離の実績・馬体重・騎手・枠順・休養明けといった公開情報だけで決まります（能力値では決まりません）。</p>`;
   }
@@ -3984,7 +4003,7 @@ function renderRace(){
   el.querySelectorAll("[data-future-entry]").forEach(b=>b.addEventListener("click",()=>{
     const g=GRADED.concat(OVERSEAS_RACES, EXCHANGE_RACES).find(x=>x.name===b.dataset.futureEntry); const h=selHorse(); if(!g||!h)return;
     const w=weeksUntilRace(g); const rs=eligibleAt(h,g,ageAtRaceMonth(h,g.month,g.week),w);
-    if(rs){ alert2("エントリーできません",`${h.name}は「${g.name}」の出走条件を満たしていません（${rs}）。`); return; }
+    if(rs){ alert2("エントリーできません",`${esc(h.name)}は「${esc(g.name)}」の出走条件を満たしていません（${rs}）。`); return; }
     registerEntry(h,g,S.week+w); renderAll();
   }));
   const be=$("#btn-entry"); if(be) be.addEventListener("click",()=>{ const rr=S.races.find(x=>x.id===S.selRace); const hid=+($("#entry-horse")?$("#entry-horse").value:0)||S.selected; const h=S.horses.find(x=>x.id===hid); if(rr&&h){ registerEntry(h,rr,S.week); renderAll(); } });
@@ -4038,7 +4057,7 @@ function renderOwnSettings(r){
     const specOpts=SPECIAL_TACTICS.map(st=>{ const c=specialOK(st,rider,h._gate); const usedN=(raceState.card||[]).filter(x=>x!==h&&x.special===st.id).length; const over=st.limit!=null&&usedN>=st.limit; const dis=!c.ok||over; const needMark=st.need==="front"?FAM_MARK[rider.fam.front]:st.need==="mid"?FAM_MARK[Math.max(rider.fam.front,rider.fam.mid)]:FAM_MARK[Math.max(rider.fam.mid,rider.fam.late)]; return `<option value="${st.id}" ${h.special===st.id?"selected":""} ${dis?"disabled":""}>${st.n}（騎手適性 ${needMark}）${dis?" ― "+(over?"頭数上限です":c.why):" ― "+st.desc}</option>`; }).join("");
     const jockOpts=JOCKEYS.map(j=>{ let note; if(j.id===h.jockey) note="主戦"; else { const chk=requestCheck(h,r,j.id); note=chk.ok?"依頼可":"依頼不可："+chk.why; } return `<option value="${j.id}" ${j.id===(h.reqJockey!=null?h.reqJockey:h.jockey)?"selected":""}>${j.name}（${j.tier}級・友好度${friendshipOf(j.id)}・${j.fee}万円・${note}）</option>`; }).join("");
     return `<div class="ownset" data-ownset="${h.id}">
-    <div class="os-head"><img src="${standSrc(h)}" alt="${h.name}（${COATS[h.coat].n}）"><div style="flex:1;min-width:150px"><b style="font-size:16px">${h._gate}番 ${h.name}</b><br><span class="small">騎乗：${rider.name}／脚質 ${h.style}</span></div><span class="os-ready ${h._cardReady?"ok":"no"}" data-osready="${h.id}">${h._cardReady?"設定完了":"未設定：作戦を選んでください"}</span></div>
+    <div class="os-head"><img src="${standSrc(h)}" alt="${esc(h.name)}（${COATS[h.coat].n}）"><div style="flex:1;min-width:150px"><b style="font-size:16px">${h._gate}番 ${esc(h.name)}</b><br><span class="small">騎乗：${rider.name}／脚質 ${h.style}</span></div><span class="os-ready ${h._cardReady?"ok":"no"}" data-osready="${h.id}">${h._cardReady?"設定完了":"未設定：作戦を選んでください"}</span></div>
     <div class="os-grid">
       <div><label>通常作戦（脚質指示）</label><div class="tacbtns">${TACTICS.map(t=>`<button type="button" data-ostac="${t.id}" data-hid="${h.id}" class="${t.id===tacOf(h).id?"on":""}" title="${t.d}">${t.n}</button>`).join("")}</div><div data-ospos="${h.id}">${posBarHTML(h,true)}</div></div>
       <div><label>ペース指示<select data-os="tac2" data-hid="${h.id}">${TACTIC2.map(t=>`<option value="${t.id}" ${t.id===(h.tactic2||"normal")?"selected":""}>${t.n}${t.d?" ― "+t.d:""}</option>`).join("")}</select></label><div class="tacfit" data-osfit="${h.id}"></div><div class="small" data-osdet="${h.id}"></div></div>
@@ -4048,8 +4067,8 @@ function renderOwnSettings(r){
       <div><label>観戦方法<select data-os="watch">${[["full","フル観戦"],["digest","ダイジェスト（スタート＋最終コーナー少し前〜ゴール）"],["result","結果だけ"]].map(([v,n])=>`<option value="${v}" ${S.watchMode===v?"selected":""}>${n}</option>`).join("")}</select></label><span class="small">馬券画面での作戦変更とも連動します</span></div>
     </div>
     ${(()=>{ const ex=(S.bets||[]).find(b=>b.raceId===r.id&&b.type==="tan"&&b.picks[0]===h._gate);
-      if(ex) return `<div class="ownbet done">🎫 単勝購入済み：<b>${ex.stake.toLocaleString("ja-JP",{maximumFractionDigits:2})}万円</b>（${h._gate}番 ${h.name}・オッズ ${ex.odds}倍）／的中時払戻 <b>${fmt(Math.floor(ex.stake*ex.odds))}万円</b><span class="small">結果画面で精算されます</span></div>`;
-      return `<div class="ownbet"><span>🎫 単勝（${h._gate}番・オッズ <b>${h._tanOdds||"-"}</b>倍）</span><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="100" placeholder="金額（円）" data-osbet-amt="${h.id}" style="width:132px" aria-label="${h.name}の単勝購入金額（円）"><button class="btn gold sm" data-osbet="${h.id}">単勝を買う</button><span class="small" data-osbet-msg="${h.id}">100円単位／資金の範囲で買えます</span></div>`; })()}
+      if(ex) return `<div class="ownbet done">🎫 単勝購入済み：<b>${ex.stake.toLocaleString("ja-JP",{maximumFractionDigits:2})}万円</b>（${h._gate}番 ${esc(h.name)}・オッズ ${ex.odds}倍）／的中時払戻 <b>${fmt(Math.floor(ex.stake*ex.odds))}万円</b><span class="small">結果画面で精算されます</span></div>`;
+      return `<div class="ownbet"><span>🎫 単勝（${h._gate}番・オッズ <b>${h._tanOdds||"-"}</b>倍）</span><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="100" placeholder="金額（円）" data-osbet-amt="${h.id}" style="width:132px" aria-label="${esc(h.name)}の単勝購入金額（円）"><button class="btn gold sm" data-osbet="${h.id}">単勝を買う</button><span class="small" data-osbet-msg="${h.id}">100円単位／資金の範囲で買えます</span></div>`; })()}
     <div class="flex mt"><button class="btn sm" data-osdone="${h.id}">この馬の設定を完了する</button><span class="small">作戦を変えると相性表示がその場で更新されます。全頭の設定完了で「レース開始」が押せます。</span></div>
     </div>`;
   }).join("") + `<div class="flex mt"><button class="btn gold" id="btn-cardstart" disabled>🏁 レース開始（設定完了で押せます）</button></div>`;
@@ -4126,13 +4145,13 @@ function drawCard(r){
   assignPopularity(all,r);
   raceState.card=all;
   const trend=determineTrend(r,all); raceState.trend=trend;
-  const tb=$("#trend-box"); if(tb){ const ma=mine?ensureTrendApt(mine)[trend.key]:null; tb.innerHTML=`<span class="trendtag ${trend.key}">${TRENDS[trend.key].n}</span> <span class="small">${TRENDS[trend.key].d}／${r.course}直線${trend.straight}m・${r.dist}m・脚質構成から判定${mine?`／${mine.name}の適応度 <b>${ma}</b>（${ma>=70?"得意な流れ":ma>=50?"標準":"苦手な流れ・能力割引あり"}）`:""}</span>`; }
+  const tb=$("#trend-box"); if(tb){ const ma=mine?ensureTrendApt(mine)[trend.key]:null; tb.innerHTML=`<span class="trendtag ${trend.key}">${TRENDS[trend.key].n}</span> <span class="small">${TRENDS[trend.key].d}／${r.course}直線${trend.straight}m・${r.dist}m・脚質構成から判定${mine?`／${esc(mine.name)}の適応度 <b>${ma}</b>（${ma>=70?"得意な流れ":ma>=50?"標準":"苦手な流れ・能力割引あり"}）`:""}</span>`; }
   const t=$("#card-table"); if(!t)return;
   const formDisp=h=> h.races===0? "初出走" : (h.form&&h.form.length? h.form.join("・") : "―");
   const rentai=h=> h.races>0? Math.round((h.top2||0)/h.races*100)+"%" : "―";
   const wtDisp=h=>{ ensurePublicRecord(h); if(!h.wPrev) return h.weight+"kg"; const d=h.weight-h.wPrev; return `${h.weight}kg（${d>=0?"+":""}${d}）`; };
   t.innerHTML=`<tr><th>馬名</th><th class="num">人気</th><th class="r">オッズ</th><th>騎手</th><th>近走</th></tr>`+
-   order.map(h=>`<tr class="crow-main ${h===mine?"mine":""}" data-crow="${h._gate}"><td><b>${h._gate}番</b> ${h.name}${h===mine?"（自厩舎）":""}</td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._odds}</td><td>${riderName(h)}</td><td>${formDisp(h)}</td></tr>`+
+   order.map(h=>`<tr class="crow-main ${h===mine?"mine":""}" data-crow="${h._gate}"><td><b>${h._gate}番</b> ${esc(h.name)}${h===mine?"（自厩舎）":""}</td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._odds}</td><td>${riderName(h)}</td><td>${formDisp(h)}</td></tr>`+
    `<tr class="crow-detail" data-crowd="${h._gate}" hidden><td colspan="5"><div class="small" style="line-height:1.7">${h.sex}${h.age}歳／馬体重 ${wtDisp(h)}／連対率 ${rentai(h)}／${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}${h.restW!=null&&h.restW>=10?`／休養${h.restW}週明け`:""}${h.real?`<br>実在馬：${h.realNote||""}`:""}<br>脚質・位置取り：<span data-crowtac="${h.id}">${h.style}・${h===mine?tacOf(h).n+"／"+tac2Of(h).n:tacOf(h).n}</span>${posBarHTML(h,h===mine)}</div>${h===mine&&!eligible(h,r)?`<div id="own-settings"></div>`:""}</td></tr>`).join("");
   t.querySelectorAll("tr.crow-main").forEach(rw=>rw.addEventListener("click",()=>{ const d=t.querySelector(`tr.crow-detail[data-crowd="${rw.dataset.crow}"]`); if(d)d.hidden=!d.hidden; }));
   const fb=$("#formation-box");
@@ -4141,13 +4160,13 @@ function drawCard(r){
     const groups={"先頭":[],"先団":[],"中団":[],"後方":[]}; order.forEach(h2=>groups[grp(h2)].push(h2));
     const frontN=order.filter(h2=>["逃げ","先行"].includes(h2.style)).length;
     const ma2=mine?ensureTrendApt(mine)[trend.key]:null;
-    const secTxt= !mine? "出走馬を選ぶと、秘書の見立てを表示します。" : ma2>=70? `${mine.name}はこの傾向（${TRENDS[trend.key].n}）が得意です。流れに乗せて力を出し切らせましょう。` : ma2>=50? `${mine.name}にとって標準的な流れです。作戦どおり運べば上位を狙えます。` : `${mine.name}にはやや厳しい流れです。温存度の高い作戦で消耗を抑えるのも手です。`;
+    const secTxt= !mine? "出走馬を選ぶと、秘書の見立てを表示します。" : ma2>=70? `${esc(mine.name)}はこの傾向（${TRENDS[trend.key].n}）が得意です。流れに乗せて力を出し切らせましょう。` : ma2>=50? `${esc(mine.name)}にとって標準的な流れです。作戦どおり運べば上位を狙えます。` : `${esc(mine.name)}にはやや厳しい流れです。温存度の高い作戦で消耗を抑えるのも手です。`;
     const keyTxt= frontN>=6? `逃げ・先行が${frontN}頭と多く、前は競り合いそうです。差し馬の末脚と、消耗戦への適応が鍵になります。` : frontN<=2? `前に行く馬が${frontN}頭と少なく、先行馬が自分のペースを作りそうです。前残りに注意。` : `前に行く馬は${frontN}頭。平均的な隊列で、位置取りと仕掛けのタイミングが鍵になります。`;
     fb.innerHTML=`<b>レース直前情報</b>
-    <div class="formgrp"><span class="gl">先頭</span>${groups["先頭"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${h2.name}</span>`).join("")||'<span class="small">―</span>'}</div>
-    <div class="formgrp"><span class="gl">先団</span>${groups["先団"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${h2.name}</span>`).join("")||'<span class="small">―</span>'}</div>
-    <div class="formgrp"><span class="gl">中団</span>${groups["中団"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${h2.name}</span>`).join("")||'<span class="small">―</span>'}</div>
-    <div class="formgrp"><span class="gl">後方</span>${groups["後方"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${h2.name}</span>`).join("")||'<span class="small">―</span>'}</div>
+    <div class="formgrp"><span class="gl">先頭</span>${groups["先頭"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${esc(h2.name)}</span>`).join("")||'<span class="small">―</span>'}</div>
+    <div class="formgrp"><span class="gl">先団</span>${groups["先団"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${esc(h2.name)}</span>`).join("")||'<span class="small">―</span>'}</div>
+    <div class="formgrp"><span class="gl">中団</span>${groups["中団"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${esc(h2.name)}</span>`).join("")||'<span class="small">―</span>'}</div>
+    <div class="formgrp"><span class="gl">後方</span>${groups["後方"].map(h2=>`<span class="fchip ${h2===mine?"me":""}">${h2._gate} ${esc(h2.name)}</span>`).join("")||'<span class="small">―</span>'}</div>
     <div class="small" style="margin-top:5px"><span class="trendtag ${trend.key}">${TRENDS[trend.key].n}</span> 秘書：${secTxt}</div>
     <div class="small">展開のキー：${keyTxt}</div>
     <div class="small">コース特徴：${r.course}競馬場（${COURSE_INFO[r.course]?COURSE_INFO[r.course].dir:""}）直線${trend.straight}m${STEEP_COURSES.includes(r.course)?"・直線に急坂あり":"・平坦"}。${COURSE_INFO[r.course]?COURSE_INFO[r.course].note:""}</div>`;
@@ -4157,7 +4176,7 @@ function drawCard(r){
   if(sb&&mine){
     const ejk=JOCKEYS[mine.reqJockey!=null?mine.reqJockey:mine.jockey];
     const used={}; order.forEach(x=>{ if(x!==mine&&x.special) used[x.special]=(used[x.special]||0)+1; });
-    sb.innerHTML=`<span class="small">特殊作戦（${mine.name}・${mine._gate}枠／騎手 ${ejk.name}）</span>
+    sb.innerHTML=`<span class="small">特殊作戦（${esc(mine.name)}・${mine._gate}枠／騎手 ${ejk.name}）</span>
     <select id="entry-special"><option value="">なし（通常の作戦）</option>
     ${SPECIAL_TACTICS.map(st=>{ const c=specialOK(st,ejk,mine._gate); const cnt=(used[st.id]||0)+((raceState.card||[]).filter(x=>x!==mine&&x.special===st.id).length?0:0); const over=(st.limit!=null && (order.filter(x=>x!==mine&&x.special===st.id).length>=st.limit));
       const dis=!c.ok||over; return `<option value="${st.id}" ${mine.special===st.id?"selected":""} ${dis?"disabled":""}>${st.n}（騎手適性 ${st.need==="front"?FAM_MARK[ejk.fam.front]:st.need==="mid"?FAM_MARK[Math.max(ejk.fam.front,ejk.fam.mid)]:FAM_MARK[Math.max(ejk.fam.mid,ejk.fam.late)]})${dis? " ― "+(over?"この作戦は頭数上限です":c.why):" ― "+st.desc}</option>`; }).join("")}
@@ -4171,7 +4190,7 @@ const raceState={phase:"idle", rivals:null, rivalRace:null, card:null, sim:null,
 function startRace(r,mine,field){
   if(mine){
     const er=eligible(mine,r);
-    if(er){ alert2("出走条件を満たしていません",`${mine.name}は「${r.name}」に出走できません（${er}）。条件に合うレースを選んでください。`); return; }
+    if(er){ alert2("出走条件を満たしていません",`${esc(mine.name)}は「${esc(r.name)}」に出走できません（${er}）。条件に合うレースを選んでください。`); return; }
     const effJ = mine.reqJockey!=null? mine.reqJockey : mine.jockey;
     const jockFee=JOCKEYS[effJ].fee + (r.overseas? (r.travel||0) : 0);
     if(S.funds<jockFee){alert2("資金不足",r.overseas?"騎乗料と遠征費が払えません。":"騎乗料が払えません。騎手を変更してください。");return;}
@@ -4944,11 +4963,30 @@ function render3DFrame(el, cam){
   const asp=(Wpx||16)/Math.max(1,Hpx||9);
   const zf= asp<1 ? clamp(1.30/Math.max(asp,0.42),1,2.6) : 1;
   const off= mode==="all"? {x:-13*zf, y:6.4*Math.sqrt(zf), z:19.5*zf} : {x:-5.0, y:2.7*Math.sqrt(zf), z:13.4*zf};
-  const tp=_v.set(focusM+off.x, off.y, off.z + (mode==="all"?0:focZ*0.55));
+  /* ゴール前後の真横カメラ：先頭が残り90mを切ったら通常の斜め気味トラッキングから
+     徐々に寄せていき、残り30m〜ゴール後70mまではコース脇の真横位置に固定する。
+     真横では進行方向（x）のオフセットと前方注視をゼロにし、カメラ位置・注視点とも
+     対象馬の真横（同じx・同じレーン位置）に置くので、視線はコースに対して完全に
+     垂直になり、馬の側面が正面に映る。カメラの高さも馬体並みの約1.45mまで下げるため
+     俯角もほぼゼロになる。それ以外の区間は従来どおりの画角 */
+  const leadRemain=(1-leadH._prog)*r.dist;
+  let goalG=0;
+  if(leadRemain<90) goalG= leadRemain>30? (90-leadRemain)/60 : 1;
+  if(leadH._prog>=1) goalG= leadRemain>-70? 1 : Math.max(0, 1-(-leadRemain-70)/40);
+  goalG=clamp(goalG,0,1); goalG=goalG*goalG*(3-2*goalG); // smoothstep
+  const focX=(focH._prog||0)*r.dist; // 対象馬の実際のx位置（真横カメラのアンカー）
+  const focZT=latAt(focH, clamp(focH._prog,0,1))*4.6; // 対象馬の実際のレーン位置
+  const anchX=focusM+(focX-focusM)*goalG;
+  const camZN=off.z + (mode==="all"?0:focZ*0.55), camZG=focZT+off.z;
+  /* 高さもゴール区間では馬体と同じ約1.45mまで下ろす：方位だけでなく俯角も消え、
+     見下ろし気味の斜めではなく完全な真横プロフィールになる（注視点の高さ1.30とほぼ一致）。
+     内ラチ（高さ1.08）より視線は上を通るのでラチに隠れることもない */
+  const tp=_v.set(anchX+off.x*(1-goalG), off.y+(1.45-off.y)*goalG, camZN+(camZG-camZN)*goalG);
   if(GL.camPos.distanceTo(tp)>30) GL.camPos.copy(tp); // 直線スキップ等の大きなジャンプでは即座に合わせる
   const k=1-Math.exp(-dt*3.6); GL.camPos.lerp(tp,k);
+  if(goalG>0.98) GL.camPos.x=tp.x; // ゴール付近では追従の遅れによる斜め成分も残さず、完全に真横を保つ
   GL.camera.position.copy(GL.camPos);
-  GL.camera.lookAt(focusM+1.6, 1.30, focZ*0.72);
+  GL.camera.lookAt(anchX+1.6*(1-goalG), 1.30, focZ*0.72+(focZT-focZ*0.72)*goalG);
   GL.sun.position.set(focusM+16,27,17); GL.sun.target.position.set(focusM,0,0); GL.sun.target.updateMatrixWorld();
   GL.ground.position.x=Math.round(focusM/10)*10;
   GL.backdrop.position.x=focusM; GL.farTex.offset.x=focusM*0.0016;
@@ -5236,13 +5274,13 @@ function drawRace(simT){
       const srt3=[...sim.all].sort((a,b)=>b._prog-a._prog);
       const pb3=$("#posbar");
       if(pb3){ const str=srt3.slice(0,6).map((h,i)=>{ const mc=capChipColor(h._gate, sim.all.length);
-        return `<span class="poschip"><span class="gnum" style="background:${mc.bg};color:${mc.fg}">${h._gate}</span> ${i+1}位 ${h.name}</span>`; }).join("");
+        return `<span class="poschip"><span class="gnum" style="background:${mc.bg};color:${mc.fg}">${h._gate}</span> ${i+1}位 ${esc(h.name)}</span>`; }).join("");
         const _nv3=remain+"m|"+str; if(pb3._v!==_nv3){ pb3._v=_nv3; pb3.innerHTML=`<span class="poschip" style="background:#ffe9a8;color:#5b4300">残り ${remain}m</span>`+str; } }
       const rh3=$("#racehud");
       if(rh3){ const lines=[];
         const mineList = raceState.mine? [raceState.mine] : sim.all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
-        mineList.forEach(h=>{ const pos=srt3.indexOf(h)+1; if(pos>0) lines.push(`<b>${h.name}</b> ${pos}番手`); });
-        const _nv=lines.join("|"); if(rh3._v!==_nv){ rh3._v=_nv; rh3.innerHTML=lines.length? lines.join(" ／ ") : `先頭 ${srt3[0]?srt3[0].name:""}`; } }
+        mineList.forEach(h=>{ const pos=srt3.indexOf(h)+1; if(pos>0) lines.push(`<b>${esc(h.name)}</b> ${pos}番手`); });
+        const _nv=lines.join("|"); if(rh3._v!==_nv){ rh3._v=_nv; rh3.innerHTML=lines.length? lines.join(" ／ ") : `先頭 ${srt3[0]?esc(srt3[0].name):""}`; } }
       /* 隊列パネル・コースマップは2Dキャンバス専用だったため3Dでは出なかった。
          オーバーレイキャンバスへ同じ描画を重ねて、3Dでも常時表示する */
       drawGlPanels(W,H,sim,C,cps,leader,remain,leadH,r.dist);
@@ -5296,7 +5334,7 @@ function drawRace(simT){
   drawSubtitle(ctx,W,H);
   /* 順位バー（DOM）：並びが変わった時だけ書き換え */
   const pb=$("#posbar");
-  if(pb){ const str=srt.slice(0,6).map((h,i)=>`<span class="p ${h===raceState.mine?"me":""}">${i+1} ${h._gate}.${h.name}</span>`).join("");
+  if(pb){ const str=srt.slice(0,6).map((h,i)=>`<span class="p ${h===raceState.mine?"me":""}">${i+1} ${h._gate}.${esc(h.name)}</span>`).join("");
     if(str!==raceState._pbStr){ raceState._pbStr=str; pb.innerHTML=str; } }
   /* 大きな表示：残り距離と自馬の位置だけを常時出す */
   const rh=$("#racehud");
@@ -5787,7 +5825,7 @@ function renderRaceScreen(el){
     const betPay=brs?brs.reduce((a,b)=>a+b.pay,0):0;
     const betStake=brs?brs.reduce((a,b)=>a+b.stake,0):0;
     const dlt=(b,a,unit)=>`${b}${unit} → <b>${a}${unit}</b>（${a-b>=0?"+":""}${a-b}）`;
-    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><div id="commentary">🎙 ゴールイン！ 勝ったのは ${sorted[0].name}！</div><div class="posbar" id="posbar"></div></div>
+    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><div id="commentary">🎙 ゴールイン！ 勝ったのは ${esc(sorted[0].name)}！</div><div class="posbar" id="posbar"></div></div>
     <h2 class="sec">🏁 レース終了 <span class="tag">${r.name}／${r.course} ${r.surf}${r.dist}m ${r.ground}</span></h2>
     <div class="panel" style="text-align:center; padding:16px 12px">
       ${mine?`<div class="small">自厩舎 ${mine.name}（作戦：${tacOf(mine).n}／${raceState.paceInfo}／${raceState.trendInfo||""} 1000m ${raceState.pace1000||"-"}）</div>
@@ -5865,7 +5903,7 @@ function renderBet(){
   const r=S.races.find(x=>x.id===betState.raceId);
   const st=S.betStats;
   html+=`<details class="fold"><summary>馬券収支（累計購入 ${fmt(st.bought)}万円／回収率 ${st.bought?Math.round(st.returned/st.bought*100):0}%）</summary><div class="foldbody"><div class="panel"><b>馬券収支</b> <span class="small">累計購入 ${fmt(st.bought)}万円 ／ 払戻 ${fmt(st.returned)}万円 ／ 回収率 ${st.bought?Math.round(st.returned/st.bought*100):0}% ／ 的中 ${st.hit}/${st.count}件</span>
-  ${S.betHistory.length?`<div class="mt">${S.betHistory.slice(0,5).map(x=>`<div class="small">${x.hit?"的中":"不的中"} ${x.label} 購入${fmt(x.stake)}万 → ${fmt(x.pay)}万</div>`).join("")}</div>`:""}</div></div></details>`;
+  ${S.betHistory.length?`<div class="mt">${S.betHistory.slice(0,5).map(x=>`<div class="small">${x.hit?"的中":"不的中"} ${esc(x.label)} 購入${fmt(x.stake)}万 → ${fmt(x.pay)}万</div>`).join("")}</div>`:""}</div></div></details>`;
   if(!r) html+=`<p class="small mt">上のレースを選ぶと、出馬表と買い目が出ます。</p>`;
   if(r){
     if(!betState.field||betState.raceRace!==r.id){ buildBetField(r); betState.raceRace=r.id; }
@@ -5874,7 +5912,7 @@ function renderBet(){
     const myPending=S.bets.filter(b=>b.raceId===r.id);
     /* 自厩舎馬が出走する場合は作戦もここで決められる（出馬表と同一データ＝h.tactic／h.tactic2を共有し、即セーブされる） */
     const ownInField=f.filter(h=>!h.rival);
-    const tacBlocks=ownInField.map(h=>`<div class="panel mt" style="background:var(--panel2)"><b>🐴 ${h.name} の作戦</b> <span class="small">（出馬表画面と連動・変更はそのまま保持されます）</span>
+    const tacBlocks=ownInField.map(h=>`<div class="panel mt" style="background:var(--panel2)"><b>🐴 ${esc(h.name)} の作戦</b> <span class="small">（出馬表画面と連動・変更はそのまま保持されます）</span>
     <div class="flex mt"><select id="bet-tactic-${h.id}">${TACTICS.map(t=>`<option value="${t.id}" ${t.id===tacOf(h).id?"selected":""}>${t.n} ― ${t.d}</option>`).join("")}</select>
     <select id="bet-tactic2-${h.id}">${TACTIC2.map(t=>`<option value="${t.id}" ${t.id===(h.tactic2||"normal")?"selected":""}>${t.n}${t.d?" ― "+t.d:""}</option>`).join("")}</select>
     <span class="tacfit" id="bet-tacfit-${h.id}">${fitText(h)}</span></div>
@@ -5882,11 +5920,11 @@ function renderBet(){
     html+=`<h2 class="sec">出馬表＆馬券：${r.name}</h2><div class="panel">
     <div class="flex"><button class="btn sm ${betState.includeMine?"":"ghost"}" id="bet-mine">自厩舎の選択中の馬も出走：${betState.includeMine?"ON":"OFF"}</button></div>
     <div class="mt"><table><tr><th class="num">馬番</th><th>馬名</th><th class="num">人気</th><th class="r">単勝</th><th class="r">複勝</th><th>近走</th></tr>
-    ${[...f].sort((a,b)=>a._gate-b._gate).map(h=>`<tr class="${!h.rival?"mine":""}"><td class="num"><b>${h._gate}</b></td><td>${h.name}${!h.rival?"（自厩舎）":""}</td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._tanOdds}</td><td class="r">${h._fukuOdds}</td><td>${h.races===0?"初出走":(h.form&&h.form.length?h.form.join("・"):"―")}</td></tr>`).join("")}</table></div>
+    ${[...f].sort((a,b)=>a._gate-b._gate).map(h=>`<tr class="${!h.rival?"mine":""}"><td class="num"><b>${h._gate}</b></td><td>${esc(h.name)}${!h.rival?"（自厩舎）":""}</td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._tanOdds}</td><td class="r">${h._fukuOdds}</td><td>${h.races===0?"初出走":(h.form&&h.form.length?h.form.join("・"):"―")}</td></tr>`).join("")}</table></div>
     ${tacBlocks}
     <div class="flex mt"><span class="small">券種</span>${BET_TYPES.map(t=>`<button class="btn sm ${t.id===betState.type?"":"ghost"}" data-btype="${t.id}">${t.n}</button>`).join("")}</div>
     <div class="small mt">買い目（${bt.n}：${bt.need}頭選ぶ${betState.type==="umatan"||betState.type==="santan"?" ※タップした順が着順":""}）</div>
-    <div class="betpick">${[...f].sort((a,b)=>a._gate-b._gate).map(h=>`<button data-bpick="${h._gate}" class="${betState.picks.includes(h._gate)?"on":""}">${h._gate}<small>${h.name.slice(0,5)}</small></button>`).join("")}</div>
+    <div class="betpick">${[...f].sort((a,b)=>a._gate-b._gate).map(h=>`<button data-bpick="${h._gate}" class="${betState.picks.includes(h._gate)?"on":""}">${h._gate}<small>${esc(h.name.slice(0,5))}</small></button>`).join("")}</div>
     <div class="flex"><span class="small">金額（円・直接入力可）</span>
       <button class="btn ghost sm" data-stake="-10">−10万</button><button class="btn ghost sm" data-stake="-1">−1万</button>
       <input type="number" inputmode="numeric" pattern="[0-9]*" id="bet-stake-input" value="${Math.round(betState.stake*10000)}" min="0" step="100" style="width:132px" aria-label="馬券購入金額（円）">
@@ -6016,8 +6054,8 @@ function renderChrome(){
   const s=secretaryState();
   const SEC_FACE={"normal":"assets/secretary-normal.webp","smile":"assets/secretary-smile.webp","worried":"assets/secretary-worried.webp"};
   t.innerHTML=`<img class="secface" src="${SEC_FACE[s.face]||SEC_FACE.normal}" alt="秘書・佐倉澪（${s.face==="smile"?"笑顔":s.face==="worried"?"心配顔":"通常"}）">
-  <div class="bubble"><div class="secname">${SEC_NAME}</div><div class="sectext">${s.text}</div>
-  <div class="secbtns">${s.btns.map((b,i)=>`<button data-sec="${i}" class="${i?"sub":""}">${b.label}</button>`).join("")}</div></div>`;
+  <div class="bubble"><div class="secname">${SEC_NAME}</div><div class="sectext">${esc(s.text)}</div>
+  <div class="secbtns">${s.btns.map((b,i)=>`<button data-sec="${i}" class="${i?"sub":""}">${esc(b.label)}</button>`).join("")}</div></div>`;
   t.querySelectorAll("[data-sec]").forEach(btn=>btn.addEventListener("click",()=>{
     const b=s.btns[+btn.dataset.sec]; if(!b)return;
     if(b.hid)S.selected=b.hid;
@@ -6028,7 +6066,7 @@ function renderChrome(){
   const wp=$("#weekplan"); if(!wp)return;
   const done=S.horses.filter(h=>h.trainsLeft===0||h.injured>0).length;
   const enterable=S.races.filter(r=>S.horses.some(h=>!eligible(h,r)));
-  const entSpans=allEntries().map(x=>`<span class="wpentry ${x.left<=0?"now":""}">🏁 ${x.h.name} → ${x.e.name} ${x.left<=0?"今週出走！":"あと"+x.left+"週"}</span>`).join("");
+  const entSpans=allEntries().map(x=>`<span class="wpentry ${x.left<=0?"now":""}">🏁 ${esc(x.h.name)} → ${esc(x.e.name)} ${x.left<=0?"今週出走！":"あと"+x.left+"週"}</span>`).join("");
   wp.innerHTML=`${entSpans}<span>📅 今週の予定：調教済 ${done}/${S.horses.length}頭</span><span>出走可能 ${enterable.length?enterable.map(r=>r.name.split("（")[0]).join("・"):"なし"}</span><span>維持費 ${upkeep()}万円／週</span>${S.bets.length?`<span>🎫 馬券 ${S.bets.length}件購入済</span>`:""}`;
 }
 
@@ -6127,7 +6165,7 @@ function renderFarm(){
   const known=y.known||0; const showV=k=> known>=85? y[k] : known>=55? "約"+Math.round(y[k]/5)*5 : "？？";
   const topK=ABS9.reduce((b,[k])=>y[k]>y[b]?k:b,"spd");
   const opinion= known<55? "まだ見極め中です。施設で育てながら判明度を上げましょう" : known<85? `伸びしろは${ABNAME[topK]}にありそうです（暫定所見）` : `${ABNAME[topK]}は一級品の可能性。${FARM_MANAGER.name}の太鼓判です`;
-  html+=`<div class="panel"><b>${y.name}</b> <span class="small">${y.sex}${y.age}歳・${coatName(y)}／父 ${y.sire}／判明度 ${known}%${y.theoryNames&&y.theoryNames.length? "／成立理論："+y.theoryNames.join("、"):""}</span>
+  html+=`<div class="panel"><b>${esc(y.name)}</b> <span class="small">${y.sex}${y.age}歳・${coatName(y)}／父 ${esc(y.sire)}／判明度 ${known}%${y.theoryNames&&y.theoryNames.length? "／成立理論："+y.theoryNames.map(x=>esc(x)).join("、"):""}</span>
   <div class="small" style="margin-top:3px">${ABS9.map(([k,n])=>`${n} ${showV(k)}${({pow:facLv("saka"),bst:facLv("track"),flx:facLv("kado"),gut:facLv("gatef"),sta:facLv("pool_f"),men:facLv("longe"),smt:facLv("flower"),hlt:facLv("grass")}[k]||0)>0?"●":""}`).join("／")}</div>
   <div class="small">牧場長所見（${FARM_MANAGER.name}）：${opinion}</div>
   <span class="small">●は対応施設で育成中の能力。未判明の能力は「？？」で表示されます。2歳になる年末に「入厩／売却／クラブ募集」を選べます。</span></div>`;
@@ -6135,7 +6173,7 @@ function renderFarm(){
  /* セール */
  if(S.sale){ const SN={young:"幼駒セール（当歳）",mare:"繁殖牝馬セール",overseas:"海外トレーニングセール"}[S.sale.kind];
   html+=`<h2 class="sec">🔨 ${SN} <span class="tag">開催中（今週のみ）</span></h2><div class="hgrid">`;
-  S.sale.list.forEach((h,i)=>{ html+=`<div class="jcard"><b>${h.name}</b> <span class="small">${h.sex}${h.age}歳・${coatName(h)}／父 ${h.sire}</span>${h.charmPrice?` <span class="sale-tag">お守り付き（消費なし・高額）</span>`:""}
+  S.sale.list.forEach((h,i)=>{ html+=`<div class="jcard"><b>${esc(h.name)}</b> <span class="small">${h.sex}${h.age}歳・${coatName(h)}／父 ${esc(h.sire)}</span>${h.charmPrice?` <span class="sale-tag">お守り付き（消費なし・高額）</span>`:""}
    <div class="small">速${h.spd} ス${h.sta} パ${h.pow} 瞬${h.bst} 根${h.gut}／芝${aptMark4(h.turf)} ダ${aptMark4(h.dirt)}</div>
    <div class="small">オススメ：秘書 ${h.saleEvals.sec||"―"}／牧場長 ${h.saleEvals.mgr||"―"}／調教師 ${h.saleEvals.tr||"―"}（☆＞◎＞○＞△）</div>
    <div class="flex mt"><button class="btn sm" data-sale-bid="${i}">入札 ${fmt(h.price)}万円</button><button class="btn gold sm" data-sale-buy="${i}">一発購入 ${fmt(Math.round(h.price*1.35))}万円</button></div></div>`; });
@@ -6169,11 +6207,11 @@ function renderFarm(){
  else { const c=S.club; (c.offers||[]).forEach(offerNorm);
   const cEval=(c.prize||0)>=20000?"S":(c.prize||0)>=10000?"A":(c.prize||0)>=4000?"B":(c.prize||0)>0?"C":"D";
   const popular=[...(c.offers||[])].filter(o=>(o.shares-o.filledShares)>0).sort((a,b)=>(a.shares-a.filledShares)-(b.shares-b.filledShares)).slice(0,3);
-  html+=`<b>${c.name}</b> <span class="small">代表：${c.owner}／クラブ評価 <b class="rankmark rank${cEval}">${cEval}</b>／会員 ${c.members.length}名／クラブ賞金 ${fmt(c.prize||0)}万円</span>
-  <div class="mt"><b>募集馬（2歳世代）</b>${c.offers&&c.offers.length? c.offers.map((o,i)=>{ const rem=o.shares-o.filledShares; return `<div class="ticket"><b>${o.name}</b> <span class="small">募集総額 ${fmt(o.price)}万円／一口 ${fmt(o.perShare)}万円／残り <b>${rem}口</b>（全${o.shares}口）${rem===0?"・満口":""}</span> <button class="btn sm" data-club-fill="${i}" ${rem===0?"disabled":""}>満口にする（デモ進行）</button></div>`; }).join("") : `<div class="small">今年の募集馬はありません（年末に自家生産馬を回せます）</div>`}</div>
-  <div class="mt"><b>人気募集馬</b><div class="small">${popular.length? popular.map((o,i)=>`${i+1}. ${o.name}（残り${o.shares-o.filledShares}口）`).join("／") : "募集中の馬はいません"}</div></div>
-  <div class="mt"><b>知人（会員）</b><div class="small">${c.members.join("、")}</div></div>
-  <div class="mt"><b>馬主リーディング（クラブ別賞金）</b><div class="small">${[[c.owner+"（自分のクラブ）",(c.prize||0)],["青葉クラブ",12400],["星野クラブ",9800],["南関クラブ",7600]].sort((a,b)=>b[1]-a[1]).map((x,i)=>`${i+1}位 ${x[0]} ${fmt(x[1])}万円`).join("<br>")}</div></div>`;
+  html+=`<b>${esc(c.name)}</b> <span class="small">代表：${esc(c.owner)}／クラブ評価 <b class="rankmark rank${cEval}">${cEval}</b>／会員 ${c.members.length}名／クラブ賞金 ${fmt(c.prize||0)}万円</span>
+  <div class="mt"><b>募集馬（2歳世代）</b>${c.offers&&c.offers.length? c.offers.map((o,i)=>{ const rem=o.shares-o.filledShares; return `<div class="ticket"><b>${esc(o.name)}</b> <span class="small">募集総額 ${fmt(o.price)}万円／一口 ${fmt(o.perShare)}万円／残り <b>${rem}口</b>（全${o.shares}口）${rem===0?"・満口":""}</span> <button class="btn sm" data-club-fill="${i}" ${rem===0?"disabled":""}>満口にする（デモ進行）</button></div>`; }).join("") : `<div class="small">今年の募集馬はありません（年末に自家生産馬を回せます）</div>`}</div>
+  <div class="mt"><b>人気募集馬</b><div class="small">${popular.length? popular.map((o,i)=>`${i+1}. ${esc(o.name)}（残り${o.shares-o.filledShares}口）`).join("／") : "募集中の馬はいません"}</div></div>
+  <div class="mt"><b>知人（会員）</b><div class="small">${c.members.map(x=>esc(x)).join("、")}</div></div>
+  <div class="mt"><b>馬主リーディング（クラブ別賞金）</b><div class="small">${[[c.owner+"（自分のクラブ）",(c.prize||0)],["青葉クラブ",12400],["星野クラブ",9800],["南関クラブ",7600]].sort((a,b)=>b[1]-a[1]).map((x,i)=>`${i+1}位 ${esc(x[0])} ${fmt(x[1])}万円`).join("<br>")}</div></div>`;
  }
  html+=`</div></div></details>`;
  /* 下部固定アクションバー：選択中の施設をスクロールなしで建設・拡張できる */
@@ -6227,16 +6265,16 @@ function renderRank(){
     if(!h.mine) return "";
     const ab=legendAboveBelow(h.earnings||0);
     if(ab.isTop) return `<span class="passbadge">歴代名馬の頂点超え</span>`;
-    if(ab.below) return `<span class="passbadge">${ab.below.n}超え</span>`;
+    if(ab.below) return `<span class="passbadge">${esc(ab.below.n)}超え</span>`;
     return "";
   };
   const rowMain=(h,i,mode)=>{
     const sub= h.legend? `${h.sex}・${h.born}年生` : h.current? `${h.sex}${h.age}歳・現役` : `${h.sex}${h.age}歳`;
-    return `<tr class="${h.mine?"rank-me":""} ${h.legend?"legendrow":""}" ${h.legend?`data-leg="${h.name}"`:""}><td class="num">${i+1}</td><td>${h.name}${h.mine?"（自厩舎）":""}${mode==="earn"?passBadge(h):""}${h.legend?` <span class="small">▾</span>`:""}</td><td>${sub}</td><td class="num">${h.races}戦${h.wins}勝</td>${mode==="earn"?`<td class="r">${fmt(h.earnings)}万円</td><td class="num">${h.rating}</td>`:`<td class="num">${h.rating}</td><td class="r">${fmt(h.earnings)}万円</td>`}</tr>`;
+    return `<tr class="${h.mine?"rank-me":""} ${h.legend?"legendrow":""}" ${h.legend?`data-leg="${esc(h.name)}"`:""}><td class="num">${i+1}</td><td>${esc(h.name)}${h.mine?"（自厩舎）":""}${mode==="earn"?passBadge(h):""}${h.legend?` <span class="small">▾</span>`:""}</td><td>${sub}</td><td class="num">${h.races}戦${h.wins}勝</td>${mode==="earn"?`<td class="r">${fmt(h.earnings)}万円</td><td class="num">${h.rating}</td>`:`<td class="num">${h.rating}</td><td class="r">${fmt(h.earnings)}万円</td>`}</tr>`;
   };
   const detailRow=(h)=>{
     if(!h.legend||rankOpen!==h.name) return "";
-    return `<tr class="legend-detail"><td></td><td colspan="5"><b>主な勝鞍（G1）</b>：${h.g1}<br>父 ${h.sire}／母 ${h.dam}／毛色 ${h.coatName||""}／主戦 ${h.rider}／脚質 ${h.style}（当ゲーム解釈）／代表距離 ${h.dmin}〜${h.dmax}m・${h.dept}<br>獲得賞金 ${fmt(h.earnings)}万円は海外・地方分を含む生涯総額（実額）。レーティング ${h.rating} は当ゲーム換算。</td></tr>`;
+    return `<tr class="legend-detail"><td></td><td colspan="5"><b>主な勝鞍（G1）</b>：${esc(h.g1)}<br>父 ${esc(h.sire)}／母 ${esc(h.dam)}／毛色 ${esc(h.coatName||"")}／主戦 ${esc(h.rider)}／脚質 ${esc(h.style)}（当ゲーム解釈）／代表距離 ${h.dmin}〜${h.dmax}m・${h.dept}<br>獲得賞金 ${fmt(h.earnings)}万円は海外・地方分を含む生涯総額（実額）。レーティング ${h.rating} は当ゲーム換算。</td></tr>`;
   };
   const table=(list,mode,cols)=>`<div class="panel" style="padding:6px 10px"><table><tr><th class="num">順位</th><th>馬名</th><th>性・生年</th><th class="num">戦績</th>${cols}</tr>${list.map((h,i)=>rowMain(h,i,mode)+detailRow(h)).join("")||`<tr><td colspan="6" class="small">該当する馬がいません。</td></tr>`}</table></div>`;
   el.innerHTML=`<h2 class="sec">名馬ランキング <span class="tag">実在馬と自厩舎馬を同じ土俵で</span></h2>
@@ -6270,8 +6308,9 @@ function showSettings(){
   $("#set-ok").addEventListener("click",()=>{ S.autosaveFreq=$("#set-auto").value; S.camMode=$("#set-cam").value; S.watchMode=$("#set-watch").value; S.watchMatrix={g1:$("#set-wm-g1").value, graded:$("#set-wm-graded").value, cond:$("#set-wm-cond").value}; S.markOn=$("#set-mark").value==="on"; S.sound={on:$("#set-snd").value==="on", bgm:(+$("#set-bgm").value)/100, se:(+$("#set-se").value)/100}; if(auInit())auApply(); $("#overlay").style.display="none"; saveAuto(true); renderAll(); });
 }
 function applySave(d){
+  sanitizeSaveData(d);
   HID=d.HID||100; S.funds=d.funds; S.week=d.week; S.silk=d.silk||0; S.horses=d.horses||[]; S.selected=d.selected;
-  S.log=d.log||[]; S.stallions=d.stallions||S.stallions; S.mares=d.mares||[]; S.foals=d.foals||0; S.champions=d.champions||0;
+  S.log=Array.isArray(d.log)?d.log.filter(x=>typeof x==="string"):[]; S.stallions=d.stallions||S.stallions; S.mares=d.mares||[]; S.foals=d.foals||0; S.champions=d.champions||0;
   S.bets=d.bets||[]; S.betStats=d.betStats||{bought:0,returned:0,hit:0,count:0}; S.betHistory=d.betHistory||[]; S.lastEvent=d.lastEvent||null;
   if(d.market&&d.market.length)S.market=d.market;
   S.raceSpeed=[1,2,4].includes(d.raceSpeed)?d.raceSpeed:1;
@@ -6405,7 +6444,7 @@ function guideRegister(h){
   const race=pk.race;
   const cur=S.races.find(x=>x.id===race.id);
   const rs=cur?eligible(h,cur):eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
-  if(rs){ alert2("エントリーできません",`${h.name}は「${race.name}」の出走条件を満たしていません（${rs}）。`); return; }
+  if(rs){ alert2("エントリーできません",`${esc(h.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; }
   const doReg=()=>{ registerEntry(h,race,S.week+(race.weeks||0)); renderAll(); };
   if(h.entry&&h.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${h.name}は「${h.entry.name}」にエントリー中です。取り消して「${race.name}」に登録し直します。`,doReg); return; }
   doReg();
@@ -6484,7 +6523,7 @@ function guideHTML(){
   return `<div class="guidebox"><div class="g-next">次にやること</div><div class="g-title">${g.next.title}</div><div class="small">${g.next.sub}</div>
   <details class="gfold"><summary>週の進み具合を見る</summary><div class="gsteps">${stepsHTML}</div></details>
   ${entriesHTML()}
-  ${g.cards.length?`<div class="gcards">${g.cards.map(c=>`<div class="gcard">${guideFaceHTML(c.face)}<div style="flex:1;min-width:0"><div class="gwho">${c.who} の提案</div><div class="gtext">${c.text}</div><div class="gbtns"><button class="btn sm" data-guide="${c.key}" ${c.dis?"disabled":""}>${c.btn}</button></div></div><button class="gx" data-gdismiss="${c.key}" title="この提案を消す（今週は再表示しません）">✕</button></div>`).join("")}</div>`:`<p class="small" style="margin:8px 0 0">提案はすべて完了しました。「次の週へ」から進めます。</p>`}
+  ${g.cards.length?`<div class="gcards">${g.cards.map(c=>`<div class="gcard">${guideFaceHTML(c.face)}<div style="flex:1;min-width:0"><div class="gwho">${esc(c.who)} の提案</div><div class="gtext">${esc(c.text)}</div><div class="gbtns"><button class="btn sm" data-guide="${c.key}" ${c.dis?"disabled":""}>${esc(c.btn)}</button></div></div><button class="gx" data-gdismiss="${c.key}" title="この提案を消す（今週は再表示しません）">✕</button></div>`).join("")}</div>`:`<p class="small" style="margin:8px 0 0">提案はすべて完了しました。「次の週へ」から進めます。</p>`}
   </div>`;
 }
 function execGuideCard(c){
@@ -6518,7 +6557,7 @@ function renderActionBar(){
   const g=buildGuideSafe();
   const c=(g.cards||[]).find(x=>!x.dis) || null;
   if(c){
-    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${c.text}</div><button class="ab-btn btn gold" id="ab-exec">${c.btn}</button>`;
+    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${esc(c.text)}</div><button class="ab-btn btn gold" id="ab-exec">${esc(c.btn)}</button>`;
     const b=$("#ab-exec"); if(b) b.addEventListener("click",()=>{ try{ const g2=buildGuideSafe(); execGuideCard(g2.cards.find(x=>x.key===c.key&&!x.dis)||g2.cards.find(x=>!x.dis)); }catch(e){} renderAll(); });
     return;
   }
