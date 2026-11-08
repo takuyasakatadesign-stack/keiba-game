@@ -1335,6 +1335,68 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
 .trendtag.shoumo{ background:#a34a3c; }
 .rankC{ color:#4a6b5d; }
 .wd-arw{ color:#4a6b5d; }
+/* ============================================================
+   第19次（2026-11-08）：固定要素の圧迫解消（画面が殆ど見えない対策）
+   1) #main を flex 縦積みに変更。従来 .view{height:100%} が
+      シーンバンド（約52px）分だけ #main からはみ出し、overflow:hidden
+      でビューの下端（ページ送り・最下部のボタン）が常時隠れていた。
+      flex:1＋min-height:0 でバンドとビューが正確に収まるようにする。
+   2) 下部の3バー（提案／オート／次週へ）を横並び・薄型にし、タブも
+      薄くして、固定要素の合計高さを大幅に削減する。
+   3) 「下のバーを畳む」トグル（#docktoggle）を追加。畳むと提案／
+      オートバーが消え、次週へバーとタブだけが残る（オート実行中は
+      停止ボタンのあるオートバーを残す）。
+   4) 秘書パネル（#todo）も薄型化。縦の短い画面ではシーンバンドを
+      隠してコンテンツ領域を優先する。
+   ============================================================ */
+#main{ display:flex; flex-direction:column; }
+#sceneband{ flex:none; height:38px; margin:4px 8px 0; }
+.view{ flex:1 1 auto; min-height:0; height:auto; }
+#todo:empty{ display:none; }
+#hud{ padding:7px 10px; }
+#todo{ margin:4px 6px 0; padding:6px 10px; gap:8px; }
+#todo img.secface{ width:40px; height:40px; }
+#todo .sectext{ font-size:12.5px; line-height:1.4; }
+#todo .secbtns{ margin-top:4px; }
+#todo .secbtns button{ min-height:34px; padding:4px 11px; }
+/* 提案バー：本文（左）とボタン（右）の横並びにし、縦積みの巨大バーをやめる */
+#actionbar{ display:flex; align-items:center; gap:10px; padding:7px 10px; min-height:0; }
+#actionbar .ab-text{ flex:1 1 auto; min-width:0; margin:0; font-size:13.5px; line-height:1.4; }
+#actionbar .ab-kicker{ font-size:11px; }
+#actionbar .ab-btn, #actionbar .ab-btn.ab-wide, #actionbar.solo .ab-btn, #actionbar.solo .ab-btn.ab-wide{ display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto !important; width:auto !important; max-width:none; min-width:150px; min-height:48px; font-size:15px; font-weight:900; margin:0; padding:8px 18px; }
+#actionbar.solo{ display:flex; padding:7px 10px; text-align:left; }
+#actionbar .ab-btn.ab-skip{ min-height:44px; min-width:0; font-size:13.5px; }
+/* オートバー：薄型化（スマホでもボタンは横並び1段） */
+#autobar{ padding:6px 10px; gap:8px; }
+#autobar .ab-text{ font-size:12.5px; line-height:1.4; }
+#autobar .ab-kicker{ font-size:11px; }
+#autobar .ab-btn{ min-height:44px; font-size:14px; padding:7px 14px; }
+/* 次週へバー：薄型化 */
+#nextweekbar{ padding:5px 10px; }
+#nextweekbar #btn-nextweek{ min-height:46px; font-size:16px; }
+/* タブ：薄型化 */
+#tabs{ padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px)); }
+#tabs button{ min-height:44px; }
+/* 畳むトグル帯 */
+#docktoggle{ background:#fffdf4; border-top:2px solid #d9c98a; display:flex; }
+#docktoggle button{ flex:1; min-height:26px; padding:2px 10px; font-size:11.5px; font-weight:800; background:transparent; color:#7a6414; border:none; border-radius:0; box-shadow:none; }
+#app.dock-min #actionbar{ display:none; }
+#app.dock-min #autobar{ display:none; }
+#app.dock-min #autobar.is-running{ display:flex; }
+@media (max-width:640px){
+  #hud{ padding:6px 8px; }
+  #todo .secbtns button{ min-height:38px; }
+  #actionbar .ab-btn, #actionbar .ab-btn.ab-wide, #actionbar.solo .ab-btn.ab-wide{ min-width:124px; min-height:50px; font-size:14.5px; padding:8px 12px; }
+  #autobar{ flex-direction:row; flex-wrap:wrap; align-items:center; }
+  #autobar .ab-text{ flex:1 1 100%; }
+  #autobar .ab-btn{ flex:1 1 0; width:auto; min-height:44px; }
+  #tabs button{ min-height:42px; font-size:13px; }
+}
+@media (max-height:620px){
+  #sceneband{ display:none; }
+  #tabs button{ min-height:38px; }
+  #nextweekbar #btn-nextweek{ min-height:42px; }
+}
 </style>
 </head>
 <body>
@@ -1361,6 +1423,7 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
     <section class="view" id="v-farm"></section>
     <section class="view" id="v-rank"></section>
   </div>
+  <div id="docktoggle"><button type="button" id="btn-docktoggle" aria-expanded="true">▽ 下のバーを畳む（表示領域を広げる）</button></div>
   <div id="actionbar"></div>
   <div id="autobar"></div>
   <div id="nextweekbar"><button class="btn gold" id="btn-nextweek">次の週へ ▶</button></div>
@@ -2058,6 +2121,56 @@ function specialOK(st, jk, gate){
 const DAM_NAMES=["名牝の仔","快速牝系","欧州血統","米国血統","名門牝系","新進牝系"];
 const HORSE_NAMES=["サクラ","タイセイ","ゴールド","シルバー","ルミナス","スカイ","オーシャン","ヴィクトリー","ハヤブサ","コスモ","アストラ","レジェンド","ソレイユ","ミライ","ホシ","カゼ","ツバサ","ダイヤ","ルビー","エース","キング","クイーン","ドラゴン","フェニックス","アルテミス","ゼウス","アポロン","ヘラクレス","アテナ","ポセイドン"];
 const HORSE_NAMES2=["シップ","スピード","スター","ドリーム","ホープ","フラワー","ムーン","サン","リバー","マウンテン","フォレスト","ストーム","ライト","シャドウ","ブレイズ","サンダー","ウィンド","レイン","スノー","フレイム"];
+/* ===== 固有名ジェネレータ（第19次） =====
+   市場・セール・相手馬・幼駒など自動生成される馬の名前は、その馬だけの
+   固有名にする。語彙プールを広げ、複合パターン（前+後／前+ノ+後／
+   前+前+後／後+前）で組み合わせを大きく確保したうえで、同一セーブ内の
+   既存名（所有馬・幼駒・繁殖馬・市場・セール・種牡馬・名馬・出馬表）と
+   照合し、重複しない名前だけを採用する。どうしても埋まった場合は
+   「・2」「・3」…の枝番で一意性を保証する（定型の連番名は付けない）。 */
+const HORSE_NAMES_B=["アルカディア","ベルベット","グラン","プレミアム","ロワール","ミストラル","アリア","ノーブル","ヴァルキリー","オーロラ","セレナーデ","フィオーレ","ルーチェ","ヴェント","エテルノ","カプリチオ","ラルゴ","アマービレ","ソプラノ","バレッタ","ミラージュ","アンセム","カノン","フィナーレ"];
+const HORSE_NAMES2_B=["ダンサー","ランナー","ソング","メモリー","キセキ","ユメ","ヒカリ","カガヤキ","ブリーズ","グローリー","レガシー","エコー","ハーモニー","リズム","スピリット","トラベラー","ワルツ","メロディ","アルペジオ","セレナーデ","ファンファーレ","コンチェルト"];
+function composeHorseName(){
+  const A=HORSE_NAMES.concat(HORSE_NAMES_B), B=HORSE_NAMES2.concat(HORSE_NAMES2_B);
+  const As=A.filter(x=>x.length<=4);
+  const r=Math.random();
+  if(r<0.46) return pick(A)+pick(B);
+  if(r<0.72) return pick(A)+"ノ"+pick(B);
+  if(r<0.88) return pick(As)+pick(As)+pick(B);
+  return pick(B)+pick(A);
+}
+const NAME_TAKEN=new Set(); /* セッション内で払い出した名前（相手馬など保存されない馬も含め重複を防ぐ） */
+function collectUsedNames(extra){
+  const set=new Set(NAME_TAKEN);
+  const add=o=>{ if(o&&typeof o.name==="string"&&o.name) set.add(o.name); };
+  try{
+    if(typeof S!=="undefined"&&S){
+      (S.horses||[]).forEach(add); (S.youngStock||[]).forEach(add); (S.mares||[]).forEach(add);
+      (S.market||[]).forEach(add); if(S.sale&&S.sale.list)S.sale.list.forEach(add);
+      (S.stallions||[]).forEach(add); (S.worldHorses||[]).forEach(add);
+      if(S.club&&S.club.offers)S.club.offers.forEach(add);
+    }
+  }catch(e){}
+  try{
+    if(typeof raceState!=="undefined"&&raceState){ (raceState.card||[]).forEach(add); (raceState.rivals||[]).forEach(add); }
+  }catch(e){}
+  if(extra) (Array.isArray(extra)?extra:[extra]).forEach(x=>{ if(!x)return; const n=typeof x==="string"?x:x.name; if(n)set.add(n); });
+  return set;
+}
+function genUniqueName(extra){
+  const used=collectUsedNames(extra);
+  for(let i=0;i<300;i++){ const n=composeHorseName(); if(n&&!used.has(n)){ NAME_TAKEN.add(n); return n; } }
+  let base=composeHorseName(), n=base, k=2;
+  while(used.has(n)||NAME_TAKEN.has(n)){ n=base+"・"+k; k++; }
+  NAME_TAKEN.add(n); return n;
+}
+/* ===== 冠名（第19次）：設定で指定したワードを自厩舎の自動命名に付ける ===== */
+function crownWord(){ try{ return (typeof S!=="undefined"&&S&&typeof S.crownName==="string")? S.crownName.trim() : ""; }catch(e){ return ""; } }
+function applyCrownName(name){
+  const w=crownWord(); if(!w||!name) return name;
+  if(typeof S!=="undefined"&&S&&S.crownPos==="post"){ return name.endsWith(w)? name : name+w; }
+  return name.startsWith(w)? name : w+name;
+}
 const RIVAL_OWNERS=["社台系","金子系","里見系","友道系","国本系","西山系","松島系","大塚系","前田系","近藤系"];
 const TRAINS=[
  {id:"saka",n:"坂路",d:"スピード＋ パワー＋ 疲労 中（特性「坂巧者」進捗）",cost:8,learn:"slope"},
@@ -2479,7 +2592,7 @@ function newHorse(o){
   const coat=o.coat!==undefined?o.coat:ri(0,COATS.length-1);
   const base=o.base||55;
   const h={
-    id:HID++, name:o.name||(pick(HORSE_NAMES)+pick(HORSE_NAMES2)),
+    id:HID++, name:o.name||genUniqueName(),
     sex, age:o.age||2, coat,
     sire:o.sire||pick(SIRE_NAMES), dam:o.dam||pick(DAM_NAMES),
     spd:clamp(Math.round(base+gauss()*14+(o.spd||0)),20,99),
@@ -4077,7 +4190,7 @@ function makeFoalFromTheory(p){
  const stRec=(S.stallions||[]).find(x=>x.name===p.sireName); const sireH=stRec?stRec.own:null;
  const base=58+Math.min(10,T.burst)+ri(-4,6);
  const f=newHorse({base, age:0, sire:p.sireName, dam:mare?mare.name:""});
- f.name=(mare?mare.name.slice(0,3):"幼駒")+ri(1,99);
+ f.name=applyCrownName(genUniqueName()); /* 仔馬は固有名＋設定があれば冠名を付ける */
  if(mare){ ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ const sv=sireH?sireH[k]:(mare[k]+8); f[k]=clamp(Math.round((sv+mare[k])/2+gauss()*5),25,97); }); f.turf=mare.turf; f.dirt=mare.dirt; f.heavy=mare.heavy; }
  /* 父系因子の活性化：受胎確定時に表示された父系因子は確実に上昇 */
  ((p.theory&&p.theory.sireFactors)||[]).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+ri(3,6),20,99); });
@@ -4293,7 +4406,7 @@ function makeRivals(r){
   for(let i=out.length;i<n;i++){
     const h=newHorse({base:baseByCls+gauss()*7, age:r.age||(r.ageMin?ri(r.ageMin,r.ageMin+2):pick([3,3,4,4,5,6]))});
     if(r.sex==="牝")h.sex="牝"; if(r.sex==="牡騸"&&h.sex==="牝")h.sex="牡";
-    h.name=pick(HORSE_NAMES)+pick(HORSE_NAMES2)+(Math.random()<0.4?pick(["II","III","・"+ri(2,9)]):"");
+    h.name=genUniqueName(out); /* 相手馬も固有名：この出馬表の中で重複させない */
     if(r.cls===0){h.races=0; h.wins=0;}
     else if(r.cls===1){h.races=r.age===2?ri(1,3):ri(1,8); h.wins=0;}
     else {h.races=ri(2,20); h.wins=clamp(Math.round(h.races*rnd(0.05,0.3)),0,9);}
@@ -6879,7 +6992,7 @@ const SAVE_KEY="keibaGemu_";
 function saveData(){ return {v:3, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, sound:S.sound||{on:true,bgm:0.6,se:0.9},
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"",
- loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0}; }
+ loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre"}; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); const el=$("#hud-saved"); if(el)el.textContent="✔ 保存済み"; }catch(e){} }
 /* ============ 騎手画面 ============ */
 function renderJockey(){
@@ -7094,7 +7207,10 @@ function renderRank(){
 }
 function showSettings(){
   const sc=sndCfg();
-  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
+  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>冠名（自厩舎の命名）</summary><div class="foldbody">
+  <label class="small">冠名ワード（空欄なら付けません。生産した仔馬など、自厩舎の馬の自動命名に付きます）<br><input type="text" id="set-crown" style="width:100%" maxlength="8" placeholder="例：サクラ" value="${esc(S.crownName||"")}"></label><br><br>
+  <label class="small">付ける位置<br><select id="set-crownpos" style="width:100%"><option value="pre" ${S.crownPos!=="post"?"selected":""}>頭に付ける（例：サクラ＋名前）</option><option value="post" ${S.crownPos==="post"?"selected":""}>尻に付ける（例：名前＋サクラ）</option></select></label>
+  <p class="small mt">これから生まれる仔馬の名前に反映されます。すで��いる馬の名前は変わりません。</p></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
   <label class="small">観戦設定マトリクス（レース種別ごとの既定）</label>
   ${(()=>{ const wm=S.watchMatrix||{g1:"full",graded:"full",cond:"digest"}; const opts=v=>[["full","フル観戦"],["digest","ダイジェスト"],["result","結果だけ"]].map(([val,n])=>`<option value="${val}" ${v===val?"selected":""}>${n}</option>`).join("");
     return `<table><tr><th>種別</th><th>観戦方法</th></tr>
@@ -7111,11 +7227,12 @@ function showSettings(){
   /* 確定ボタンは廃止：変更した瞬間に反映・保存する */
   const applySet=()=>{ const g=id=>{ const e=$(id); return e?e.value:null; };
     if(g("#set-auto")!=null)S.autosaveFreq=g("#set-auto"); if(g("#set-cam")!=null)S.camMode=g("#set-cam"); if(g("#set-watch")!=null)S.watchMode=g("#set-watch");
+    if(g("#set-crown")!=null)S.crownName=g("#set-crown").replace(/[<>&"']/g,"").slice(0,8); if(g("#set-crownpos")!=null)S.crownPos=g("#set-crownpos")==="post"?"post":"pre";
     if(g("#set-wm-g1")!=null)S.watchMatrix={g1:g("#set-wm-g1"), graded:g("#set-wm-graded"), cond:g("#set-wm-cond")};
     if(g("#set-mark")!=null)S.markOn=g("#set-mark")==="on";
     if(g("#set-snd")!=null)S.sound={on:g("#set-snd")==="on", bgm:(+($("#set-bgm")?$("#set-bgm").value:60))/100, se:(+($("#set-se")?$("#set-se").value:90))/100};
     if(auInit())auApply(); saveAuto(true); };
-  ["#set-auto","#set-cam","#set-watch","#set-wm-g1","#set-wm-graded","#set-wm-cond","#set-mark","#set-snd"].forEach(id=>{ const e=$(id); if(e)e.addEventListener("change",applySet); });
+  ["#set-auto","#set-cam","#set-watch","#set-wm-g1","#set-wm-graded","#set-wm-cond","#set-mark","#set-snd","#set-crown","#set-crownpos"].forEach(id=>{ const e=$(id); if(e)e.addEventListener("change",applySet); });
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",()=>{ updLbl(); applySet(); }); if(seIn)seIn.addEventListener("input",()=>{ updLbl(); applySet(); });
   $("#set-ok").addEventListener("click",()=>{ $("#overlay").style.display="none"; renderAll(); });
 }
@@ -7129,6 +7246,7 @@ function applySave(d){
   S.camMode=["leader","mine","all"].includes(d.camMode)?d.camMode:"leader";
   S.autosaveFreq=["week","month","off"].includes(d.autosaveFreq)?d.autosaveFreq:"week";
   S.autoCfg=(d.autoCfg&&typeof d.autoCfg==="object")?d.autoCfg:null; /* オートの停止条件（旧セーブには無いので null→既定値で補う） */
+  S.crownName=(typeof d.crownName==="string")?d.crownName.slice(0,8):""; S.crownPos=d.crownPos==="post"?"post":"pre"; /* 冠名（旧セーブには無いので空で補う） */
   S.trainerId=(d.trainerId&&TRAINER_ROSTER.some(t=>t.id===d.trainerId))?d.trainerId:"jp122"; S.omakase=!!d.omakase; applyTrainer(); /* 雇用中の調教師（旧セーブは高橋で補う） */
   if(d.sound&&typeof d.sound==="object") S.sound={on:d.sound.on!==false, bgm:clamp(Number.isFinite(+d.sound.bgm)?+d.sound.bgm:0.6,0,1), se:clamp(Number.isFinite(+d.sound.se)?+d.sound.se:0.9,0,1)};
   /* 旧セーブに残る架空の名馬が混ざっていたら、実在馬リストへ移行する */
@@ -7732,6 +7850,7 @@ function autoStep(){
    次週バーを隠し、状態表示と停止ボタンだけにする */
 function renderAutoBar(){
   const bar=$("#autobar"); if(!bar) return;
+  bar.classList.toggle("is-running", typeof AUTO!=="undefined" && !!AUTO.running);
   const inRace=(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done"));
   if(inRace||S.gameover){ bar.style.display="none"; return; }
   bar.style.display="";
@@ -7891,6 +8010,10 @@ function renderAll(){
 }
 document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",()=>{ cardFocus=false; pendingTrain=null; pendingAnchor=null; switchView(b.dataset.v); }));
 $("#btn-nextweek").addEventListener("click",()=>{ if(raceState.phase==="run"||raceState.phase==="done")return; pendingTrain=null; nextWeek(); });
+/* 下部バーの畳む／出すトグル：畳んだ状態でも次週へバーとタブは残る。
+   オート実行中は renderAutoBar が付ける .is-running でオートバーだけ残す */
+const dockBtn=$("#btn-docktoggle");
+if(dockBtn) dockBtn.addEventListener("click",()=>{ const app=$("#app"); const min=app.classList.toggle("dock-min"); dockBtn.textContent=min?"△ 下のバーを出す":"▽ 下のバーを畳む（表示領域を広げる）"; dockBtn.setAttribute("aria-expanded", String(!min)); });
 $("#btn-save").addEventListener("click",()=>showSavePanel());
 const setBtn=$("#btn-settings"); if(setBtn)setBtn.addEventListener("click",()=>showSettings());
 /* サウンド開始はユーザーのタップ以降（自動再生制限対応）：最初のタップでAudioContextを作り、ホームBGMを開始する */
