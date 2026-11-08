@@ -1173,9 +1173,39 @@ img.faceimg{ object-position:center 20%; }
      （実画面で 390px / 1440px 両幅・提案状態とあわせて確認済み）
    ============================================================ */
 .sumlist dd{ overflow-wrap:anywhere; }
+/* 第7次の anywhere 指定だけでは監査でなお約5pxの見切れが残ったため、
+   グリッド側の列定義を minmax(0,1fr) にして列自体が内容に押し広げられない
+   ようにし、dd 側も break-all で禁則に引っかかる箇所でも必ず折る */
+.sumlist{ grid-template-columns:auto minmax(0,1fr); }
+.sumlist dd{ word-break:break-all; }
 .gauge .glo,.gauge .ghi{ white-space:nowrap; }
 #actionbar.solo{ display:block; text-align:center; }
 #actionbar.solo .ab-btn.ab-wide{ display:block; width:100% !important; max-width:none; margin:0 auto; text-align:center; }
+/* ============================================================
+   モーダルの縦あふれ修正（2026-11-08 第8次）
+   ・通常の .box には最大高さがなく、セーブ画面のように縦に長い
+     パネルでは「閉じる」ボタンが画面外へ流れて押せなかった。
+     全パネルに画面高さ上限＋内部スクロールを持たせる。
+   ・セーブ／設定パネルは本文（.ov-body）だけがスクロールし、
+     「閉じる／保存して閉じる」を収めた .ov-foot はパネル下部に
+     常時固定される（390pxのスマホでも常に見えて押せる）。
+   ============================================================ */
+#overlay{ padding:10px; padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)); }
+#overlay .box{ max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px - env(safe-area-inset-bottom,0px)); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#overlay .box.wide{ max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px - env(safe-area-inset-bottom,0px)); }
+#overlay .box:has(> .ov-body){ display:flex; flex-direction:column; overflow:hidden; }
+#overlay .box > h2{ flex:none; }
+#overlay .box > .ov-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#overlay .box > .ov-foot{ flex:none; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; padding-top:12px; margin-top:12px; border-top:1.5px solid var(--line); background:inherit; }
+#overlay .box > .ov-foot .btn{ min-height:52px; flex:1 1 auto; max-width:440px; font-size:15.5px; }
+@media (max-width:640px){ #overlay .box{ padding:16px; } }
+/* ============================================================
+   提案バー併記（2026-11-08 第9次）
+   ・提案表示中でも「次の週へ」を小さめの副ボタンとして常時併記し、
+     提案を実行しなくても週を進められる状態を保証する。
+     提案が無いときは従来どおり全面幅の「次の週へ」(.solo) のまま。
+   ============================================================ */
+#actionbar .ab-btn.ab-skip{ min-height:48px; font-size:14.5px; font-weight:800; margin-top:8px; }
 </style>
 </head>
 <body>
@@ -4963,30 +4993,56 @@ function render3DFrame(el, cam){
   const asp=(Wpx||16)/Math.max(1,Hpx||9);
   const zf= asp<1 ? clamp(1.30/Math.max(asp,0.42),1,2.6) : 1;
   const off= mode==="all"? {x:-13*zf, y:6.4*Math.sqrt(zf), z:19.5*zf} : {x:-5.0, y:2.7*Math.sqrt(zf), z:13.4*zf};
-  /* ゴール前後の真横カメラ：先頭が残り90mを切ったら通常の斜め気味トラッキングから
-     徐々に寄せていき、残り30m〜ゴール後70mまではコース脇の真横位置に固定する。
+  /* 最後の直線はずっと真横カメラ：ゴール直前だけではない。
+     真横になりきる地点を「最終コーナー区間の入口」まで前倒しした。
+     ゲーム内の区間判定（raceState.geo：第3・4コーナーの弧長 c34M と
+     ホーム直線 homeM）と同じ物差しで、残り＝ homeM＋c34M（第3コーナー入口）
+     の時点で既に完全に真横になっており、第3・4コーナー→最後の直線→
+     ゴール→ゴール後70mまで真横を保ち続ける。実直線長＋300m の方が早い
+     競馬場ではそちらを採用し、どの競馬場でも従来より遅くなることはない。
+     コーナー入口のさらに200m手前から通常の斜め気味トラッキングで寄せ始め、
+     入口に到達した時点では完全に真横になり、その先40m（ゴール後70m以降）で
+     通常画角へ戻す。
      真横では進行方向（x）のオフセットと前方注視をゼロにし、カメラ位置・注視点とも
      対象馬の真横（同じx・同じレーン位置）に置くので、視線はコースに対して完全に
      垂直になり、馬の側面が正面に映る。カメラの高さも馬体並みの約1.45mまで下げるため
      俯角もほぼゼロになる。それ以外の区間は従来どおりの画角 */
-  const leadRemain=(1-leadH._prog)*r.dist;
-  let goalG=0;
-  if(leadRemain<90) goalG= leadRemain>30? (90-leadRemain)/60 : 1;
-  if(leadH._prog>=1) goalG= leadRemain>-70? 1 : Math.max(0, 1-(-leadRemain-70)/40);
-  goalG=clamp(goalG,0,1); goalG=goalG*goalG*(3-2*goalG); // smoothstep
+  const homeStraightM= r.straight || (typeof COURSE_STRAIGHT!=="undefined"? COURSE_STRAIGHT[r.course] : 0) || (raceState.geo? raceState.geo.homeM : 0) || 350;
+  const geoHomeM= raceState.geo? raceState.geo.homeM : 0, geoC34M= raceState.geo? raceState.geo.c34M : 0;
+  const cornerInM= (geoHomeM>0&&geoC34M>0)? geoHomeM+geoC34M : 0; // 第3コーナー入口＝最終コーナー区間の入口（残り距離）
+  const sideFullM=Math.max(homeStraightM+300, cornerInM); // この残り距離で完全に真横（最終コーナーからゴールまで維持）
+  const sideBlendM=200;              // コーナー入口の手前この距離から寄せ始める
+  /* 真横判定は「先頭馬」ではなく「いま見ている馬（焦点馬）」基準にする。
+     先頭基準だと「自分の馬」視点で自馬が遅れているとき、先頭がゴールした
+     時点で真横が解除され、自馬が最終コーナー〜直線を走る間は斜め画角に
+     戻ってしまい「変わっていない」ように見えた。焦点馬自身の残り距離で
+     判定すれば、先頭視点は従来どおり、自馬視点でも自馬が最終コーナーに
+     入ってから自馬のゴール後70mまでずっと真横が続く。全体視点だけは
+     馬群の代表として先頭基準を維持する */
+  const trgH= mode==="all"? leadH : focH;
+  const trgRemain=(1-trgH._prog)*r.dist;
+  let sideG=0;
+  if(trgH._prog>=1) sideG= trgRemain>-70? 1 : Math.max(0, 1-(-trgRemain-70)/40);
+  else if(trgRemain<=sideFullM) sideG=1;
+  else if(trgRemain<sideFullM+sideBlendM) sideG=(sideFullM+sideBlendM-trgRemain)/sideBlendM;
+  sideG=clamp(sideG,0,1); sideG=sideG*sideG*(3-2*sideG); // smoothstep
   const focX=(focH._prog||0)*r.dist; // 対象馬の実際のx位置（真横カメラのアンカー）
   const focZT=latAt(focH, clamp(focH._prog,0,1))*4.6; // 対象馬の実際のレーン位置
-  const anchX=focusM+(focX-focusM)*goalG;
-  const camZN=off.z + (mode==="all"?0:focZ*0.55), camZG=focZT+off.z;
-  /* 高さもゴール区間では馬体と同じ約1.45mまで下ろす：方位だけでなく俯角も消え、
+  const anchX=focusM+(focX-focusM)*sideG;
+  /* 真横区間のカメラ距離は視点（先頭／自分の馬／全体）に依存させない：
+     どの視点でも同じ距離・同じ馬体並みの高さで真横から映す。
+     （縦長画面での引き量 zf だけはアスペクト由来なので全視点共通で効く） */
+  const SIDE_DIST=13.4*zf;
+  const camZN=off.z + (mode==="all"?0:focZ*0.55), camZG=focZT+SIDE_DIST;
+  /* 高さも直線区間では馬体と同じ約1.45mまで下ろす：方位だけでなく俯角も消え、
      見下ろし気味の斜めではなく完全な真横プロフィールになる（注視点の高さ1.30とほぼ一致）。
      内ラチ（高さ1.08）より視線は上を通るのでラチに隠れることもない */
-  const tp=_v.set(anchX+off.x*(1-goalG), off.y+(1.45-off.y)*goalG, camZN+(camZG-camZN)*goalG);
+  const tp=_v.set(anchX+off.x*(1-sideG), off.y+(1.45-off.y)*sideG, camZN+(camZG-camZN)*sideG);
   if(GL.camPos.distanceTo(tp)>30) GL.camPos.copy(tp); // 直線スキップ等の大きなジャンプでは即座に合わせる
   const k=1-Math.exp(-dt*3.6); GL.camPos.lerp(tp,k);
-  if(goalG>0.98) GL.camPos.x=tp.x; // ゴール付近では追従の遅れによる斜め成分も残さず、完全に真横を保つ
+  if(sideG>0.98){ GL.camPos.x=tp.x; GL.camPos.y=tp.y; GL.camPos.z=tp.z; } // 直線区間では追従の遅れを x・高さ・距離すべてで残さず、完全に真横を保つ
   GL.camera.position.copy(GL.camPos);
-  GL.camera.lookAt(anchX+1.6*(1-goalG), 1.30, focZ*0.72+(focZT-focZ*0.72)*goalG);
+  GL.camera.lookAt(anchX+1.6*(1-sideG), 1.30, focZ*0.72+(focZT-focZ*0.72)*sideG);
   GL.sun.position.set(focusM+16,27,17); GL.sun.target.position.set(focusM,0,0); GL.sun.target.updateMatrixWorld();
   GL.ground.position.x=Math.round(focusM/10)*10;
   GL.backdrop.position.x=focusM; GL.farTex.offset.x=focusM*0.0016;
@@ -6290,7 +6346,7 @@ function renderRank(){
 }
 function showSettings(){
   const sc=sndCfg();
-  showOverlay(`<h2>設定</h2><div style="text-align:left"><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
+  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
   <label class="small">観戦設定マトリクス（レース種別ごとの既定）</label>
   ${(()=>{ const wm=S.watchMatrix||{g1:"full",graded:"full",cond:"digest"}; const opts=v=>[["full","フル観戦"],["digest","ダイジェスト"],["result","結果だけ"]].map(([val,n])=>`<option value="${val}" ${v===val?"selected":""}>${n}</option>`).join("");
     return `<table><tr><th>種別</th><th>観戦方法</th></tr>
@@ -6302,7 +6358,7 @@ function showSettings(){
   <label class="small">サウンド<br><select id="set-snd" style="width:100%"><option value="on" ${sc.on?"selected":""}>ON（BGM・歓声・効果音）</option><option value="off" ${sc.on?"":"selected"}>OFF（ミュート）</option></select></label><br><br>
   <label class="small">BGM音量 <span id="set-bgm-v">${Math.round(sc.bgm*100)}</span><br><input type="range" id="set-bgm" min="0" max="100" value="${Math.round(sc.bgm*100)}" style="width:100%"></label><br>
   <label class="small">効果音・歓声音量 <span id="set-se-v">${Math.round(sc.se*100)}</span><br><input type="range" id="set-se" min="0" max="100" value="${Math.round(sc.se*100)}" style="width:100%"></label>
-  <p class="small mt">既定カメラは次回レース開始時に適用されます（レース中の切替も従来どおり可能です）。オートセーブを「切」にしても手動セーブは使えます。サウンドは端末内で生成する音のみで、最初のタップ以降に鳴り始めます。</p></div></details></div><button class="btn gold" id="set-ok" style="margin-top:12px">保存して閉じる</button>`);
+  <p class="small mt">既定カメラは次回レース開始時に適用されます（レース中の切替も従来どおり可能です）。オートセーブを「切」にしても手動セーブは使えます。サウンドは端末内で生成する音のみで、最初のタップ以降に鳴り始めます。</p></div></details></div></div><div class="ov-foot"><button class="btn gold" id="set-ok">保存して閉じる</button></div>`);
   const updLbl=()=>{ const b=$("#set-bgm"), s2=$("#set-se"); if(b)$("#set-bgm-v").textContent=b.value; if(s2)$("#set-se-v").textContent=s2.value; };
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",updLbl); if(seIn)seIn.addEventListener("input",updLbl);
   $("#set-ok").addEventListener("click",()=>{ S.autosaveFreq=$("#set-auto").value; S.camMode=$("#set-cam").value; S.watchMode=$("#set-watch").value; S.watchMatrix={g1:$("#set-wm-g1").value, graded:$("#set-wm-graded").value, cond:$("#set-wm-cond").value}; S.markOn=$("#set-mark").value==="on"; S.sound={on:$("#set-snd").value==="on", bgm:(+$("#set-bgm").value)/100, se:(+$("#set-se").value)/100}; if(auInit())auApply(); $("#overlay").style.display="none"; saveAuto(true); renderAll(); });
@@ -6393,7 +6449,7 @@ function showSavePanel(){
   <button class="btn gold sm" id="tc-restore">引き継ぎ（復元）</button>
   <label class="btn ghost sm" style="cursor:pointer">ファイルから復元<input type="file" id="tc-file" accept=".json,.txt,text/plain" style="display:none"></label></div>
   <p class="small" id="tc-msg" style="color:#a33;font-weight:700"></p></div>`;
-  showOverlay(`<h2>セーブ／ロード</h2>${rows}${tcHTML}<p class="small">保存先はこの端末のブラウザ内です。ブラウザのデータを消すとセーブも消えます。</p><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる</button>`);
+  showOverlay(`<h2>セーブ／ロード</h2><div class="ov-body">${rows}${tcHTML}<p class="small">保存先はこの端末のブラウザ内です。ブラウザのデータを消すとセーブも消えます。</p></div><div class="ov-foot"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
   const tcMsg=t=>{ const m=$("#tc-msg"); if(m)m.textContent=t; };
   const tcIssue=$("#tc-issue"); if(tcIssue) tcIssue.addEventListener("click", async()=>{ tcMsg(""); try{ $("#tc-code").value=await issueTransferCode(($("#tc-pass").value||"").trim()); toast("引き継ぎコードを発行しました"); }catch(e){ tcMsg("発行に失敗しました: "+e.message); } });
   const tcCopy=$("#tc-copy"); if(tcCopy) tcCopy.addEventListener("click", async()=>{ const v=($("#tc-code").value||"").trim(); if(!v){ tcMsg("先にコードを発行してください"); return; } try{ await navigator.clipboard.writeText(v); toast("コードをコピーしました"); }catch(e){ $("#tc-code").select(); document.execCommand&&document.execCommand("copy"); toast("コードをコピーしました"); } });
@@ -6557,8 +6613,12 @@ function renderActionBar(){
   const g=buildGuideSafe();
   const c=(g.cards||[]).find(x=>!x.dis) || null;
   if(c){
-    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${esc(c.text)}</div><button class="ab-btn btn gold" id="ab-exec">${esc(c.btn)}</button>`;
+    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${esc(c.text)}</div><button class="ab-btn btn gold" id="ab-exec">${esc(c.btn)}</button><button class="ab-btn btn ghost ab-skip" id="ab-skip">次の週へ ▶</button>`;
     const b=$("#ab-exec"); if(b) b.addEventListener("click",()=>{ try{ const g2=buildGuideSafe(); execGuideCard(g2.cards.find(x=>x.key===c.key&&!x.dis)||g2.cards.find(x=>!x.dis)); }catch(e){} renderAll(); });
+    /* 提案を無視して次週へ進む手段を常時併記する（提案表示中でも「次の週へ」が
+       出ない状態を作らない）。エントリー済みレースがある週は nextWeek() 側が
+       理由を表示して止めるので、このボタンからでも安全に進める */
+    const sk=$("#ab-skip"); if(sk) sk.addEventListener("click",()=>{ if(raceState.phase!=="run"&&raceState.phase!=="done") nextWeek(); });
     return;
   }
   bar.classList.add("solo");
