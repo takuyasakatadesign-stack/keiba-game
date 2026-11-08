@@ -959,7 +959,13 @@ body{ font-size:15px; }
 #hud .saved{ color:#bfe3c8; }
 #hud .hudchip{ background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.35); }
 #hud .btn.ghost{ background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.4); }
-#btn-nextweek{ display:none !important; }
+/* 「次の週へ」は下部の提案バーから上部HUD（紫バー）右端へ移設（2026-11-08 第10次）。
+   提案バーの中では提案ボタンと上下に積まれて埋もれるため、常時見える
+   場所に独立させる。表示/非表示は従来どおり renderChrome がレース中・
+   レース終了画面で切り替える（インライン指定が効くよう !important は付けない） */
+#btn-nextweek{ display:inline-flex; align-items:center; justify-content:center; flex:none; min-height:44px; padding:8px 16px; font-size:15px; font-weight:900; border-radius:11px; letter-spacing:.03em; }
+#btn-nextweek.glow{ animation:nwglow 1.6s ease-in-out infinite; }
+@keyframes nwglow{ 0%,100%{ box-shadow:0 3px 0 #8a5a00, 0 0 0 rgba(255,224,102,0);} 50%{ box-shadow:0 3px 0 #8a5a00, 0 0 16px rgba(255,224,102,.95);} }
 #sceneband{ height:auto; border-radius:0; margin:8px 10px 0; background:linear-gradient(180deg,#ffe066,#f5b90d); border-top:3px solid #fff3b0; border-bottom:4px solid #b8860b; box-shadow:0 3px 8px rgba(90,58,0,.35); }
 #sb-img{ display:none !important; }
 #sceneband .sb-cap{ position:static; padding:7px 12px; display:flex; align-items:baseline; gap:10px; }
@@ -1206,6 +1212,40 @@ img.faceimg{ object-position:center 20%; }
      提案が無いときは従来どおり全面幅の「次の週へ」(.solo) のまま。
    ============================================================ */
 #actionbar .ab-btn.ab-skip{ min-height:48px; font-size:14.5px; font-weight:800; margin-top:8px; }
+/* ============================================================
+   第10次（2026-11-08）：次週へ移設／直線での視点切替／コーナー再現
+   1) 「次の週へ」は上部HUDへ移設したので、下部バーは「次の提案」
+      専用に戻す（次週へボタンは下部には置かない）。
+   2) レース中の視点切替は、映像の上に重ねたフローティング
+      コントロールでも常時できるようにする。最後の直線（真横画角）
+      でもスクロールせずに自馬／先頭／全体を切り替えられる。
+      あわせて #racectl 自体も下端に吸着させ、操作列が画面外へ
+      流れないようにする。
+   ============================================================ */
+#racewrap{ position:relative; }
+#racecam-float{ position:absolute; top:10px; right:10px; z-index:8; display:flex; gap:5px; align-items:center; background:rgba(10,24,14,.82); border:1.5px solid rgba(255,233,168,.65); border-radius:999px; padding:5px 6px; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+#racecam-float .rcf-lbl{ color:#ffe9a8; font-size:12px; font-weight:900; padding:0 3px 0 7px; white-space:nowrap; }
+#racecam-float .cambtn{ min-height:44px; min-width:58px; padding:7px 10px; font-size:13.5px; border-radius:999px; background:rgba(255,255,255,.14); color:#fff; border:1.5px solid rgba(255,255,255,.4); box-shadow:none; }
+#racecam-float .cambtn.on{ background:linear-gradient(180deg,#ffe066,#f5a301); color:#3a2400; border-color:#8a5a00; font-weight:900; }
+#racecam-float .cambtn:disabled{ opacity:.4; }
+#racectl{ position:sticky; bottom:0; z-index:5; }
+@media (max-width:640px){
+  #racecam-float{ top:8px; right:8px; left:8px; justify-content:flex-end; }
+  #racecam-float .cambtn{ flex:1; min-width:0; }
+  #hud{ flex-wrap:wrap; }
+  #btn-nextweek{ min-height:46px; font-size:15.5px; padding:9px 18px; }
+}
+/* ============================================================
+   第11次（2026-11-08）：次週へ再移設／提案は遷移型に／コーナー強調
+   1) 「次の週へ」は上部HUDからも外し、提案バーとタブナビの間に
+      専用の全面幅バー（#nextweekbar）を新設してそこへ移す。
+      提案バーとは別要素なので、提案の有無に左右されず常時表示され、
+      提案ボタンの下に積まれることも上部の小ボタンに埋もれることもない。
+   2) 提案から遷移した先で、対象の調教ボタン等を金枠で示す。
+   ============================================================ */
+#nextweekbar{ background:#fffdf4; border-top:2.5px solid #d9c98a; padding:8px 10px; }
+#nextweekbar #btn-nextweek{ display:block; width:100%; min-height:58px; font-size:17.5px; font-weight:900; border-radius:13px; letter-spacing:.04em; }
+.guidefocus{ outline:3.5px solid var(--gold-mid) !important; outline-offset:2px; box-shadow:0 0 0 6px rgba(233,188,46,.35), 0 0 18px rgba(233,188,46,.65) !important; }
 </style>
 </head>
 <body>
@@ -1218,7 +1258,6 @@ img.faceimg{ object-position:center 20%; }
     <span class="sp"></span>
     <button class="btn ghost sm" id="btn-save">セーブ</button>
     <button class="btn ghost sm" id="btn-settings">設定</button>
-    <button class="btn gold sm" id="btn-nextweek">次の週へ</button>
   </div>
   <div id="weekplan"></div>
   <div id="todo"></div>
@@ -1234,6 +1273,7 @@ img.faceimg{ object-position:center 20%; }
     <section class="view" id="v-rank"></section>
   </div>
   <div id="actionbar"></div>
+  <div id="nextweekbar"><button class="btn gold" id="btn-nextweek">次の週へ ▶</button></div>
   <nav id="tabs">
     <button data-v="stable" class="on">厩舎</button>
     <button data-v="train">調教</button>
@@ -3287,7 +3327,7 @@ function renderStable(){
     const sg=suggestNextRaces(h); const top=sg.list[0];
     if(!top) return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b><br><span class="small">出走条件に合うレースが当面ありません（年齢・クラスの条件を確認してください）</span></div><button class="btn ghost sm" data-sugsel="${h.id}">詳細を見る</button></div>`;
     const r=top.race; const second=sg.list[1];
-    return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b> → <b>${esc(r.name)}</b> <span class="small">${r.course} ${r.surf}${r.dist}m・${r.when}${r.weeks?`（あと${r.weeks}週）`:"（今週）"}</span><br><span class="small">${top.reasons.join("／")}${second?`<br>次点：${esc(second.race.name)}（${second.race.when}）`:""}${sg.caution?`<br>⚠ ${sg.caution.reason}`:""}</span></div><div class="flex"><button class="btn gold sm" data-sugreg="${h.id}">このレースに登録</button><button class="btn ghost sm" data-sugsel="${h.id}">候補を詳細で見る</button></div></div>`;
+    return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b> → <b>${esc(r.name)}</b> <span class="small">${r.course} ${r.surf}${r.dist}m・${r.when}${r.weeks?`（あと${r.weeks}週）`:"（今週）"}</span><br><span class="small">${top.reasons.join("／")}${second?`<br>次点：${esc(second.race.name)}（${second.race.when}）`:""}${sg.caution?`<br>⚠ ${sg.caution.reason}`:""}</span></div><div class="flex"><button class="btn gold sm" data-sugreg="${h.id}">次走提案を開く</button><button class="btn ghost sm" data-sugsel="${h.id}">候補を詳細で見る</button></div></div>`;
   }).join("") : `<p class="small">所有馬がいません。</p>`}
   <p class="small" style="margin:4px 0 0">提案は開くたびに現在の状態で計算し直します（週送り・レース・調教のあとでも古くなりません）。</p></div>`;
   html+=`<h2 class="sec">所有馬 <span class="tag">${S.horses.length}頭</span></h2><div id="owned-grid">`;
@@ -3341,7 +3381,7 @@ function renderStable(){
   el.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.plan]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } const doReg=()=>{ registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }; if(hh.entry&&hh.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${esc(hh.name)}は「${esc(hh.entry.name)}」にエントリー中です。取り消して「${esc(race.name)}」に登録し直します。`,doReg); return; } doReg(); }));
   /* 秘書パネル（全馬提案）からの導線：詳細で候補を見る／ベスト候補をその場で登録 */
   el.querySelectorAll("[data-sugsel]").forEach(b=>b.addEventListener("click",()=>{ S.selected=+b.dataset.sugsel; detailOpen=true; renderAll(); const d=$("#hdetail"); if(d) d.scrollIntoView({behavior:"smooth",block:"start"}); }));
-  el.querySelectorAll("[data-sugreg]").forEach(b=>b.addEventListener("click",()=>{ const hh=S.horses.find(x=>x.id===+b.dataset.sugreg); if(!hh||hh.entry)return; const sgs=suggestNextRaces(hh); const pk=sgs.list[0]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }));
+  el.querySelectorAll("[data-sugreg]").forEach(b=>b.addEventListener("click",()=>{ const hh=S.horses.find(x=>x.id===+b.dataset.sugreg); if(!hh||hh.entry)return; S.selected=hh.id; detailOpen=true; renderAll(); if(!openPlanFold()){ const d=$("#hdetail"); if(d) d.scrollIntoView({behavior:"smooth",block:"start"}); } }));
   wireEntryButtons(el);
   el.querySelectorAll("[data-plan-go]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.planGo]; if(!pk)return; const race=pk.race; const cur=S.races.find(x=>x.id===race.id); const rs=cur?eligible(hh,cur):"今週のレースではありません"; if(rs){ alert2("出走できません",`${esc(hh.name)}は「${esc(race.name)}」に出走できません（${rs}）。`); return; } hh.nextPlan=race.name; S.selRace=race.id; raceState.rivals=null; switchView("race"); }));
 }
@@ -4511,9 +4551,10 @@ function camAt(e){
   }
   return cur;
 }
-/* 視点ボタンの見た目を現在の視点に合わせる */
+/* 視点ボタンの見た目を現在の視点に合わせる（下部コントロールと
+   映像上のフローティングコントロールの両方を同期する） */
 function syncCamBtns(){
-  document.querySelectorAll("#racectl .cambtn").forEach(b=>b.classList.toggle("on", b.dataset.cam===(raceState.camMode||"leader")));
+  document.querySelectorAll("#v-race .cambtn").forEach(b=>b.classList.toggle("on", b.dataset.cam===(raceState.camMode||"leader")));
 }
 /* コースマップ表示ON/OFFボタンの見た目同期 */
 function syncMapBtn(){
@@ -4529,9 +4570,23 @@ function setCamMode(mode){
   if(!["leader","mine","all"].includes(mode))return;
   if((raceState.camMode||"leader")===mode){ syncCamBtns(); return; }
   const cur=camAt(raceState.simT||0); // 切替前のカメラ位置を起点にブレンド開始
+  /* 焦点（距離・レーン位置）の切替元も記録する。最後の直線の真横画角では
+     カメラの基準点そのものが焦点馬なので、ここを混ぜないと視点ボタンを
+     押した瞬間に画角が跳ね、「切り替わらない／切り替えられない」ように見えた */
+  let fromS=cur?cur.f:0, fromLat=0;
+  if(raceState.sim){
+    const prevMode=raceState.camMode||"leader";
+    const leadP=raceState.sim.all.reduce((m,h)=>h._prog>m._prog?h:m, raceState.sim.all[0]);
+    if(prevMode==="mine"&&raceState.mine){ fromS=(raceState.mine._prog||0)*(raceState.race?raceState.race.dist:0); fromLat=latAt(raceState.mine, clamp(raceState.mine._prog,0,1))*4.6; }
+    else if(prevMode==="all"){ fromS=cur?cur.f:fromS; fromLat=0; }
+    else { fromS=(leadP._prog||0)*(raceState.race?raceState.race.dist:0); fromLat=latAt(leadP, clamp(leadP._prog,0,1))*4.6; }
+  }
+  raceState.camFocusBlend={t0:performance.now(), fromS, fromLat};
   raceState.camMode=mode; S.camMode=mode; saveAuto();
   if(cur) raceState.camBlend={t0:performance.now(), from:cur};
   syncCamBtns();
+  /* 3D表示中は次のフレームから新視点で描かれるが、静止画的に確認できるよう即時にも1枚描く */
+  if(raceState.phase==="run"&&$("#racecv")){ try{ drawRace(raceState.simT||0); }catch(e){} }
 }
 /* 重賞タイトルカード（発走前・空とスタンドを背にレース名を大きく） */
 function drawTitleFrame(){
@@ -4656,6 +4711,77 @@ function drawMark(ctx,x,y,sz,mk){
  else if(mk.shape==="star"){ for(let i=0;i<10;i++){ const a=-Math.PI/2+i*Math.PI/5, rr=i%2?s*0.45:s; ctx[i?"lineTo":"moveTo"](Math.cos(a)*rr,Math.sin(a)*rr);} ctx.closePath(); }
  else { ctx.moveTo(0,-s); ctx.lineTo(s,0); ctx.lineTo(0,s); ctx.lineTo(-s,0); ctx.closePath(); }
  ctx.fill(); ctx.stroke(); ctx.restore();
+}
+/* ============ 3Dコース経路（直線＋コーナーの実形状） ============
+   従来の3D表示は全区間が真っ直ぐな直線で、コーナーが存在しなかった。
+   ここではレース距離を「直線→半円コーナー（第1・2コーナー）→向正面→
+   半円コーナー（第3・4コーナー＝最終コーナー）→ホーム直線（実直線長）」
+   の区間列に分解し、各地点の位置・進行方向・曲率を解析的に返す。
+   コーナー半径は競馬場の直線長から決める（小回り場はきつく、大回り場は緩く）。
+   短距離戦（直線＋最終コーナーだけで距離が埋まる場合）は最終コーナーのみ。
+   回り方向は COURSE_INFO の左回り／右回りに合わせる */
+let racePath=null;
+function buildRacePath(r){
+  const home=(r&&r.straight)||(typeof COURSE_STRAIGHT!=="undefined"&&r?COURSE_STRAIGHT[r.course]:0)||350;
+  let R= home<=300? 88 : home>=470? 135 : 110;
+  const sign= (typeof COURSE_INFO!=="undefined"&&r&&COURSE_INFO[r.course]&&COURSE_INFO[r.course].dir==="左回り")? 1 : -1;
+  let arc=Math.PI*R;
+  const dist=r.dist, post=140;
+  /* 区間長の合計がちょうどレース距離になるよう配分する：
+     2コーナー分の余裕があれば 第1・2コーナー＋最終コーナー、
+     無ければ最終コーナーのみ。直線が距離の大半を占める超短距離では
+     コーナーの弧を available に合わせて縮める */
+  const pre2=dist-home-2*arc, pre1=dist-home-arc;
+  const raw=[];
+  if(pre2>=arc*0.9){ raw.push(["s",pre2*0.42],["a",arc],["s",pre2*0.58],["a",arc]); }
+  else if(pre1>=40){ raw.push(["s",pre1],["a",arc]); }
+  else { arc=Math.max(70, dist-home-30); R=arc/Math.PI; raw.push(["s",Math.max(20,dist-home-arc)],["a",arc]); }
+  raw.push(["s",home],["s",post]);
+  const segs=[]; let s0=0, x=0, z=0, th=0;
+  raw.forEach(([ty,len])=>{
+    const dx=Math.cos(th), dz=Math.sin(th);
+    segs.push({ty,len,s0,x0:x,z0:z,th0:th});
+    if(ty==="s"){ x+=dx*len; z+=dz*len; }
+    else { const px=-dz, pz=dx, cx=x+px*sign*R, cz=z+pz*sign*R; x=2*cx-x; z=2*cz-z; th+=sign*Math.PI; }
+    s0+=len;
+  });
+  racePath={key:(r.id||r.name)+"|"+dist+"|"+home, segs, total:s0, home, R, sign, dist,
+    arcS: raw.length>=5? segs[3].s0 : segs[1].s0}; // 最終コーナー開始距離
+  return racePath;
+}
+function pathSegAt(P,s){
+  s=clamp(s,0,P.total);
+  for(let i=P.segs.length-1;i>=0;i--){ if(s>=P.segs[i].s0-0.001) return P.segs[i]; }
+  return P.segs[0];
+}
+function pathAt(s){
+  const P=racePath; if(!P) return {x:clamp(s,0,99999), z:0, th:0, dx:1, dz:0, px:0, pz:1, seg:null};
+  s=clamp(s,0,P.total);
+  const sg=pathSegAt(P,s), ds=s-sg.s0;
+  let x,z,th;
+  if(sg.ty==="s"){ x=sg.x0+Math.cos(sg.th0)*ds; z=sg.z0+Math.sin(sg.th0)*ds; th=sg.th0; }
+  else{
+    const dx0=Math.cos(sg.th0), dz0=Math.sin(sg.th0), px=-dz0, pz=dx0;
+    const cx=sg.x0+px*P.sign*P.R, cz=sg.z0+pz*P.sign*P.R;
+    const dA=P.sign*ds/P.R, vx=sg.x0-cx, vz=sg.z0-cz, ca=Math.cos(dA), sa=Math.sin(dA);
+    x=cx+vx*ca-vz*sa; z=cz+vx*sa+vz*ca; th=sg.th0+dA;
+  }
+  const dx=Math.cos(th), dz=Math.sin(th);
+  return {x, z, th, dx, dz, px:-dz, pz:dx, seg:sg};
+}
+/* 曲率（コーナー内=sign/R、それ以外=0）。区間境界の前後18mは滑らかに
+   混ぜ、馬体の傾き（バンク）がカクつかないようにする */
+function pathKappaSmooth(s){
+  const P=racePath; if(!P) return 0;
+  let k=0;
+  P.segs.forEach(sg=>{
+    if(sg.ty!=="a")return;
+    const a=sg.s0, b=sg.s0+sg.len, W=18;
+    const fIn=clamp((s-(a-W))/(2*W),0,1), fOut=clamp(((b+W)-s)/(2*W),0,1);
+    const f=Math.min(fIn,fOut), sm=f*f*(3-2*f);
+    k+= (P.sign/P.R)*sm;
+  });
+  return k;
 }
 /* ============ レース3D表示（Three.js・表示専用：位置と結果はシミュレーションが決める） ============
    馬は関節構造の3Dモデル（胴・首・頭・四肢2関節・尾＋騎手）をギャロップ周期で関節回転させて走らせる。
@@ -4909,20 +5035,79 @@ function ensureGL(){
 }
 function rebuildGLCourse(r){
   const g=GL.courseG; while(g.children.length) g.remove(g.children[0]);
+  const P=buildRacePath(r);
   const postMat=new THREE.MeshStandardMaterial({color:0xe8e8e2, roughness:0.5});
   const redMat=new THREE.MeshStandardMaterial({color:0xc22f24, roughness:0.5});
-  const mkPost=(x,label)=>{
-    const grp=new THREE.Group(); grp.position.set(x,0,-5.4);
+  /* 旧来の直線専用ラチ・支柱（シーン直置き）はコース形状と合わないので隠す */
+  if(GL.rails) GL.rails.forEach(b=>b.visible=false);
+  if(GL.posts) GL.posts.visible=false;
+  /* --- 馬場リボン：経路に沿って帯を張る（コーナーでは帯自体が曲がる） --- */
+  {
+    const step=6, n=Math.max(2,Math.ceil(P.total/step)+1);
+    const posArr=new Float32Array(n*2*3), uvArr=new Float32Array(n*2*2), idx=[];
+    for(let i=0;i<n;i++){
+      const s=Math.min(i*step,P.total), A=pathAt(s);
+      const o=i*6;
+      posArr[o]=A.x+A.px*-5.4; posArr[o+1]=0.02; posArr[o+2]=A.z+A.pz*-5.4;
+      posArr[o+3]=A.x+A.px*6.6; posArr[o+4]=0.02; posArr[o+5]=A.z+A.pz*6.6;
+      const u=i*4; uvArr[u]=0; uvArr[u+1]=s/24; uvArr[u+2]=1; uvArr[u+3]=s/24;
+      if(i<n-1){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
+    }
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(posArr,3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(uvArr,2));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    const tex=(r.surf==="ダート"? GL.dirtTex : GL.grassTex).clone(); tex.needsUpdate=true; tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+    const ribbon=new THREE.Mesh(geo, new THREE.MeshStandardMaterial({map:tex, roughness:1}));
+    ribbon.receiveShadow=true; g.add(ribbon);
+  }
+  /* --- ラチ：両側2段を経路に沿った細帯で描く（コーナーでも切れずに続く） --- */
+  {
+    const railMat2=new THREE.MeshStandardMaterial({color:0xf2f2ea, roughness:0.5, side:THREE.DoubleSide});
+    const step=6, n=Math.max(2,Math.ceil(P.total/step)+1);
+    [-5.4,6.6].forEach(off=>{
+      [1.08,0.62].forEach(hy=>{
+        const posArr=new Float32Array(n*2*3), idx=[];
+        for(let i=0;i<n;i++){
+          const s=Math.min(i*step,P.total), A=pathAt(s), o=i*6, w=0.05;
+          posArr[o]=A.x+A.px*(off-w); posArr[o+1]=hy; posArr[o+2]=A.z+A.pz*(off-w);
+          posArr[o+3]=A.x+A.px*(off+w); posArr[o+4]=hy; posArr[o+5]=A.z+A.pz*(off+w);
+          if(i<n-1){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
+        }
+        const geo=new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(posArr,3));
+        geo.setIndex(idx); geo.computeVertexNormals();
+        g.add(new THREE.Mesh(geo, railMat2));
+      });
+    });
+    /* 支柱：25mごとに経路の両側へ立てる */
+    const cnt=Math.floor(P.total/25)+1;
+    const posts=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05,0.05,1.1,6), railMat2, cnt*2);
+    const m4=new THREE.Matrix4();
+    let pi=0;
+    for(let i=0;i<cnt;i++){
+      const A=pathAt(Math.min(i*25,P.total));
+      [-5.4,6.6].forEach(off=>{ m4.makeTranslation(A.x+A.px*off, 0.55, A.z+A.pz*off); posts.setMatrixAt(pi++, m4); });
+    }
+    posts.count=pi; posts.instanceMatrix.needsUpdate=true; g.add(posts);
+  }
+  /* --- ゴール柱・着順板・距離標：すべて経路上の実位置に置く --- */
+  const facePhi=A=>Math.atan2(A.px, A.pz);
+  const mkPost=(s,label,off)=>{
+    const A=pathAt(s);
+    const grp=new THREE.Group(); grp.position.set(A.x+A.px*(off==null?-5.4:off),0,A.z+A.pz*(off==null?-5.4:off));
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.4,8), postMat); pole.position.y=1.7; pole.castShadow=true; grp.add(pole);
     if(label){ const cv2=document.createElement("canvas"); cv2.width=cv2.height=128; const c2=cv2.getContext("2d");
       c2.fillStyle="#c22f24"; c2.beginPath(); c2.arc(64,64,58,0,7); c2.fill(); c2.fillStyle="#fff"; c2.font="bold 62px sans-serif"; c2.textAlign="center"; c2.fillText(label,64,84);
-      const disc=new THREE.Mesh(new THREE.CircleGeometry(0.62,20), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2), transparent:true}));
-      disc.position.set(0,3.1,0.06); grp.add(disc); }
+      const disc=new THREE.Mesh(new THREE.CircleGeometry(0.62,20), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2), transparent:true, side:THREE.DoubleSide}));
+      disc.position.set(0,3.1,0); disc.rotation.y=facePhi(A); grp.add(disc); }
     g.add(grp);
   };
-  mkPost(r.dist,""); // ゴール柱
-  const pole2=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.4,8), postMat); pole2.position.set(r.dist,1.7,6.6); pole2.castShadow=true; g.add(pole2);
-  const board=new THREE.Mesh(new THREE.BoxGeometry(0.18,1.1,11.4), redMat); board.position.set(r.dist,3.6,0.6); g.add(board);
+  mkPost(r.dist,""); // ゴール柱（内）
+  mkPost(r.dist,"",6.6); // ゴール柱（外）
+  { const A=pathAt(r.dist);
+    const board=new THREE.Mesh(new THREE.BoxGeometry(0.18,1.1,12.0), redMat);
+    board.position.set(A.x+A.px*0.6,3.6,A.z+A.pz*0.6); board.rotation.y=-A.th; g.add(board); }
   [[600,"6"],[400,"4"],[200,"2"]].forEach(([rm,lb])=>{ if(r.dist-rm>60) mkPost(r.dist-rm,lb); });
 }
 function rebuildGLHorses(){
@@ -4993,6 +5178,10 @@ function render3DFrame(el, cam){
   const asp=(Wpx||16)/Math.max(1,Hpx||9);
   const zf= asp<1 ? clamp(1.30/Math.max(asp,0.42),1,2.6) : 1;
   const off= mode==="all"? {x:-13*zf, y:6.4*Math.sqrt(zf), z:19.5*zf} : {x:-5.0, y:2.7*Math.sqrt(zf), z:13.4*zf};
+  /* コース経路（直線＋コーナー）を用意する。カメラも馬もこの経路の
+     進行方向（接線）を基準に置くため、コーナーではカメラが回り込み、
+     馬はカーブに沿って向きを変えて走る */
+  if(!racePath||racePath.dist!==r.dist||racePath.key.split("|")[0]!==String(r.id||r.name)) buildRacePath(r);
   /* 最後の直線はずっと真横カメラ：ゴール直前だけではない。
      真横になりきる地点を「最終コーナー区間の入口」まで前倒しした。
      ゲーム内の区間判定（raceState.geo：第3・4コーナーの弧長 c34M と
@@ -5026,52 +5215,85 @@ function render3DFrame(el, cam){
   else if(trgRemain<=sideFullM) sideG=1;
   else if(trgRemain<sideFullM+sideBlendM) sideG=(sideFullM+sideBlendM-trgRemain)/sideBlendM;
   sideG=clamp(sideG,0,1); sideG=sideG*sideG*(3-2*sideG); // smoothstep
-  const focX=(focH._prog||0)*r.dist; // 対象馬の実際のx位置（真横カメラのアンカー）
-  const focZT=latAt(focH, clamp(focH._prog,0,1))*4.6; // 対象馬の実際のレーン位置
-  const anchX=focusM+(focX-focusM)*sideG;
-  /* 真横区間のカメラ距離は視点（先頭／自分の馬／全体）に依存させない：
-     どの視点でも同じ距離・同じ馬体並みの高さで真横から映す。
-     （縦長画面での引き量 zf だけはアスペクト由来なので全視点共通で効く） */
-  const SIDE_DIST=13.4*zf;
-  const camZN=off.z + (mode==="all"?0:focZ*0.55), camZG=focZT+SIDE_DIST;
-  /* 高さも直線区間では馬体と同じ約1.45mまで下ろす：方位だけでなく俯角も消え、
-     見下ろし気味の斜めではなく完全な真横プロフィールになる（注視点の高さ1.30とほぼ一致）。
-     内ラチ（高さ1.08）より視線は上を通るのでラチに隠れることもない */
-  const tp=_v.set(anchX+off.x*(1-sideG), off.y+(1.45-off.y)*sideG, camZN+(camZG-camZN)*sideG);
+  /* 焦点（対象馬の距離とレーン位置）。視点切替時は setCamMode が記録した
+     切替元の焦点から約0.7秒かけて混ぜる。真横区間でもアンカーが新しい
+     焦点へ滑らかに移るので、自馬／先頭／全体の切替が直線の途中でも
+     そのまま効く（以前は距離を全視点で統一していたため、全体にしても
+     先頭と同じ画角になり「切り替えられない」ように見えた） */
+  /* 全体視点の焦点は、事前計算のカメラパスではなく「いまの馬群の
+     真ん中（先頭と最後方の中央）」を実位置から取る。真横区間で
+     パス側の焦点に固定すると、先頭視点と同じ画角のままになって
+     「全体に切り替えられない」ように見えたため（第11次） */
+  const progsAll=sim.all.map(h=>h._prog||0);
+  const liveMidM=(Math.max.apply(null,progsAll)+Math.min.apply(null,progsAll))/2*r.dist;
+  let focDist= mode==="all"? liveMidM : (focH._prog||0)*r.dist;
+  let focLat= mode==="all"? 0 : latAt(focH, clamp(focH._prog,0,1))*4.6;
+  const fb=raceState.camFocusBlend;
+  if(fb){ const kk=clamp((now-fb.t0)/700,0,1), ss=kk*kk*(3-2*kk);
+    if(kk>=1) raceState.camFocusBlend=null;
+    else { focDist=fb.fromS+(focDist-fb.fromS)*ss; focLat=fb.fromLat+(focLat-fb.fromLat)*ss; } }
+  const anchS= focusM+(focDist-focusM)*sideG;
+  const A=pathAt(anchS); // アンカー地点の位置と進行方向（コーナーでは方向が回る）
+  /* 真横区間のカメラ距離は視点ごとに変える：先頭／自馬は従来どおり
+     至近の真横、全体は馬群の広がりに合わせて引いて全頭を真横に収める。
+     高さは全視点とも馬体並みの約1.45mで、真横のままにする */
+  const spreadM=(Math.max.apply(null,progsAll)-Math.min.apply(null,progsAll))*r.dist;
+  const SIDE_DIST= mode==="all"? clamp((spreadM+30)*0.60,21,60)*zf : 13.4*zf;
+  const camLatN=off.z + (mode==="all"?0:focLat*0.55), camLatG=focLat+SIDE_DIST;
+  const camLat=camLatN+(camLatG-camLatN)*sideG;
+  const camBack=off.x*(1-sideG); // 真横では進行方向オフセットをゼロにする
+  const camY=off.y+(1.45-off.y)*sideG;
+  /* カメラ位置はアンカーの接線座標系で置く：直線では従来どおり真横、
+     コーナーでは接線が回るのに合わせてカメラも回り込み、常に馬の
+     側面を捉え続ける（コーナーを「横から撮り続ける」中継の動き） */
+  const tp=_v.set(A.x + A.dx*camBack + A.px*camLat, camY, A.z + A.dz*camBack + A.pz*camLat);
+  const tpX=tp.x, tpY=tp.y, tpZ=tp.z;
   if(GL.camPos.distanceTo(tp)>30) GL.camPos.copy(tp); // 直線スキップ等の大きなジャンプでは即座に合わせる
   const k=1-Math.exp(-dt*3.6); GL.camPos.lerp(tp,k);
-  if(sideG>0.98){ GL.camPos.x=tp.x; GL.camPos.y=tp.y; GL.camPos.z=tp.z; } // 直線区間では追従の遅れを x・高さ・距離すべてで残さず、完全に真横を保つ
+  if(sideG>0.98){ GL.camPos.x=tpX; GL.camPos.y=tpY; GL.camPos.z=tpZ; } // 直線区間では追従の遅れを残さず、完全に真横を保つ
   GL.camera.position.copy(GL.camPos);
-  GL.camera.lookAt(anchX+1.6*(1-sideG), 1.30, focZ*0.72+(focZT-focZ*0.72)*sideG);
-  GL.sun.position.set(focusM+16,27,17); GL.sun.target.position.set(focusM,0,0); GL.sun.target.updateMatrixWorld();
-  GL.ground.position.x=Math.round(focusM/10)*10;
-  GL.backdrop.position.x=focusM; GL.farTex.offset.x=focusM*0.0016;
-  GL.rails.forEach(b=>b.position.x=focusM);
+  const lookLat=focLat*(0.72+0.28*sideG), lookFwd=1.6*(1-sideG);
+  GL.camera.lookAt(A.x + A.dx*lookFwd + A.px*lookLat, 1.30, A.z + A.dz*lookFwd + A.pz*lookLat);
+  GL.sun.position.set(A.x+16,27,A.z+17); GL.sun.target.position.set(A.x,0,A.z); GL.sun.target.updateMatrixWorld();
+  GL.ground.position.set(Math.round(A.x/10)*10, 0, Math.round(A.z/10)*10);
+  /* 遠景と樹木はアンカーの接線座標系に追従させ、コーナーでも景色が
+     コースの外側にあり続けるようにする */
+  GL.backdrop.position.set(A.x + A.px*-105, 25, A.z + A.pz*-105);
+  GL.backdrop.rotation.y=Math.atan2(A.px, A.pz);
+  GL.farTex.offset.x=focusM*0.0016;
   { const m=_m4();
-    for(let i=0;i<32;i++){ const side=i%2? 6.6 : -5.4; const base=Math.floor(focusM/25)*25 + Math.floor(i/2)*25 - 200;
-      _v.set(base, 0.55, side); m.compose(_v,_q,_s1); GL.posts.setMatrixAt(i,m); }
-    GL.posts.instanceMatrix.needsUpdate=true;
     for(let i=0;i<42;i++){ const sd=GL.treeSeed[i];
-      const xx=focusM + ((sd.o*6 + 780) % 520) - 260;
-      _v.set(xx, 0.8, sd.z); const sc=new THREE.Vector3(sd.s,sd.s,sd.s); m.compose(_v,_q,sc); GL.trunkI.setMatrixAt(i,m);
-      _v.set(xx, 2.6*sd.s, sd.z); m.compose(_v,_q,sc); GL.folI.setMatrixAt(i,m); }
+      const along=((sd.o*6 + 780) % 520) - 260;
+      const wx=A.x + A.dx*along + A.px*sd.z, wz=A.z + A.dz*along + A.pz*sd.z;
+      _v.set(wx, 0.8, wz); const sc=new THREE.Vector3(sd.s,sd.s,sd.s); m.compose(_v,_q,sc); GL.trunkI.setMatrixAt(i,m);
+      _v.set(wx, 2.6*sd.s, wz); m.compose(_v,_q,sc); GL.folI.setMatrixAt(i,m); }
     GL.trunkI.instanceMatrix.needsUpdate=true; GL.folI.instanceMatrix.needsUpdate=true;
   }
   const posM=h=>h._prog*r.dist;
+  /* 馬の配置：経路上の実位置へ置き、向き（ヨー）を接線に合わせ、
+     コーナーでは内側へ体を傾ける（バンク）。直線では傾きゼロに戻る */
+  const horsePos=new Map();
   sim.all.forEach(h=>{
     const P=GL.horses.get(h); if(!P)return;
-    const z=latAt(h, clamp(h._prog,0,1))*4.6;
-    P.root.position.set(posM(h), 0, z);
+    const s=posM(h), PA=pathAt(s), lat=latAt(h, clamp(h._prog,0,1))*4.6;
+    const wx=PA.x+PA.px*lat, wz=PA.z+PA.pz*lat;
+    horsePos.set(h,{x:wx, z:wz, dx:PA.dx, dz:PA.dz});
+    P.root.position.set(wx, 0, wz);
+    P.root.rotation.order="YXZ";
+    P.root.rotation.y=-PA.th;
+    P.root.rotation.x=pathKappaSmooth(s)*(racePath?racePath.R:110)*0.27; // バンク角：最大約16°まで内傾させ、コーナーを回る動きをはっきり見せる（第11次で増強）
     const push=(1-h._prog)*r.dist<=(raceState.geo?raceState.geo.homeM:450);
     if(P.glb) poseGLBHorse(P, posM(h)/7.0 + h._phase*0.2027, push);
     else poseHorse(P, posM(h)/7.0 + h._phase*0.2027, push);
   });
+  GL._horsePos=horsePos;
   /* 土埃パーティクル */
   if(GL.tier<2){
     const spawnN= GL.tier===1? 1 : 2;
     sim.all.forEach(h=>{
-      const x=posM(h); if(Math.abs(x-focusM)>26) return;
-      for(let i=0;i<spawnN;i++) if(Math.random()<0.75&&GL.parts.length<240) GL.parts.push({x:x-1.35, y:0.22, z:latAt(h,clamp(h._prog,0,1))*4.6+rnd(-0.3,0.3), vx:rnd(-4.6,-2.2), vy:rnd(0.7,2.3), vz:rnd(-0.4,0.4), t:0, life:rnd(0.45,0.85)});
+      const hp=horsePos.get(h); if(!hp) return;
+      if(Math.abs(posM(h)-focusM)>26) return;
+      for(let i=0;i<spawnN;i++) if(Math.random()<0.75&&GL.parts.length<240) GL.parts.push({x:hp.x-hp.dx*1.35, y:0.22, z:hp.z-hp.dz*1.35+rnd(-0.3,0.3), vx:-hp.dx*rnd(2.2,4.6), vy:rnd(0.7,2.3), vz:-hp.dz*rnd(2.2,4.6), t:0, life:rnd(0.45,0.85)});
     });
   }
   const arr=GL.pPos;
@@ -5241,6 +5463,21 @@ function drawRace(simT){
   for(let x=soff-stripePx*2;x<W+stripePx;x+=stripePx*2) ctx.fillRect(x,trackTop,stripePx,H-trackTop);
   if(surfDirt){ ctx.strokeStyle="rgba(120,84,40,.16)"; ctx.lineWidth=1.2;
     for(let y=trackTop+9;y<H;y+=11){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); } }
+  /* コーナー区間では、馬の走行ゾーンそのものがカーブして見えるよう、
+     足元を通る幅広のカーブ帯と内外のラチを馬より先に描く（第11次）。
+     従来は遠景の細いカーブだけで、しかも馬場の塗りで下半分が消えて
+     いたため、馬は直線を走っているようにしか見えなかった */
+  if(seg==="c12"||seg==="c34"){
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0,trackTop,W,H-trackTop); ctx.clip();
+    ctx.strokeStyle= surfDirt? "#bd9257" : "#79b657"; ctx.lineWidth=H*0.36;
+    ctx.beginPath(); ctx.moveTo(-40,H*0.62); ctx.quadraticCurveTo(W*0.50,H*0.04,W+40,H*0.57); ctx.stroke();
+    ctx.strokeStyle="#f2f2ea"; ctx.lineWidth=3.4;
+    ctx.beginPath(); ctx.moveTo(-40,H*0.445); ctx.quadraticCurveTo(W*0.50,-H*0.135,W+40,H*0.395); ctx.stroke();
+    ctx.strokeStyle="rgba(242,242,234,.65)"; ctx.lineWidth=2.6;
+    ctx.beginPath(); ctx.moveTo(-40,H*0.795); ctx.quadraticCurveTo(W*0.50,H*0.215,W+40,H*0.745); ctx.stroke();
+    ctx.restore();
+  }
   /* 遠ラチ＋内ラチの柱（25mおき・実距離同期） */
   const post=(yTop,yBot,col,lw)=>{ ctx.strokeStyle=col; ctx.lineWidth=lw;
     ctx.beginPath(); ctx.moveTo(0,yTop); ctx.lineTo(W,yTop); ctx.stroke();
@@ -5266,7 +5503,20 @@ function drawRace(simT){
   /* ===== 馬（中継カメラ・横から） ===== */
   const items=sim.all.map(h=>{
     const lat=latAt(h, clamp(h._prog,0,1)), d=(lat+1)/2; // 0=奥（内） 1=手前（外）
-    return {h, lat, x:sx(h), y:H*0.455 + d*H*0.335, s:pxPerM*0.0878*(0.78+0.45*d)}; // 馬の表示は従来比 約1.5倍
+    /* コーナーの奥行き：各馬が今いる区間で画面上の高さと大きさを変える。
+       ホーム直線（手前・大きい）→第1・2コーナーで奥へ回り込み→向正面
+       （奥・小さい）→第3・4コーナーで手前へ戻ってくる。これにより2D表示でも
+       コーナーを回る動きが位置と縮尺の変化として見える */
+    const segSh=((sOf(h)%C.total)+C.total)%C.total;
+    let depth0=0;
+    if(segSh<C.straightPx) depth0=0;
+    else if(segSh<C.straightPx+C.cornerPx) depth0=(segSh-C.straightPx)/C.cornerPx;
+    else if(segSh<2*C.straightPx+C.cornerPx) depth0=1;
+    else depth0=1-(segSh-(2*C.straightPx+C.cornerPx))/C.cornerPx;
+    const yHome=H*0.455 + d*H*0.335, yBack=H*(0.375 + d*0.055);
+    const y=yHome*(1-depth0)+yBack*depth0;
+    const s=pxPerM*0.0878*(0.78+0.45*d)*((1-depth0)+depth0*0.62);
+    return {h, lat, x:sx(h), y, s, depth0};
   });
   const iMap=new Map(items.map(it=>[it.h,it]));
   if(!raceState.ord||raceState.ord.length!==sim.all.length) raceState.ord=[...sim.all].sort((a,b)=>iMap.get(a).y-iMap.get(b).y);
@@ -5854,7 +6104,7 @@ function renderRaceScreen(el){
   renderActionBar();
   const r=raceState.race;
   if(raceState.phase==="run"){
-    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
+    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬</button><button class="btn ghost sm cambtn" data-cam="all">全体</button></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
     <div id="racectl"><b>${r.name}</b><span class="small">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
     <div class="camctl"><span class="camblbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自分の馬</button><button class="btn ghost sm cambtn" data-cam="all">全体</button></div>
     <div class="spdctl"><span class="spdlbl">再生速度</span><button class="btn ghost sm spd" data-rate="1">そのまま（1倍）</button><button class="btn ghost sm spd" data-rate="2">早送り 2倍</button><button class="btn ghost sm spd" data-rate="4">早送り 4倍</button></div>
@@ -6102,6 +6352,7 @@ function renderChrome(){
   /* レース終了画面の間は「次の週へ」を隠し、レースタブ以外の移動も封じる（「帰る」を押すまで次週に到達できない） */
   const locked=(typeof raceState!=="undefined"&&raceState.phase==="done");
   const nwBtn=$("#btn-nextweek"); if(nwBtn) nwBtn.style.display=(locked||(typeof raceState!=="undefined"&&raceState.phase==="run"))?"none":"";
+  const nwBar=$("#nextweekbar"); if(nwBar) nwBar.style.display=(locked||(typeof raceState!=="undefined"&&raceState.phase==="run"))?"none":"";
   if(nwBtn){ try{ const _gs=guideSteps(); nwBtn.classList.toggle("glow", _gs.trainedAll&&!_gs.raceDue&&raceState.phase!=="run"&&raceState.phase!=="done"); }catch(e){} }
   document.querySelectorAll("#tabs button").forEach(b=>{ const dis=locked&&b.dataset.v!=="race"; b.disabled=dis; b.style.opacity=dis?".45":""; });
   const t=$("#todo"); if(!t)return;
@@ -6521,14 +6772,15 @@ function buildGuide(){
   for(const h of unentered){
     const sg=suggestNextRaces(h); const top=sg.list[0]; if(!top) continue;
     if(!nEntry) nEntry={title:`${h.name}の次走を決めましょう`, sub:`${top.race.name}（${top.race.course} ${top.race.surf}${top.race.dist}m・${top.race.when||"今週"}）がベストです`};
-    cards.push({key:"entry"+h.id, who:"秘書・佐倉 澪", face:"sec", text:`${h.name} → ${top.race.name}：${top.reasons[0]||"条件が合います"}`, btn:"このレースに登録する", act:"entry", hid:h.id});
+    const inWeek=S.races.some(x=>x.id===top.race.id||x.name===top.race.name);
+    cards.push({key:"entry"+h.id, who:"秘書・佐倉 澪", face:"sec", text:`${h.name} → ${top.race.name}：${top.reasons[0]||"条件が合います"}`, btn: inWeek? "レース画面へ進む" : "次走提案を見る", act:"entry", hid:h.id, rid:top.race.id||null, rname:top.race.name});
     break;
   }
   /* 疲労が高い馬 → 休養/放牧 */
   const tired=S.horses.filter(h=>h.injured===0).sort((a,b)=>b.fat-a.fat)[0];
   if(tired&&tired.fat>=60){
     if(!nTired) nTired={title:`${tired.name}を休ませましょう`, sub:`疲労 ${Math.round(tired.fat)}。故障の前に抜くのが先決です`};
-    cards.push({key:"rest"+tired.id, who:"調教師・高橋 健一", face:"trainer", text:`${tired.name}は疲労 ${Math.round(tired.fat)}。放牧でしっかり抜きましょう`, btn:"放牧する", act:"train", hid:tired.id, tid:"bokujou", dis:tired.trainsLeft<=0||S.funds<30});
+    cards.push({key:"rest"+tired.id, who:"調教師・高橋 健一", face:"trainer", text:`${tired.name}は疲労 ${Math.round(tired.fat)}。放牧でしっかり抜きましょう`, btn:"調教画面へ進む", act:"train", hid:tired.id, tid:"bokujou", dis:tired.trainsLeft<=0||S.funds<30});
   }
   /* 調教が残っている馬 → 調教師のおすすめをその場で実行 */
   const untrained=S.horses.find(h=>h.trainsLeft>0&&h.injured===0);
@@ -6536,7 +6788,7 @@ function buildGuide(){
     const rec=trainerSuggest(untrained)[0];
     if(rec){ const rt=TRAINS.find(x=>x.id===rec.tid);
       if(!nTrain) nTrain={title:`今週の調教を進めましょう`, sub:`${untrained.name}：${rt?rt.n:""}がおすすめです`};
-      cards.push({key:"train"+untrained.id+rec.tid, who:"調教師・高橋 健一", face:"trainer", text:`${untrained.name}：${rec.reason}`, btn:`${rt?rt.n:"調教"}をする`, act:"train", hid:untrained.id, tid:rec.tid, dis:S.funds<(rt?rt.cost:0)});
+      cards.push({key:"train"+untrained.id+rec.tid, who:"調教師・高橋 健一", face:"trainer", text:`${untrained.name}：${rec.reason}`, btn:"調教画面へ進む", act:"train", hid:untrained.id, tid:rec.tid, dis:S.funds<(rt?rt.cost:0)});
     }
   }
   /* 種付け期：今季まだ種付けしていない繁殖牝馬がいる時だけ案内する（全頭種付け済みなら出さない） */
@@ -6579,23 +6831,53 @@ function guideHTML(){
   return `<div class="guidebox"><div class="g-next">次にやること</div><div class="g-title">${g.next.title}</div><div class="small">${g.next.sub}</div>
   <details class="gfold"><summary>週の進み具合を見る</summary><div class="gsteps">${stepsHTML}</div></details>
   ${entriesHTML()}
-  ${g.cards.length?`<div class="gcards">${g.cards.map(c=>`<div class="gcard">${guideFaceHTML(c.face)}<div style="flex:1;min-width:0"><div class="gwho">${esc(c.who)} の提案</div><div class="gtext">${esc(c.text)}</div><div class="gbtns"><button class="btn sm" data-guide="${c.key}" ${c.dis?"disabled":""}>${esc(c.btn)}</button></div></div><button class="gx" data-gdismiss="${c.key}" title="この提案を消す（今週は再表示しません）">✕</button></div>`).join("")}</div>`:`<p class="small" style="margin:8px 0 0">提案はすべて完了しました。「次の週へ」から進めます。</p>`}
+  ${g.cards.length?`<div class="gcards">${g.cards.map(c=>`<div class="gcard">${guideFaceHTML(c.face)}<div style="flex:1;min-width:0"><div class="gwho">${esc(c.who)} の提案</div><div class="gtext">${esc(c.text)}</div><div class="gbtns"><button class="btn sm" data-guide="${c.key}" ${c.dis?"disabled":""}>${esc(c.btn)}</button></div></div><button class="gx" data-gdismiss="${c.key}" title="この提案を消す（今週は再表示しません）">✕</button></div>`).join("")}</div>`:`<p class="small" style="margin:8px 0 0">提案はすべて完了しました。画面下部の「次の週へ」ボタンから進めます。</p>`}
   </div>`;
 }
-function execGuideCard(c){
+/* 提案ボタンは「その場で実行」せず、必ず該当画面へ遷移する（第11次）。
+   遷移先では対象の馬・レースが選択済みになり、該当ボタンが金枠で示される。
+   登録や調教の実行は、遷移先の画面でユーザーが自分で押して初めて行われる */
+function guideFocusEl(el){
+  if(!el)return;
+  el.classList.add("guidefocus");
+  try{ el.scrollIntoView({block:"center", behavior:"smooth"}); }catch(e){ try{ el.scrollIntoView(); }catch(e2){} }
+}
+/* 厩舎の馬詳細にある「次走提案」の折りたたみを開いて示す（登録はそこのボタンで初めて実行される） */
+function openPlanFold(){
+  const folds=document.querySelectorAll("#v-stable details");
+  for(const d of folds){ const sm=d.querySelector("summary"); if(sm&&sm.textContent.includes("次走提案")){ d.open=true; guideFocusEl(d); return true; } }
+  return false;
+}
+function gotoGuideCard(c){
   if(!c)return;
-  if(c.act==="entry"){ const h=S.horses.find(x=>x.id===c.hid); if(h) guideRegister(h); }
-  else if(c.act==="train"){ const h=S.horses.find(x=>x.id===c.hid); if(h){ S.selected=h.id; doTrain(c.tid,false,h); renderAll(); } }
+  if(c.act==="entry"){
+    const h=S.horses.find(x=>x.id===c.hid); if(!h)return;
+    S.selected=h.id;
+    const r=S.races.find(x=>x.id===c.rid)||S.races.find(x=>x.name===c.rname);
+    if(r){ // 今週のレース：そのレースの出馬表（作戦画面）を開き、エントリー用ボタンを示す
+      S.selRace=r.id; raceState.rivals=null; pendingCardFlash=true; cardFocus=true; switchView("race");
+      guideFocusEl($("#btn-entry"));
+    } else { // 今週のレース一覧にない将来のレース：対象馬の詳細を開き、「次走提案」から登録できる状態にする
+      cardFocus=false; detailOpen=true; switchView("stable");
+      if(!openPlanFold()){ const hd=$("#hdetail"); if(hd) hd.scrollIntoView({block:"start"}); }
+    }
+  }
+  else if(c.act==="train"){
+    const h=S.horses.find(x=>x.id===c.hid); if(!h)return;
+    S.selected=h.id; switchView("train");
+    guideFocusEl(document.querySelector(`#v-train [data-tr="${c.tid}"]`)||document.querySelector(`#v-train [data-rec="${c.tid}"]`));
+  }
   else if(c.act==="card"){ const h=S.horses.find(x=>x.id===c.hid); if(h){ S.selected=h.id; const r=S.races.find(x=>h.entry&&x.name===h.entry.name); if(r){ S.selRace=r.id; raceState.rivals=null; } pendingCardFlash=true; cardFocus=true; switchView("race"); } }
   else if(c.act==="facility"){ selFac=c.fid; switchView("farm"); }
   else if(c.act==="view"){ switchView(c.view); }
 }
+function execGuideCard(c){ gotoGuideCard(c); }
 function wireGuide(root){
   if(!root)return;
   root.querySelectorAll("[data-gdismiss]").forEach(b=>b.addEventListener("click",()=>{ guideSkipSet().push(S.week+":"+b.dataset.gdismiss); saveAuto(); renderAll(); }));
   root.querySelectorAll("[data-guide]").forEach(b=>b.addEventListener("click",()=>{
     const g=buildGuideSafe(); const c=g.cards.find(x=>x.key===b.dataset.guide); if(!c)return;
-    try{ execGuideCard(c); }catch(e){ renderAll(); }
+    try{ gotoGuideCard(c); }catch(e){ renderAll(); }
   }));
 }
 /* ============ 下部固定バー（次の提案／画面ごとの主行動を1つだけ出す） ============ */
@@ -6609,21 +6891,19 @@ function renderActionBar(){
     const hb=$("#ab-exec"); if(hb) hb.addEventListener("click",()=>{ raceState.phase="idle"; switchView("stable"); });
     return;
   }
-  /* 提案が無い／全て実行不可のときは、必ず「次の週へ」を出す（進行不能にしない） */
+  /* 下部バーは「次の提案」専用。「次の週へ」は提案バーとタブの間の
+     専用バー（#nextweekbar）へ移設したので、ここには提案だけを出す。
+     提案ボタンはその場で実行せず、該当画面へ遷移する（gotoGuideCard）。
+     遷移後の renderAll で遷移先の強調表示が消えないよう、ここでは
+     遷移以外の再描画をしない。提案が無い週はバーを丸ごと隠す */
   const g=buildGuideSafe();
   const c=(g.cards||[]).find(x=>!x.dis) || null;
   if(c){
-    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${esc(c.text)}</div><button class="ab-btn btn gold" id="ab-exec">${esc(c.btn)}</button><button class="ab-btn btn ghost ab-skip" id="ab-skip">次の週へ ▶</button>`;
-    const b=$("#ab-exec"); if(b) b.addEventListener("click",()=>{ try{ const g2=buildGuideSafe(); execGuideCard(g2.cards.find(x=>x.key===c.key&&!x.dis)||g2.cards.find(x=>!x.dis)); }catch(e){} renderAll(); });
-    /* 提案を無視して次週へ進む手段を常時併記する（提案表示中でも「次の週へ」が
-       出ない状態を作らない）。エントリー済みレースがある週は nextWeek() 側が
-       理由を表示して止めるので、このボタンからでも安全に進める */
-    const sk=$("#ab-skip"); if(sk) sk.addEventListener("click",()=>{ if(raceState.phase!=="run"&&raceState.phase!=="done") nextWeek(); });
+    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">次の提案</span>${esc(c.text)}</div><button class="ab-btn btn gold" id="ab-exec">${esc(c.btn)}</button>`;
+    const b=$("#ab-exec"); if(b) b.addEventListener("click",()=>{ try{ const g2=buildGuideSafe(); gotoGuideCard(g2.cards.find(x=>x.key===c.key&&!x.dis)||g2.cards.find(x=>!x.dis)); }catch(e){} });
     return;
   }
-  bar.classList.add("solo");
-  bar.innerHTML=`<button class="ab-btn btn gold ab-wide" id="ab-next">次の週へ ▶</button>`;
-  const nb=$("#ab-next"); if(nb) nb.addEventListener("click",()=>{ if(raceState.phase!=="run"&&raceState.phase!=="done") nextWeek(); });
+  bar.style.display="none";
 }
 
 /* ============ 画面切替 ============ */
