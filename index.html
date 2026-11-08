@@ -1088,6 +1088,94 @@ input,select,textarea{ max-width:100%; }
 /* 人物の顔は上寄せで全体を収める */
 .talk img{ object-position:center 20%; }
 img.faceimg{ object-position:center 20%; }
+
+/* ============================================================
+   見切れ・押しにくさ最終修正（2026-11-08 第5次）
+   1) 「次の週へ」だけの状態：#actionbar .ab-btn{flex:none} が
+      .ab-wide{flex:1} に勝ち、ボタンが左寄せの小さい表示になっていた。
+      ab-wide のときはバー幅いっぱい・高さ64px以上の大ボタンにする。
+   2) 馬一覧の円形サムネは横長画像が左右で切れ、馬の鼻先が見切れる。
+      横長の角丸サムネに戻し、全身が収まる見え方にする。
+   3) 詳細の馬イラストは contain の余白帯で小さく見える。枠の比率を
+      画像(3:2)に寄せ、cover で大きく見せる（上下の軽いトリミングのみ）。
+   4) HUD（スマホ）：ボタンが巨大な楕円になり2段に膨らむのを防ぎ、
+      小さな角丸ボタン＋小さめチップで1〜2段に収める。
+   5) 一覧の状態テキストは意味の塊（span.seg）単位で折り返し、
+      「疲労」など単語の途中で割れないようにする。
+   6) ゲージの LOW/HIGH など極小文字を読みやすい大きさへ。
+   ============================================================ */
+#actionbar .ab-btn.ab-wide{ flex:1 1 auto !important; width:100%; min-width:0; min-height:64px; font-size:18px; font-weight:900; }
+#actionbar:has(> .ab-wide){ padding:10px; }
+.hrow img{ width:88px; height:64px; border-radius:10px; object-fit:cover; object-position:center 38%; border:2.5px solid #f2c41c; }
+.hr-stat .seg{ white-space:nowrap; }
+.detail-art{ aspect-ratio:2.05/1; background:linear-gradient(180deg,#cfe4f7 0%,#dcefd2 78%,#cfe3bd 100%); }
+.detail-art img.hart{ object-fit:contain; object-position:center 50%; }
+.hcard .art img.hart{ object-fit:contain; object-position:center 50%; }
+.hcard .art{ aspect-ratio:2.05/1; background:linear-gradient(180deg,#cfe4f7 0%,#dcefd2 78%,#cfe3bd 100%); }
+.resultart img{ object-fit:cover; }
+.gauge .glo,.gauge .ghi{ font-size:10.5px; }
+.posbar span{ font-size:10px; }
+#actionbar .ab-text{ overflow-wrap:break-word; }
+@media (max-width:640px){
+  #hud{ gap:6px; row-gap:6px; padding:8px 10px; }
+  #hud .dchip{ font-size:12.5px; padding:2px 6px; border-radius:6px; }
+  #hud .funds{ font-size:15px; }
+  #hud .hudchip{ font-size:11.5px; padding:4px 8px; }
+  #hud .saved{ font-size:11px; }
+  #hud .btn.sm{ min-height:38px; height:38px; padding:4px 13px; font-size:13px; border-radius:10px; flex:none; }
+  #actionbar .ab-btn{ min-width:132px; }
+  #actionbar .ab-btn.ab-wide{ min-height:66px; font-size:18.5px; }
+  /* スマホでは提案バーを縦積みに：本文は幅いっぱいで読みやすく、ボタンも幅いっぱいの大ボタン */
+  #actionbar{ flex-direction:column; align-items:stretch; gap:7px; }
+  #actionbar .ab-btn{ width:100%; min-height:54px; }
+}
+/* ============================================================
+   見切れ・固定バー最終修正（2026-11-08 第6次）
+   A) 能力ゲージ：行を「ラベル｜ランク｜バー列」の3カラムに固定。
+      ラベルは固定幅・縮小なし（左端が切れない）、バー列は
+      min-width:0 で必ず残り幅に収まる。LOW/HIGH はバーの下段に
+      左右へ分けて置き、バーの端に重ねない。
+   B) 下部固定バー：「次の週へ」だけの状態（.solo）はバーを
+      block 化し、ボタンを display:block / width:100% に固定。
+      flex の解釈差でも左寄りの小ボタンにならないようにする。
+   ============================================================ */
+.gauges{ width:100%; max-width:100%; box-sizing:border-box; margin:10px 0 6px; padding:0 2px; overflow:hidden; }
+.gauge{ display:flex; align-items:center; gap:8px; width:100%; max-width:100%; box-sizing:border-box; margin:0 0 8px; height:auto; min-height:0; overflow:visible; background:none; border-radius:0; }
+.gauge .gname{ flex:0 0 58px; width:58px; min-width:58px; white-space:nowrap; font-weight:800; font-size:13.5px; text-align:left; }
+.gauge .rankb{ flex:none; }
+.gauge .gtrack{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.gauge .gbar{ display:block; flex:none; width:100%; height:14px; }
+.gauge .gscale{ display:flex; justify-content:space-between; align-items:center; width:100%; line-height:1.3; }
+.gauge .glo,.gauge .ghi{ position:static; flex:none; font-size:10.5px; font-weight:900; color:#66755f; }
+@media (prefers-color-scheme: dark){ .gauge .glo,.gauge .ghi{ color:#a9bda0; } }
+#actionbar.solo{ display:block; padding:10px; }
+#actionbar.solo .ab-btn.ab-wide{ display:block; width:100% !important; max-width:none; flex:none; min-height:66px; font-size:18.5px; font-weight:900; margin:0; }
+#actionbar .ab-btn.ab-wide{ flex:1 1 100% !important; width:100%; }
+/* 下部固定バーは全状態（提案／次の週へのみ／レース後の「帰る」）・
+   全幅共通で縦積み：本文ブロックの下に、バー幅いっぱいの大ボタンを置く。
+   どの状態でもボタンが右寄り・左寄りの小ボタンにならない。 */
+#actionbar{ display:block; padding:10px; }
+#actionbar .ab-text{ display:block; margin:0 0 8px; }
+#actionbar .ab-btn{ display:block; width:100% !important; max-width:none; min-height:62px; font-size:17px; font-weight:900; margin:0; }
+#actionbar.solo .ab-btn{ min-height:66px; font-size:18.5px; }
+@media (max-width:640px){
+  .gauge{ gap:6px; margin-bottom:7px; }
+  .gauge .gname{ flex-basis:54px; width:54px; min-width:54px; font-size:12.5px; }
+  .gauge .rankb{ width:25px; height:25px; font-size:14px; border-radius:7px; }
+}
+/* ============================================================
+   見切れ最終確認（2026-11-08 第7次）
+   ・馬詳細サマリ（.sumlist）の dd は折り返し指定がなく、スマホ幅で
+     「成長型」の説明が数pxはみ出して見切れた。anywhere で必ず折る。
+   ・能力ゲージの LOW/HIGH は1語として扱い、途中で割らない。
+   ・「次の週へ」だけの状態（.solo）は最終ルールとして再固定：
+     バーは block、ボタンは幅100%・中央寄せテキストの大ボタン。
+     （実画面で 390px / 1440px 両幅・提案状態とあわせて確認済み）
+   ============================================================ */
+.sumlist dd{ overflow-wrap:anywhere; }
+.gauge .glo,.gauge .ghi{ white-space:nowrap; }
+#actionbar.solo{ display:block; text-align:center; }
+#actionbar.solo .ab-btn.ab-wide{ display:block; width:100% !important; max-width:none; margin:0 auto; text-align:center; }
 </style>
 </head>
 <body>
@@ -2795,7 +2883,7 @@ function horseMini(h){
   const nx= h.entry? `次走：${h.entry.name}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : h.injured>0? `故障休養中（あと${h.injured}週）` : "次走：未定";
   const wd= h.wPrev? h.weight-h.wPrev : 0;
   const cls= h.races===0? "新馬" : classLabel(h);
-  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${h.name}のイラスト"><div class="hr-main"><div class="hr-name">${h.name}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span></div><div class="hr-stat">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span> <span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</div><div class="hr-stat">${nx}</div></div></div>`;
+  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${h.name}のイラスト"><div class="hr-main"><div class="hr-name">${h.name}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span></div><div class="hr-stat"><span class="seg">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span></span> <span class="seg"><span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</span></div><div class="hr-stat">${nx}</div></div></div>`;
 }
 /* ============ 次走提案（ベストな次走） ============
    「今週出られるレース」ではなく、今後12週の中からその馬にとってベストな1戦を探す。
@@ -3127,7 +3215,7 @@ function horseDetailHTML(h, sugs){
  <div class="namebar"><span class="nb-name">${h.name}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span></div>
  <div class="detail-art" style="margin-top:9px">${horseArt(h, true)}</div>
  <div class="dstat"><span style="color:${condState.c}">●</span> <b>${condState.t}</b> ― 調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}<br>次走：${nextTxt}</div>
- <div class="gauges">${[["スピード",h.spd],["スタミナ",h.sta],["瞬発力",h.bst],["パワー",h.pow],["持続力",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]].map(([n,v])=>{ const rk=v>=90?"S":v>=80?"A":v>=68?"B":v>=55?"C":v>=42?"D":"E"; return `<div class="gauge"><span class="gname">${n}</span><span class="rankb rk${rk}">${rk}</span><span class="gbar"><i style="width:${clamp(Math.round(v||0),0,100)}%"></i></span><span class="glo">LOW</span><span class="ghi">HIGH</span></div>`; }).join("")}</div>
+ <div class="gauges">${[["スピード",h.spd],["スタミナ",h.sta],["瞬発力",h.bst],["パワー",h.pow],["持続力",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]].map(([n,v])=>{ const rk=v>=90?"S":v>=80?"A":v>=68?"B":v>=55?"C":v>=42?"D":"E"; return `<div class="gauge"><span class="gname">${n}</span><span class="rankb rk${rk}">${rk}</span><span class="gtrack"><span class="gbar"><i style="width:${clamp(Math.round(v||0),0,100)}%"></i></span><span class="gscale"><span class="glo">LOW</span><span class="ghi">HIGH</span></span></span></div>`; }).join("")}</div>
  <div class="aptrow"><span class="small">適性</span><span class="aptchip">芝 <b>${h.turf||"-"}</b></span><span class="aptchip">ダ <b>${h.dirt||"-"}</b></span>${h.heavy?`<span class="aptchip">重 <b>${h.heavy}</b></span>`:""}${h.dmin&&h.dmax?`<span class="aptchip">距離 <b>${h.dmin}〜${h.dmax}m</b></span>`:""}<span class="aptchip">馬体重 <b>${h.weight}kg</b></span></div>
  <div class="talk"><img src="assets/secretary-normal.webp" alt="秘書・佐倉澪"><div><b>秘書・佐倉 澪</b><br>${h.name}は${condState.t}です（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）。次走：${nextTxt}</div></div>
  <div class="dtabs">${tabs.map(([k,n])=>`<button data-dtab="${k}" class="${detailTab===k?"on":""}">${n}</button>`).join("")}</div>
@@ -4009,7 +4097,7 @@ function renderOwnSettings(r){
     if(stake>S.funds){ if(msg)msg.textContent=`資金 ${fmt(S.funds)}万円 を超えています`; return; }
     if((S.bets||[]).some(x=>x.raceId===r.id&&x.type==="tan"&&x.picks[0]===h._gate)){ if(msg)msg.textContent="この馬の単勝は購入済みです"; return; }
     S.funds-=stake; S.betStats.bought+=stake; S.betStats.count++;
-    S.bets.push({raceId:r.id, raceName:r.name, type:"tan", picks:[h._gate], stake, odds:h._tanOdds});
+    S.bets.push({raceId:r.id, raceName:r.name, type:"tan", picks:[h._gate], hid:h.id, stake, odds:h._tanOdds});
     if(auInit())auBetBuy();
     log(`馬券購入：${r.name} 単勝 ${h._gate}番 ${h.name} ${stake.toLocaleString("ja-JP",{maximumFractionDigits:2})}万円`);
     renderAll();
@@ -4025,9 +4113,15 @@ function drawCard(r){
   const all=[...raceState.rivals];
   if(mine) all.push(mine);
   if(mine) mine.cardJockey = mine.reqJockey!=null? mine.reqJockey : mine.jockey; // 人気算出は実際に騎乗する騎手で
-  // 枠順をシャッフル割当（枠順も人気材料になるため、人気の算出より先に決める）
-  const order=[...all].sort(()=>Math.random()-0.5);
-  order.forEach((h,i)=>h._gate=i+1);
+  /* 枠順の抽選はこの出馬表で一度だけ。再描画のたびに振り直すと、作戦画面で買った
+     馬券の馬番とレース本番の馬番がずれて「自馬が勝ったのに外れ」になるため、
+     全馬に重複のない馬番が既に振られている場合はそのまま保持する
+     （枠順も人気材料になるため、人気の算出より先に確定させる） */
+  const gateNums=all.map(h=>h._gate);
+  const gatesOk=all.length>0 && gateNums.every(g=>g>=1&&g<=all.length) && new Set(gateNums).size===all.length;
+  let order;
+  if(gatesOk){ order=[...all].sort((a,b)=>a._gate-b._gate); }
+  else { order=[...all].sort(()=>Math.random()-0.5); order.forEach((h,i)=>h._gate=i+1); }
   /* 人気・オッズは公開情報（戦績・近走・条件別実績・馬体重・騎手・枠・休養）だけで決める。能力値は使わない */
   assignPopularity(all,r);
   raceState.card=all;
@@ -4073,7 +4167,7 @@ function drawCard(r){
 }
 
 /* ---- レースシミュレーション ---- */
-const raceState={phase:"idle", rivals:null, rivalRace:null, card:null, sim:null, race:null, mine:null, raf:0, t0:0, done:false, betResults:null, paceInfo:"", showMap:false, showForm:false};
+const raceState={phase:"idle", rivals:null, rivalRace:null, card:null, sim:null, race:null, mine:null, raf:0, t0:0, done:false, betResults:null, paceInfo:"", showMap:true, showForm:true};
 function startRace(r,mine,field){
   if(mine){
     const er=eligible(mine,r);
@@ -4791,6 +4885,28 @@ function rebuildGLHorses(){
     if(!P) P=buildHorseModel(h, GL.detail);
     GL.scene.add(P.root); GL.horses.set(h,P);
   });
+  /* 自厩舎馬の識別マーカー（頭上のダイヤ＋馬名ラベル）。2D側の頭上マーカーは
+     3D表示では見えないため、3Dシーン内にも付ける。識別マーク設定がOFFの時は付けない */
+  GL.mineMark=null;
+  const mineH=raceState.mine;
+  if(mineH && S.markOn!==false){
+    const Pm=GL.horses.get(mineH);
+    if(Pm){
+      const mk=mineH.mark||{shape:"diamond",color:"#f2c41c"};
+      const grp=new THREE.Group();
+      const dia=new THREE.Mesh(new THREE.OctahedronGeometry(0.30), new THREE.MeshStandardMaterial({color:new THREE.Color(mk.color||"#f2c41c"), emissive:0x6b5200, emissiveIntensity:0.5, roughness:0.35, metalness:0.15}));
+      dia.position.y=2.95; grp.add(dia);
+      const lc=document.createElement("canvas"); lc.width=512; lc.height=112;
+      const lg=lc.getContext("2d"); const txt=String(mineH._gate||"")+" "+mineH.name;
+      lg.font="bold 52px sans-serif"; const tw=Math.min(496, lg.measureText(txt).width+48);
+      lg.fillStyle="rgba(146,106,10,.94)"; lg.beginPath(); lg.roundRect((512-tw)/2,14,tw,84,42); lg.fill();
+      lg.fillStyle="#fff3c4"; lg.textAlign="center"; lg.textBaseline="middle"; lg.fillText(txt,256,58);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(lc), transparent:true, depthTest:false}));
+      sp.scale.set(3.9,0.85,1); sp.position.y=3.66; sp.renderOrder=999; grp.add(sp);
+      Pm.root.add(grp);
+      GL.mineMark={grp, dia};
+    }
+  }
   GL.ground.material.map= raceState.race.surf==="ダート"? GL.dirtTex : GL.grassTex; GL.ground.material.needsUpdate=true;
   GL.pMat.color.set(raceState.race.surf==="ダート"? 0xc9a877 : 0xa9bd7d);
   rebuildGLCourse(r);
@@ -4868,6 +4984,8 @@ function render3DFrame(el, cam){
   GL.parts=GL.parts.filter(p=>{ p.t+=dt; if(p.t>=p.life) return false; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy-=4.6*dt; if(p.y<0.05)p.y=0.05; p.z+=p.vz*dt; return true; });
   for(let i=0;i<260;i++){ const p=GL.parts[i]; if(p){ arr[i*3]=p.x; arr[i*3+1]=p.y; arr[i*3+2]=p.z; } else arr[i*3+1]=-20; }
   GL.pGeo.attributes.position.needsUpdate=true;
+  /* 自馬マーカーの回転と緩やかな浮遊 */
+  if(GL.mineMark){ GL.mineMark.dia.rotation.y+=dt*2.6; GL.mineMark.dia.position.y=2.95+Math.sin(now*0.0022)*0.09; }
   GL.renderer.render(GL.scene, GL.camera);
   /* FPS表示（実測：序盤平均／最後の直線平均つき） */
   if(now-GL.lastFpsUp>500){ GL.lastFpsUp=now; const f=$("#glfps"); if(f){ const R=window.__FPS||{}; f.textContent=`3D ${Math.round(GL.fpsEMA)}fps・品質${["高","中","低"][GL.tier]}${R.early?`・序盤平均${R.early}`:""}${R.late?`／直線平均${R.late}`:""}`; } }
@@ -4882,6 +5000,75 @@ function capChipColor(gate,n){
   }
   const c=CAP_COLORS[clamp(bracket,1,8)-1];
   return {bg:c[0], fg:c[1]};
+}
+/* 隊列パネル（右上）とコースマップ（左下）の描画。2D表示では本キャンバスへ、
+   3D表示では上に重ねたオーバーレイキャンバスへ描く（描き先のctxだけが違う共通処理）。
+   o: {items, iMap, cps, C, leader, remain, leadH, dist}
+   items は {h, lat} を持ち、2D経路では x/y/s（半透明化の判定用）も持つ。
+   3D経路では画面位置が2Dと違うため iMap=null を渡し、半透明化は行わない */
+function drawRacePanels(ctx,W,H,o){
+  const items=o.items, C=o.C, cps=o.cps, leader=o.leader, remain=o.remain, leadH=o.leadH, dist=o.dist;
+  /* 右上：帽子アイコンによる隊列表示＋残り距離。
+     先頭馬の体・頭上のダイヤ・馬名ラベルがこの枠に入る時は枠ごと半透明化し、先頭馬を常に完全に見せる */
+  const fpW=164, fpX=W-fpW-8, fpY=8, fpH=78;
+  let fpAlpha=1;
+  { const li=o.iMap?o.iMap.get(leadH):null;
+    if(li){ const hx0=li.x-86*li.s, hx1=li.x+94*li.s, hy0=li.y-84*li.s-40, hy1=li.y+12*li.s;
+      if(hx1>fpX-4&&hx0<fpX+fpW+4&&hy1>fpY-4&&hy0<fpY+fpH+4) fpAlpha=0.14; } }
+  if(raceState.showForm){ ctx.save(); ctx.globalAlpha=fpAlpha;
+  ctx.fillStyle="rgba(8,22,12,.80)"; ctx.beginPath(); ctx.roundRect(fpX,fpY,fpW,fpH,9); ctx.fill();
+  ctx.font="bold 9.5px sans-serif"; ctx.fillStyle="#bfe3c8"; ctx.textAlign="left"; ctx.fillText("隊列", fpX+9, fpY+14);
+  ctx.font="bold 13px sans-serif"; ctx.fillStyle="#ffe9a8"; ctx.textAlign="right";
+  ctx.fillText(leader>=1?"ゴール":("残り "+remain+"m"), fpX+fpW-9, fpY+15);
+  items.forEach(it=>{
+    const behind=Math.max(0,(leader-it.h._prog)*dist);
+    const cx2=fpX+fpW-16-Math.min(fpW-36, behind*2.0), cy2=fpY+26+((it.lat+1)/2)*(fpH-38);
+    const sk=silkOf(it.h);
+    ctx.fillStyle=sk.c1; ctx.beginPath(); ctx.arc(cx2,cy2,7.5,Math.PI,0); ctx.fill();
+    ctx.fillRect(cx2-8.5,cy2-1,17,2.6);
+    if(it.h===raceState.mine){ ctx.strokeStyle="#ffd94d"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx2,cy2-1,10,Math.PI*0.92,Math.PI*2.08); ctx.stroke(); }
+    ctx.fillStyle="#fff"; ctx.font="bold 7.5px sans-serif"; ctx.textAlign="center";
+    ctx.strokeStyle="rgba(0,0,0,.55)"; ctx.lineWidth=2; ctx.strokeText(String(it.h._gate),cx2,cy2-2.5); ctx.fillText(String(it.h._gate),cx2,cy2-2.5);
+  });
+  ctx.restore(); } // 隊列表示ここまで（半透明化の復帰）
+  /* コースマップ（周回位置）：全画面サイズ共通で左下の隅に小さく置く。
+     左下は先頭馬（カメラ前方＝右寄り固定）の通り道から最も遠く、下部の実況字幕帯（下64px）の
+     上に収まる。さらに、後続馬が枠に差し掛かったら枠ごと半透明化して馬を隠さない。
+     表示ON/OFFはレース下部の「コース図」ボタンで切り替える */
+  if(raceState.showMap){
+    const smallScr=W<560;
+    const mmW= smallScr?92:120, mmH= smallScr?54:68, mmX=8, mmY=H-64-mmH-6;
+    let mmAlpha=1;
+    for(const it of items){
+      if(it.x==null) continue; // 3D経路では画面位置を持たないので半透明化しない
+      const hx0=it.x-86*it.s, hx1=it.x+94*it.s, hy0=it.y-84*it.s-40, hy1=it.y+26*it.s;
+      if(hx1>mmX-4&&hx0<mmX+mmW+4&&hy1>mmY-4&&hy0<mmY+mmH+4){ mmAlpha= it.h===leadH?0.12:Math.min(mmAlpha,0.22); }
+    }
+    ctx.save(); ctx.globalAlpha=mmAlpha;
+    ctx.fillStyle="rgba(8,22,12,.78)"; ctx.beginPath(); ctx.roundRect(mmX,mmY,mmW,mmH,9); ctx.fill();
+    ctx.strokeStyle="rgba(255,255,255,.55)"; ctx.lineWidth=1.4; ctx.beginPath();
+    C.pts.forEach((p,i)=>{ if(i%14&&i!==C.pts.length-1)return; const mx=mmX+9+(p.x/W)*(mmW-18), my=mmY+9+(p.y/H)*(mmH-18); i===0?ctx.moveTo(mx,my):ctx.lineTo(mx,my); });
+    ctx.closePath(); ctx.stroke();
+    const gf=courseAt(C,C.finS,0);
+    ctx.fillStyle="#ff5a4d"; ctx.beginPath(); ctx.arc(mmX+9+(gf.x/W)*(mmW-18), mmY+9+(gf.y/H)*(mmH-18), 3, 0, 7); ctx.fill();
+    items.forEach(it=>{ const p=cps.get(it.h); if(!p)return; const mx=mmX+9+(p.x/W)*(mmW-18), my=mmY+9+(p.y/H)*(mmH-18);
+      ctx.fillStyle= it.h===raceState.mine? "#ffd94d" : "#fff";
+      ctx.beginPath(); ctx.arc(mx,my, it.h===raceState.mine?3.2:2.2, 0, 7); ctx.fill(); });
+    ctx.font="bold 9px sans-serif"; ctx.fillStyle="#bfe3c8"; ctx.textAlign="left"; ctx.fillText("コース", mmX+9, mmY+13);
+    ctx.restore();
+  }
+}
+/* 3D表示時：隊列パネルとコースマップをオーバーレイキャンバス（#raceov）へ描く。
+   3Dでは2Dキャンバスが隠れるため、ここで描かないと両パネルが一切表示されない */
+function drawGlPanels(W,H,sim,C,cps,leader,remain,leadH,dist){
+  const ov=$("#raceov"); if(!ov)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  if(ov.width!==Math.round(W*dpr)||ov.height!==Math.round(H*dpr)){ ov.width=Math.round(W*dpr); ov.height=Math.round(H*dpr); ov.style.width=W+"px"; ov.style.height=H+"px"; }
+  const octx=ov.getContext("2d"); if(!octx)return;
+  octx.setTransform(dpr,0,0,dpr,0,0); octx.clearRect(0,0,W,H);
+  if(!raceState.showForm && !raceState.showMap) return;
+  const items=sim.all.map(h=>({h, lat:latAt(h, clamp(h._prog,0,1))}));
+  drawRacePanels(octx,W,H,{items, iMap:null, cps, C, leader, remain, leadH, dist});
 }
 function drawRace(simT){
   const cv=$("#racecv"); if(!cv)return;
@@ -5056,11 +5243,15 @@ function drawRace(simT){
         const mineList = raceState.mine? [raceState.mine] : sim.all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
         mineList.forEach(h=>{ const pos=srt3.indexOf(h)+1; if(pos>0) lines.push(`<b>${h.name}</b> ${pos}番手`); });
         const _nv=lines.join("|"); if(rh3._v!==_nv){ rh3._v=_nv; rh3.innerHTML=lines.length? lines.join(" ／ ") : `先頭 ${srt3[0]?srt3[0].name:""}`; } }
+      /* 隊列パネル・コースマップは2Dキャンバス専用だったため3Dでは出なかった。
+         オーバーレイキャンバスへ同じ描画を重ねて、3Dでも常時表示する */
+      drawGlPanels(W,H,sim,C,cps,leader,remain,leadH,r.dist);
       return;
     }catch(e){
       GLbroken=true;
       const gErr=$("#racegl"); if(gErr) gErr.style.display="none";
       const cErr=$("#racecv"); if(cErr) cErr.style.visibility="visible";
+      const ovE=$("#raceov"); if(ovE){ const ocx=ovE.getContext("2d"); if(ocx) ocx.clearRect(0,0,ovE.width,ovE.height); } // 2Dへ切替えたら重ね描画は消す（2D側が本体に描く）
       /* このフレームは下の2D描画にそのままフォールスルーする */
     }
   }
@@ -5076,56 +5267,7 @@ function drawRace(simT){
     ctx.fillStyle="rgba(10,28,16,.78)"; ctx.beginPath(); ctx.roundRect(6,30,tw2+14,19,7); ctx.fill();
     ctx.fillStyle="#fff"; ctx.fillText(tl2, 13, 43);
   }
-  /* 右上：帽子アイコンによる隊列表示＋残り距離。
-     先頭馬の体・頭上のダイヤ・馬名ラベルがこの枠に入る時は枠ごと半透明化し、先頭馬を常に完全に見せる */
-  const fpW=164, fpX=W-fpW-8, fpY=8, fpH=78;
-  let fpAlpha=1;
-  { const li=iMap.get(leadH);
-    if(li){ const hx0=li.x-86*li.s, hx1=li.x+94*li.s, hy0=li.y-84*li.s-40, hy1=li.y+12*li.s;
-      if(hx1>fpX-4&&hx0<fpX+fpW+4&&hy1>fpY-4&&hy0<fpY+fpH+4) fpAlpha=0.14; } }
-  if(raceState.showForm){ ctx.save(); ctx.globalAlpha=fpAlpha;
-  ctx.fillStyle="rgba(8,22,12,.80)"; ctx.beginPath(); ctx.roundRect(fpX,fpY,fpW,fpH,9); ctx.fill();
-  ctx.font="bold 9.5px sans-serif"; ctx.fillStyle="#bfe3c8"; ctx.textAlign="left"; ctx.fillText("隊列", fpX+9, fpY+14);
-  ctx.font="bold 13px sans-serif"; ctx.fillStyle="#ffe9a8"; ctx.textAlign="right";
-  ctx.fillText(leader>=1?"ゴール":("残り "+remain+"m"), fpX+fpW-9, fpY+15);
-  items.forEach(it=>{
-    const behind=Math.max(0,(leader-it.h._prog)*r.dist);
-    const cx2=fpX+fpW-16-Math.min(fpW-36, behind*2.0), cy2=fpY+26+((it.lat+1)/2)*(fpH-38);
-    const sk=silkOf(it.h);
-    ctx.fillStyle=sk.c1; ctx.beginPath(); ctx.arc(cx2,cy2,7.5,Math.PI,0); ctx.fill();
-    ctx.fillRect(cx2-8.5,cy2-1,17,2.6);
-    if(it.h===raceState.mine){ ctx.strokeStyle="#ffd94d"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(cx2,cy2-1,10,Math.PI*0.92,Math.PI*2.08); ctx.stroke(); }
-    ctx.fillStyle="#fff"; ctx.font="bold 7.5px sans-serif"; ctx.textAlign="center";
-    ctx.strokeStyle="rgba(0,0,0,.55)"; ctx.lineWidth=2; ctx.strokeText(String(it.h._gate),cx2,cy2-2.5); ctx.fillText(String(it.h._gate),cx2,cy2-2.5);
-  });
-  ctx.restore(); } // 隊列表示ここまで（半透明化の復帰）
-  /* コースマップ（周回位置）：全画面サイズ共通で左下の隅に小さく置く。
-     旧配置（広い画面＝右下／狭い画面＝左上）は、先頭馬が画面右寄り〜上部を通る走行帯と
-     右上の隊列表示・左上の区間表示のどちらにも近かったため廃止した。
-     左下は先頭馬（カメラ前方＝右寄り固定）の通り道から最も遠く、下部の実況字幕帯（下64px）の
-     上に収まる。さらに、後続馬が枠に差し掛かったら枠ごと半透明化して馬を隠さない。
-     表示ON/OFFはレース下部の「コース図」ボタンで切り替える */
-  if(raceState.showMap){
-    const smallScr=W<560;
-    const mmW= smallScr?92:120, mmH= smallScr?54:68, mmX=8, mmY=H-64-mmH-6;
-    let mmAlpha=1;
-    for(const it of items){
-      const hx0=it.x-86*it.s, hx1=it.x+94*it.s, hy0=it.y-84*it.s-40, hy1=it.y+26*it.s;
-      if(hx1>mmX-4&&hx0<mmX+mmW+4&&hy1>mmY-4&&hy0<mmY+mmH+4){ mmAlpha= it.h===leadH?0.12:Math.min(mmAlpha,0.22); }
-    }
-    ctx.save(); ctx.globalAlpha=mmAlpha;
-    ctx.fillStyle="rgba(8,22,12,.78)"; ctx.beginPath(); ctx.roundRect(mmX,mmY,mmW,mmH,9); ctx.fill();
-    ctx.strokeStyle="rgba(255,255,255,.55)"; ctx.lineWidth=1.4; ctx.beginPath();
-    C.pts.forEach((p,i)=>{ if(i%14&&i!==C.pts.length-1)return; const mx=mmX+9+(p.x/W)*(mmW-18), my=mmY+9+(p.y/H)*(mmH-18); i===0?ctx.moveTo(mx,my):ctx.lineTo(mx,my); });
-    ctx.closePath(); ctx.stroke();
-    const gf=courseAt(C,C.finS,0);
-    ctx.fillStyle="#ff5a4d"; ctx.beginPath(); ctx.arc(mmX+9+(gf.x/W)*(mmW-18), mmY+9+(gf.y/H)*(mmH-18), 3, 0, 7); ctx.fill();
-    items.forEach(it=>{ const p=cps.get(it.h); const mx=mmX+9+(p.x/W)*(mmW-18), my=mmY+9+(p.y/H)*(mmH-18);
-      ctx.fillStyle= it.h===raceState.mine? "#ffd94d" : "#fff";
-      ctx.beginPath(); ctx.arc(mx,my, it.h===raceState.mine?3.2:2.2, 0, 7); ctx.fill(); });
-    ctx.font="bold 9px sans-serif"; ctx.fillStyle="#bfe3c8"; ctx.textAlign="left"; ctx.fillText("コース", mmX+9, mmY+13);
-    ctx.restore();
-  }
+  drawRacePanels(ctx,W,H,{items, iMap, cps, C, leader, remain, leadH, dist:r.dist});
   /* ===== マーカー＆馬名ラベル ===== */
   const srt=[...sim.all].sort((a,b)=>b._prog-a._prog);
   const diamond=(x,y,sz,col)=>{ ctx.save(); ctx.translate(x,y); ctx.rotate(Math.PI/4);
@@ -5583,7 +5725,11 @@ function finishRace(){
   const pending=S.bets.filter(b=>b.raceId===r.id);
   if(pending.length){
     raceState.betResults=pending.map(b=>{
-      const hit=betHit(b,top);
+      let hit=betHit(b,top);
+      /* 作戦画面で買った自馬の単勝・複勝は、馬番ではなく馬そのもので判定する
+         （出走に使う出馬表が違っても、勝った馬が同じなら的中になる） */
+      if(b.hid!=null){ const bh=sorted.find(h=>h.id===b.hid);
+        if(bh){ if(b.type==="tan") hit=(bh===sorted[0]); else if(b.type==="fuku") hit=sorted.slice(0,3).includes(bh); } }
       const pay=hit?Math.floor(b.stake*b.odds):0;
       if(hit){S.funds+=pay; S.betStats.returned+=pay; S.betStats.hit++;}
       S.betHistory.unshift({label:`${b.raceName} ${BET_TYPES.find(t=>t.id===b.type).n} ${b.picks.join("-")} ×${b.odds}`, hit, pay, stake:b.stake});
@@ -5614,7 +5760,7 @@ function renderRaceScreen(el){
   renderActionBar();
   const r=raceState.race;
   if(raceState.phase==="run"){
-    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
+    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
     <div id="racectl"><b>${r.name}</b><span class="small">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
     <div class="camctl"><span class="camblbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自分の馬</button><button class="btn ghost sm cambtn" data-cam="all">全体</button></div>
     <div class="spdctl"><span class="spdlbl">再生速度</span><button class="btn ghost sm spd" data-rate="1">そのまま（1倍）</button><button class="btn ghost sm spd" data-rate="2">早送り 2倍</button><button class="btn ghost sm spd" data-rate="4">早送り 4倍</button></div>
@@ -5627,7 +5773,7 @@ function renderRaceScreen(el){
     el.querySelectorAll(".cambtn").forEach(b=>b.addEventListener("click",()=>setCamMode(b.dataset.cam)));
     syncSpeedBtns(); syncCamBtns(); syncMapBtn();
     $("#btn-map").addEventListener("click",()=>setShowMap(raceState.showMap===false));
-    const bf=$("#btn-form"); if(bf) bf.addEventListener("click",()=>{ raceState.showForm=!raceState.showForm; bf.textContent=raceState.showForm?"隊列図 ON":"隊列図 OFF"; bf.classList.toggle("on",raceState.showForm); if($("#racecv")) drawRace(raceState.simT||0); });
+    const bf=$("#btn-form"); if(bf){ bf.textContent=raceState.showForm?"隊列図 ON":"隊列図 OFF"; bf.classList.toggle("on",!!raceState.showForm); bf.addEventListener("click",()=>{ raceState.showForm=!raceState.showForm; bf.textContent=raceState.showForm?"隊列図 ON":"隊列図 OFF"; bf.classList.toggle("on",raceState.showForm); if($("#racecv")) drawRace(raceState.simT||0); }); }
     const bp2=$("#btn-posbar"); if(bp2) bp2.addEventListener("click",()=>{ const pb=$("#posbar"); if(!pb)return; const on=pb.style.display==="none"; pb.style.display=on?"":"none"; bp2.textContent=on?"順位表示 ON":"順位表示 OFF"; bp2.classList.toggle("on",on); });
     $("#btn-skip").addEventListener("click",()=>{cancelAnimationFrame(raceState.raf); finishRace();});
     const stb=$("#btn-straight"); if(stb) stb.addEventListener("click",skipToStraight); raceState._sbDis=null; syncStraightBtn();
@@ -6362,6 +6508,7 @@ function renderActionBar(){
   const bar=$("#actionbar"); if(!bar)return;
   if(typeof raceState!=="undefined"&&raceState.phase==="run"){ bar.style.display="none"; return; }
   bar.style.display="";
+  bar.classList.remove("solo");
   if(typeof raceState!=="undefined"&&raceState.phase==="done"){
     bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">レース終了</span>結果を確認したら、厩舎へ帰りましょう</div><button class="ab-btn btn gold" id="ab-exec">🏠 帰る</button>`;
     const hb=$("#ab-exec"); if(hb) hb.addEventListener("click",()=>{ raceState.phase="idle"; switchView("stable"); });
@@ -6375,6 +6522,7 @@ function renderActionBar(){
     const b=$("#ab-exec"); if(b) b.addEventListener("click",()=>{ try{ const g2=buildGuideSafe(); execGuideCard(g2.cards.find(x=>x.key===c.key&&!x.dis)||g2.cards.find(x=>!x.dis)); }catch(e){} renderAll(); });
     return;
   }
+  bar.classList.add("solo");
   bar.innerHTML=`<button class="ab-btn btn gold ab-wide" id="ab-next">次の週へ ▶</button>`;
   const nb=$("#ab-next"); if(nb) nb.addEventListener("click",()=>{ if(raceState.phase!=="run"&&raceState.phase!=="done") nextWeek(); });
 }
