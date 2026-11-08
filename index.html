@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="color-scheme" content="light dark" />
+<meta name="color-scheme" content="light" />
 <link rel="icon" href="data:," />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
 <title>競馬ゲーム</title>
 <style>
 :root{
@@ -1478,6 +1481,311 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
   .salecard .sc-actions{ flex-direction:row; }
   .salecard .sc-actions .btn{ flex:1 1 0; min-width:0; font-size:13px; padding:7px 6px; }
 }
+/* ============================================================
+   第22次（2026-11-08）：Duolingo系デザインシステム（サカタケ Design System）へ全面統一
+   ・基調：Primary #58CC02（下辺 #58A700）／Secondary #1CB0F6／
+     注目 #FFC800／危険 #FF4B4B／文字 #3C3C3C・補足 #777777／
+     背景は白、面 #F7F7F7、枠線 #E5E5E5
+   ・カード：白地＋2px枠＋角丸20px＋下辺シャドウ 0 4px 0 #E5E5E5。
+     入れ子にしない（内側の箱は面色＋無影）
+   ・ボタン：角丸12px＋下辺4pxの「押せる」造形。タップで2px沈む（約80ms）
+   ・書体：Nunito＋丸ゴシック。見出し800／ラベル700、本文15-18px
+   ・紫バー・金リボン・金属グラデ・発光などの旧装飾はすべて置き換える
+   ・動きはボタンの押し込みのみ。常時アニメーションは置かない
+   ============================================================ */
+:root{
+  --bg:#ffffff; --bg2:#ffffff; --panel:#ffffff; --panel2:#f7f7f7; --ink:#3c3c3c; --ink2:#777777;
+  --line:#e5e5e5; --green:#58cc02; --green2:#58cc02; --gold:#ffc800; --gold2:#ffc800;
+  --gold-mid:#ffc800; --gold-hi:#ffc800; --gold-lo:#58a700;
+  --red:#ff4b4b; --blue:#1cb0f6; --chip:#f7f7f7; --bar:#e5e5e5;
+  --shadow:0 4px 0 #e5e5e5; --shadow-lg:0 4px 0 #e5e5e5, 0 14px 30px rgba(60,60,60,.14);
+  --panel-grad:#ffffff; --panel2-grad:#f7f7f7; --head-grad:#58cc02; --inset-hi:none;
+  --duo-green-d:#58a700; --duo-blue-d:#1899d6; --duo-yellow-d:#e0a800;
+}
+body{
+  font-family:"Nunito","Arial Rounded MT Bold","Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  background:#ffffff; color:var(--ink); font-size:16px; font-weight:700; line-height:1.55;
+}
+#app{ background:#ffffff; box-shadow:none; }
+a{ color:var(--blue); }
+:focus-visible{ outline:3px solid var(--blue); outline-offset:1px; }
+/* ---- HUD：白バー＋下枠。資金は太字の文字色（金グラデ文字は廃止） ---- */
+#hud{ background:#ffffff; color:var(--ink); border-bottom:2px solid var(--line); border-radius:0; margin:0; box-shadow:none; text-shadow:none; }
+#hud .date{ color:var(--ink); font-weight:800; }
+#hud .dchip{ background:var(--chip); color:var(--ink); border:2px solid var(--line); border-radius:8px; box-shadow:none; font-weight:800; }
+#hud .funds{ color:var(--ink); background:none; -webkit-text-fill-color:currentColor; filter:none; font-weight:900; }
+#hud .funds.neg{ color:var(--red); -webkit-text-fill-color:currentColor; }
+.hudchip{ background:var(--chip); border:2px solid var(--line); color:var(--ink); box-shadow:none; font-weight:800; }
+.saved{ color:var(--ink2); text-shadow:none; }
+#hud .btn.ghost{ background:#ffffff; color:var(--blue); border-color:var(--line); }
+/* ---- タブ：白ピルではなく、面色バー＋選択中は緑フィル ---- */
+#tabs{ background:#ffffff; border-top:2px solid var(--line); margin:0; border-radius:0; box-shadow:none; }
+#tabs button{ background:#ffffff; color:var(--ink2); border:2px solid var(--line); border-bottom:4px solid var(--line); border-radius:12px; font-weight:800; box-shadow:none; text-shadow:none; transition:transform .08s ease, border-bottom-width .08s ease; }
+#tabs button:active{ transform:translateY(2px); border-bottom-width:2px; }
+#tabs button.on{ background:var(--green); color:#ffffff; border-color:var(--green); border-bottom:4px solid var(--duo-green-d); box-shadow:none; font-weight:900; }
+/* ---- メイン面：白キャンバス ---- */
+#main{ background:#ffffff; border-radius:0; margin:0; box-shadow:none; border-top:none; }
+/* 情景バンド：写真帯はやめ、面色の見出し帯に（タイトルは太字の文字） */
+#sceneband{ background:var(--chip); border:2px solid var(--line); border-radius:16px; box-shadow:none; }
+#sceneband .sb-cap{ color:var(--ink); text-shadow:none; }
+#sb-title{ color:var(--ink); text-shadow:none; font-weight:900; }
+#sb-sub{ color:var(--ink2); text-shadow:none; }
+/* ---- カード：白＋2px枠＋角丸20px＋下辺シャドウ。入れ子は面色で無影 ---- */
+.panel,.hcard,.rcard,.jcard,.focusbox,.guidebox,.hrow,.talk,.salecard,details.fold,div.fold,.farmmap,.ownset{
+  background:#ffffff; background-image:none; border:2px solid var(--line); border-radius:20px; box-shadow:0 4px 0 #e5e5e5;
+}
+.quad,.parentcard,.evalbox,.jcell,.calcell,.entryline,.gcard,.planbox,.hallcard,.ticket,.posbar,.facrow,.tbtn,details.fold>.foldbody>.panel{
+  background:var(--chip); background-image:none; border:2px solid var(--line); box-shadow:none;
+}
+.quad,.parentcard,.evalbox,.jcell,.calcell,.entryline,.gcard,.planbox,.hallcard,.facrow{ border-radius:16px; }
+.ticket{ border-radius:16px; }
+.focusbox{ border-color:var(--gold); }
+.guidebox{ border-color:var(--gold); box-shadow:0 4px 0 #e5e5e5; }
+.hcard:hover{ transform:none; box-shadow:0 4px 0 #e5e5e5; }
+.hcard.sel,.rcard.sel,.hrow.sel,.facrow.sel{ border-color:var(--blue); box-shadow:0 0 0 2px var(--blue), 0 4px 0 #e5e5e5; background:#ffffff; }
+.hcard .art,.detail-art{ border:2px solid var(--line); border-radius:14px; box-shadow:none; }
+.hcard .art::after,.detail-art::after{ display:none; }
+.hcard .art img.hart,.detail-art img.hart{ filter:none; }
+.zekken{ background:#ffffff; border:2px solid var(--line); color:var(--ink); box-shadow:none; border-radius:8px; }
+.coatlb{ background:#3c3c3c; color:#ffffff; box-shadow:none; }
+.hrow img{ border:2px solid var(--line); }
+img.faceimg,.gcard img.gface,#todo img.secface,.talk img{ border:2px solid var(--gold); box-shadow:none; }
+/* ---- 見出し：バーの塗りをやめ、太字の文字＋緑の丸マーカー ---- */
+h2.sec{ background:none; color:var(--ink); border:none; border-radius:0; box-shadow:none; text-shadow:none; font-size:20px; font-weight:800; padding-left:2px; }
+h2.sec::before{ content:""; width:10px; height:10px; border-radius:50%; background:var(--green); transform:none; border:none; box-shadow:none; flex:none; }
+h2.sec .tag{ background:var(--gold); color:var(--ink); border-radius:999px; box-shadow:none; text-shadow:none; font-weight:800; }
+.panel h3{ color:var(--ink); border-bottom:2px solid var(--line); border-image:none; font-weight:800; }
+.quad h4{ color:var(--ink); border-bottom:2px solid var(--line); }
+/* 名前バー：木札・緑バーをやめ、白カード＋太字 */
+.namebar{ background:#ffffff; border:2px solid var(--line); border-radius:16px; box-shadow:0 4px 0 #e5e5e5; overflow:visible; }
+.namebar::after{ display:none; }
+.namebar .nb-name{ color:var(--ink); text-shadow:none; font-weight:900; }
+.namebar .nb-sub{ background:var(--chip); color:var(--ink2); border:2px solid var(--line); }
+/* リボン・バッジ・タグ類：色＋文字で意味を持たせる（装飾グラデは廃止） */
+.ribbon{ background:var(--gold); color:var(--ink); border:none; box-shadow:none; border-radius:999px; font-weight:800; }
+.ribbon.sub{ background:var(--chip); color:var(--ink2); border:2px solid var(--line); }
+.badge{ background:var(--chip); color:var(--ink); border:2px solid var(--line); box-shadow:none; font-weight:800; }
+.badge.g1,.sale-tag{ background:var(--gold); color:var(--ink); border:2px solid var(--gold); box-shadow:none; text-shadow:none; }
+.badge.win{ background:var(--green); color:#ffffff; border-color:var(--green); text-shadow:none; }
+.gtag{ background:var(--chip); color:var(--ink); border:2px solid var(--line); box-shadow:none; text-shadow:none; }
+.gtag.G1{ background:var(--gold); color:var(--ink); border-color:var(--gold); }
+.gtag.G2{ background:var(--blue); color:#ffffff; border-color:var(--blue); }
+.gtag.G3{ background:var(--green); color:#ffffff; border-color:var(--green); }
+.gtag.OP{ background:var(--chip); color:var(--ink2); }
+.trendtag{ box-shadow:none; text-shadow:none; }
+.trendtag.kire{ background:var(--gold); color:var(--ink); }
+.trendtag.jizoku{ background:var(--blue); color:#ffffff; }
+.trendtag.shoumo{ background:var(--red); color:#ffffff; }
+.pop{ background:var(--red); color:#ffffff; box-shadow:none; }
+.mini{ background:var(--chip); color:var(--ink); border:2px solid var(--line); box-shadow:none; }
+.mini.good{ background:var(--green); color:#ffffff; border-color:var(--green); }
+.mini.warn{ background:var(--gold); color:var(--ink); border-color:var(--gold); }
+.mini.bad{ background:#ffffff; color:var(--red); border-color:var(--red); }
+.trait{ background:var(--chip); border:2px solid var(--line); color:var(--ink); box-shadow:none; }
+.trait.plus{ background:var(--green); color:#ffffff; border-color:var(--green); }
+.trait.minus{ background:#ffffff; color:var(--red); border-color:var(--red); }
+.trait.up{ background:var(--gold) !important; color:var(--ink) !important; border:2px solid var(--gold) !important; box-shadow:none !important; }
+.trait.uq{ background:#ffffff !important; color:var(--ink) !important; border:2px solid var(--blue) !important; box-shadow:none !important; }
+.aptchip{ background:#ffffff; border:2px solid var(--line); color:var(--ink); box-shadow:none; }
+.aptchip.on{ background:var(--green); color:#ffffff; border-color:var(--green); text-shadow:none; }
+.aptchip.strong{ background:var(--gold); color:var(--ink); border-color:var(--gold); }
+.aptchip b{ color:inherit; }
+.cls-badge{ background:var(--green); color:#ffffff; border:none; }
+.wd-arw{ color:var(--blue); }
+.hr-name{ background:none; color:var(--ink); border-radius:0; padding:0; }
+.hr-sex{ color:var(--ink2); }
+.wpentry,.passbadge{ background:var(--gold); color:var(--ink); }
+.wpentry.now{ background:var(--red); color:#ffffff; }
+.steps span,.gsteps span{ background:var(--chip); border:2px solid var(--line); color:var(--ink2); box-shadow:none; }
+.gsteps span.done{ background:var(--green); border-color:var(--green); color:#ffffff; }
+.gsteps span.cur{ background:var(--gold); border-color:var(--gold); color:var(--ink); box-shadow:none; }
+.stylearrows .sa{ background:#ffffff; border:2px solid var(--line); color:var(--ink2); }
+.stylearrows .sa.on{ background:var(--green); border-color:var(--green); color:#ffffff; box-shadow:none; }
+.posbar span{ background:#ffffff; border:2px solid var(--line); color:var(--ink2); box-shadow:none; }
+.posbar span.on{ background:var(--gold); color:var(--ink); border-color:var(--gold); box-shadow:none; }
+.posbar span.spec{ background:var(--blue); color:#ffffff; border-color:var(--blue); }
+.fchip{ background:var(--chip); border:2px solid var(--line); color:var(--ink); box-shadow:none; }
+.formgrp .fchip.me{ background:var(--gold); color:var(--ink); border-color:var(--gold); }
+.cupgrid span{ background:#ffffff; border:2px solid var(--line); }
+.cupgrid span.got{ background:var(--gold); border-color:var(--gold); color:var(--ink); box-shadow:none; }
+.faccirc{ background:var(--green); color:#ffffff; border:none; box-shadow:none; }
+.stars{ color:var(--duo-yellow-d); text-shadow:none; }
+.hearts{ color:var(--red); text-shadow:none; }
+.hearts .off{ color:var(--line); }
+/* ランク表示：パレット内の色に置き換え（金属グラデ文字は廃止） */
+.rankmark{ text-shadow:none; }
+.rankS,.rankA,.rankB,.rankC{ background:none; -webkit-background-clip:initial; background-clip:initial; color:inherit; filter:none; }
+.rankS{ color:var(--red); } .rankA{ color:var(--duo-yellow-d); } .rankB{ color:var(--duo-green-d); } .rankC{ color:var(--blue); } .rankD{ color:var(--ink2); }
+.rankb{ box-shadow:none; }
+.rkS{ background:var(--red); color:#ffffff; } .rkA{ background:var(--gold); color:var(--ink); } .rkB{ background:var(--green); color:#ffffff; } .rkC{ background:var(--blue); color:#ffffff; } .rkD{ background:#777777; color:#ffffff; } .rkE{ background:var(--chip); color:var(--ink2); }
+.evalbox .ev{ background:none; -webkit-background-clip:initial; background-clip:initial; color:var(--ink); }
+/* 数値バー／ゲージ：ベタ塗り（緑＝通常／黄＝高） */
+.stat .bar,.gauge,.distbar,.facbar{ background-color:var(--bar); background-image:none; box-shadow:none; }
+.stat .bar i,.gauge i{ background:var(--green); background-image:none; box-shadow:none; }
+.stat .bar i.hot{ background:var(--gold); background-image:none; box-shadow:none; }
+.gauge .gbar{ background:var(--bar); }
+.gbar i{ background:var(--green); }
+.gauge i.add{ background:var(--gold); }
+.distbar i{ background:var(--green); background-image:none; }
+.distbar b{ background:var(--ink); box-shadow:none; }
+.facbar i.base{ background:var(--green); } .facbar i.inc{ background:var(--gold); }
+.facrow .pips{ color:var(--duo-yellow-d); } .facrow .pips .off{ color:var(--line); }
+/* テーブル：面色の見出し行＋枠線のみ */
+table th{ background:var(--chip); color:var(--ink2) !important; border-bottom:2px solid var(--line); text-shadow:none; }
+tr.mine{ background:rgba(255,200,0,.16) !important; box-shadow:inset 3px 0 0 var(--gold); }
+tr.win td{ font-weight:800; }
+.rank-me{ background:rgba(255,200,0,.16) !important; }
+.legend-detail td{ background:var(--chip); }
+.pedigree td{ background:var(--chip); }
+.pedigree td .mk{ background:#ffffff; border:2px solid var(--line); }
+.pedigree td .mk.hot{ background:#ffffff; color:var(--red); border-color:var(--red); }
+/* ---- ボタン：下辺4pxの「押せる」造形（意味色は固定） ---- */
+button{ border-radius:12px; font-weight:800; }
+.btn{
+  background:var(--green); color:#ffffff; border:2px solid var(--green); border-bottom:4px solid var(--duo-green-d);
+  box-shadow:none; text-shadow:none; min-height:48px;
+  transition:transform .08s ease, border-bottom-width .08s ease, filter .08s ease;
+}
+.btn:hover{ filter:brightness(1.03); }
+.btn:active{ transform:translateY(2px); border-bottom-width:2px; box-shadow:none; }
+.btn.gold{ background:var(--gold); color:var(--ink); border-color:var(--gold); border-bottom:4px solid var(--duo-yellow-d); text-shadow:none; }
+.btn.gold:active{ border-bottom-width:2px; }
+.btn.ghost{ background:#ffffff; color:var(--blue); border:2px solid var(--line); border-bottom:4px solid var(--line); box-shadow:none; text-shadow:none; }
+.btn.ghost:active{ border-bottom-width:2px; }
+.btn.blue{ background:var(--blue); color:#ffffff; border-color:var(--blue); border-bottom:4px solid var(--duo-blue-d); }
+.btn.blue:active{ border-bottom-width:2px; }
+.btn.red{ background:#ffffff; color:var(--red); border:2px solid var(--red); border-bottom:4px solid var(--red); }
+.btn.red:active{ border-bottom-width:2px; }
+.btn:disabled{ opacity:.45; box-shadow:none; }
+.btn.glow{ animation:none; box-shadow:none; }
+#btn-nextweek.glow{ animation:none; }
+#btn-nextweek{ background:var(--green); color:#ffffff; border-color:var(--green); border-bottom:4px solid var(--duo-green-d); }
+/* 副次ボタン群（サブナビ／詳細タブ／作戦／馬券／絞り込み等）も同じ造形に */
+.subnav button,.dtabs button,.tacbtns button,.ranktabs button,.betpick button,.silkpick button{
+  background:#ffffff; color:var(--ink2); border:2px solid var(--line); border-bottom:4px solid var(--line);
+  border-radius:12px; box-shadow:none; font-weight:800;
+  transition:transform .08s ease, border-bottom-width .08s ease;
+}
+.subnav button:active,.dtabs button:active,.tacbtns button:active,.ranktabs button:active,.betpick button:active,.silkpick button:active{ transform:translateY(2px); border-bottom-width:2px; }
+.subnav button.on,.dtabs button.on,.tacbtns button.on,.ranktabs button.on{ background:var(--green); color:#ffffff; border-color:var(--green); border-bottom:4px solid var(--duo-green-d); box-shadow:none; text-shadow:none; }
+.betpick button.on{ background:var(--gold); color:var(--ink); border-color:var(--gold); border-bottom:4px solid var(--duo-yellow-d); box-shadow:none; }
+.silkpick button.on{ outline:none; box-shadow:0 0 0 2px var(--blue); }
+.dtabs button{ border-radius:12px; }
+.tbtn{ transition:transform .08s ease, border-bottom-width .08s ease; }
+.tbtn:hover{ box-shadow:0 4px 0 #e5e5e5; }
+.tbtn:active{ transform:translateY(2px); }
+.gcard .gx{ color:var(--ink2); }
+.guidefocus{ outline:3px solid var(--blue) !important; outline-offset:2px; box-shadow:none !important; }
+/* フォーム：2px枠＋角丸12px、フォーカスは青の3pxアウトライン */
+select,input[type=text],input[type=number],textarea{
+  border:2px solid var(--line); border-radius:12px; background:var(--chip); background-image:none;
+  color:var(--ink); box-shadow:none; font-weight:700; min-height:48px;
+}
+select:focus,input[type=text]:focus,input[type=number]:focus,textarea:focus{ outline:3px solid var(--blue); outline-offset:0; border-color:var(--blue); background:#ffffff; }
+/* 秘書パネル：白カード（金の縁・吹き出し装飾は廃止） */
+#todo{ background:#ffffff; border:2px solid var(--line); border-bottom:2px solid var(--line); border-radius:20px; box-shadow:0 4px 0 #e5e5e5; }
+#todo .secbtns button{ background:var(--green); color:#ffffff; border:2px solid var(--green); border-bottom:4px solid var(--duo-green-d); border-radius:12px; box-shadow:none; text-shadow:none; }
+#todo .secbtns button.sub{ background:#ffffff; color:var(--blue); border-color:var(--line); border-bottom:4px solid var(--line); }
+#todo .secname{ color:var(--ink2); }
+#weekplan{ color:var(--ink2); }
+/* 下部バー類：白＋上枠に統一（紫・クリーム・金の帯は廃止） */
+#docktoggle{ background:#ffffff; border-top:2px solid var(--line); }
+#docktoggle button{ color:var(--ink2); }
+#actionbar{ background:#ffffff; border-top:2px solid var(--line); box-shadow:none; }
+#actionbar .ab-kicker{ color:var(--ink2); }
+#autobar{ background:var(--chip); border-top:2px solid var(--line); }
+#autobar .ab-kicker{ color:var(--ink2); }
+#nextweekbar{ background:#ffffff; border-top:2px solid var(--line); }
+#nextweekbar #btn-nextweek{ border-radius:12px; }
+.actionbar{ background:#ffffff; border:2px solid var(--line); border-radius:16px; box-shadow:0 4px 0 #e5e5e5; }
+.tpropbar{ background:#ffffff; border:2px solid var(--gold); border-radius:16px; box-shadow:0 4px 0 #e5e5e5; }
+.tpropbar .tp-kicker{ color:var(--ink2); }
+.ownbet{ background:var(--chip); border:2px dashed var(--gold); }
+.ownbet.done{ background:var(--chip); }
+.ownset .os-ready.no{ background:#ffffff; color:var(--red); border:2px solid var(--red); }
+.ownset .os-ready.ok{ background:var(--green); color:#ffffff; }
+.entryline.now{ border-color:var(--red); background:#ffffff; }
+.bigcount.now,.disreason{ color:var(--red); }
+/* 牧場マップのマーカー */
+.farmmap{ box-shadow:0 4px 0 #e5e5e5; }
+.fmark{ background:#ffffff; border:2px solid var(--line); color:var(--ink); border-radius:12px; box-shadow:0 3px 0 #e5e5e5; }
+.fmark.built{ background:var(--gold); border-color:var(--gold); color:var(--ink); }
+/* ---- レース画面：3D表示はそのまま。枠・操作UIだけ白基調に ---- */
+#racewrap{ border:2px solid var(--line); border-radius:20px; box-shadow:0 4px 0 #e5e5e5; }
+#racehud{ background:#3c3c3c; color:#ffffff; }
+#racehud .rh-pos{ color:var(--gold); }
+#commentary{ background:#ffffff; color:var(--ink); border-top:2px solid var(--line); text-shadow:none; }
+#racectl{ background:#ffffff; border-top:2px solid var(--line); }
+#racectl .btn.ghost{ background:#ffffff; color:var(--blue); border-color:var(--line); }
+#racectl .btn.on,.spdctl .btn.spd.on,.camctl .btn.cambtn.on,#racectl .btn.mapbtn.on{ background:var(--green); color:#ffffff; border-color:var(--green); box-shadow:none; font-weight:900; }
+#racecam-float{ background:#ffffff; border:2px solid var(--line); border-radius:999px; box-shadow:0 4px 0 rgba(60,60,60,.25); }
+#racecam-float .rcf-lbl{ color:var(--ink2); }
+#racecam-float .cambtn{ background:#ffffff; color:var(--ink2); border:2px solid var(--line); border-bottom:4px solid var(--line); box-shadow:none; }
+#racecam-float .cambtn.on{ background:var(--green); color:#ffffff; border-color:var(--green); border-bottom:4px solid var(--duo-green-d); }
+.posbar .p{ background:#ffffff; border:2px solid var(--line); color:var(--ink); box-shadow:none; }
+.posbar .p.me{ background:var(--gold); color:var(--ink); border-color:var(--gold); }
+.poschip{ background:rgba(60,60,60,.9); color:#ffffff; }
+/* ---- モーダル：白カード＋角丸20px ---- */
+#overlay{ background:rgba(60,60,60,.55); }
+#overlay .box{ background:#ffffff; border:2px solid var(--line); border-radius:20px; box-shadow:0 18px 44px rgba(60,60,60,.3); }
+#overlay h2{ background:none; -webkit-background-clip:initial; background-clip:initial; color:var(--ink); filter:none; font-weight:800; }
+#overlay .box>.ov-foot{ border-top:2px solid var(--line); }
+/* 詳細の折りたたみ */
+details.fold>summary{ font-weight:800; }
+.gfold>summary{ color:var(--ink2); }
+.dstat{ background:var(--chip); border-radius:16px; }
+/* 文字サイズ：補足も読みやすく */
+.small{ font-size:13px; color:var(--ink2); }
+.hname{ font-weight:900; }
+.salecard .sc-name{ font-weight:900; }
+.sale-funds{ color:var(--ink2); }
+/* 動きは押し込みのみ：常時アニメーションを止める */
+.flash{ animation:none; box-shadow:0 0 0 3px var(--blue); }
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation:none !important; transition:none !important; }
+}
+@media (max-width:640px){
+  body{ font-size:15.5px; }
+  #tabs button{ min-height:48px; }
+  .btn{ min-height:48px; }
+  /* HUDは1段に収める：所有頭数チップは狭幅では畳み（厩舎で確認できる）、
+     セーブ／設定の両ボタンを常時 fully 表示する */
+  #hud{ flex-wrap:nowrap; gap:5px; padding-left:8px; padding-right:8px; }
+  #hud .hudchip{ display:none; }
+  #hud .date{ font-size:12.5px; }
+  #hud .funds{ font-size:13px; }
+  #hud .btn.sm{ min-height:44px; padding:6px 9px; font-size:12.5px; white-space:nowrap; }
+}
+/* ============================================================
+   第23次（2026-11-08）：デザインシステム最終固定
+   ・このデザインシステムは白キャンバス前提（color-scheme: light）。
+     端末がダーク設定でも、旧来のダーク反転ルールが残っている要素を
+     白基調パレットへ固定し、画面ごとに色が変わらないようにする
+   ・情景バンドのタイトルは帯の中で必ず見える太字にする
+   ============================================================ */
+@media (prefers-color-scheme: dark){
+  body{ background:#ffffff; color:var(--ink); }
+  #main{ background:#ffffff; }
+  #hud,#tabs,#todo,#overlay .box,#actionbar,#autobar,#nextweekbar,#docktoggle,#racectl{ background:#ffffff; color:var(--ink); }
+  .panel,.hcard,.rcard,.jcard,.focusbox,.guidebox,.hrow,.talk,.salecard,details.fold,div.fold,.ownset,.namebar,.tpropbar,.actionbar{ background:#ffffff; color:var(--ink); }
+  .quad,.parentcard,.evalbox,.jcell,.calcell,.entryline,.gcard,.planbox,.hallcard,.ticket,.posbar,.facrow,.tbtn,.dstat,.legend-detail td,.pedigree td{ background:var(--chip); color:var(--ink); }
+  .mini.bad,.mini.good,.mini.warn{ background:var(--chip); color:var(--ink); }
+  .mini.good{ background:var(--green); color:#ffffff; }
+  .mini.warn{ background:var(--gold); color:var(--ink); }
+  .mini.bad{ background:#ffffff; color:var(--red); }
+  .trait{ background:var(--chip); color:var(--ink); }
+  .entryline.now{ background:#ffffff; }
+  .facrow.sel{ background:#ffffff; }
+  #sceneband img{ filter:none; }
+  #todo .secbtns button.sub{ background:#ffffff; }
+  .gauge .glo,.gauge .ghi{ color:var(--ink2); }
+  table th{ background:var(--chip); color:var(--ink2) !important; }
+  select,input[type=text],input[type=number],textarea{ background:#f7f7f7; background-image:none; color:var(--ink); }
+}
+#sceneband{ display:flex; align-items:center; min-height:44px; }
+#sceneband .sb-cap{ position:static; display:flex; align-items:baseline; gap:10px; padding:6px 12px; }
+#sb-title{ font-size:19px; font-weight:900; color:var(--ink); }
+#sb-sub{ font-size:12.5px; font-weight:700; color:var(--ink2); }
 </style>
 </head>
 <body>
@@ -2142,7 +2450,7 @@ function planText(p){
 }
 /* ============ 牧場施設 ============ */
 const FACILITIES=[
- {id:"base",n:"基本施設（面積）",cat:"成長",cost:1500,upCost:3000,weeks:6,maint:40,noremove:true,desc:"牧場の面積。拡張で配置スペース 6→10"},
+ {id:"base",n:"基本施設（面積）",cat:"成長",cost:1500,upCost:3000,weeks:6,maint:40,noremove:true,maxLv:1,desc:"牧場の面積。建設で配置スペース 6→10（この施設自体はスペースを消費しない）"},
  {id:"grass",n:"牧草",cat:"身体",cost:300,upCost:600,weeks:2,maint:8,noremove:true,desc:"幼駒の健康が上がりやすくなる"},
  {id:"stable",n:"厩舎",cat:"成長",cost:800,upCost:1600,weeks:4,maint:20,noremove:true,desc:"繁殖牝馬の繋養数 5→10→20"},
  {id:"walker",n:"ウォーキングマシン",cat:"疲労回復",cost:500,upCost:1000,weeks:3,maint:12,desc:"放牧時の疲労回復アップ・故障期間短縮。2基目で受胎率も"},
@@ -2736,7 +3044,7 @@ function ensureFullHorse(h){
   if(!h.metRivals)h.metRivals=[];
   if(h.kiai==null)h.kiai=50;
   if(!h.plan)h.plan=defaultPlan();
-  if(!h.mark)h.mark={shape:"diamond",color:"#f2c41c"};
+  if(!h.mark)h.mark={shape:"diamond",color:"#ffc800"};
   if(h.bond==null)h.bond=0; if(h.bondLv==null)h.bondLv=0;
   if(h.known==null)h.known=100;
   if(h.damLine===undefined){ const hh=hashStr(h.name||""); h.damLine = hh%3===0?"主流":"一般"; h.famousDam = hh%11===0; }
@@ -3541,7 +3849,7 @@ function horseDetailHTML(h, sugs){
    <dt>気性・性格・走法</dt><dd>気性：${esc(h.temper||"普通")}／性格：${esc(h.personality||"真面目")}／走法：${esc(h.stride||"普通")}／重馬場：${heavy4(h)}（${h.heavy||"B"}）／芝質の好み：${esc(h.turfPref||"標準")}</dd>
    <dt>作戦</dt><dd>「${tacOf(h).n}」目標 ${tacOf(h).target}／仕掛け ${tacOf(h).spurt}／温存度 ${tacOf(h).reserve}　得意作戦「${bestTacStyle(h)}」</dd>
    <dt>識別マーク</dt><dd><label class="small">形 <select id="sel-markshape">${[["diamond","ダイヤ"],["circle","丸"],["triangle","三角"],["star","星"]].map(([v,n])=>`<option value="${v}" ${h.mark&&h.mark.shape===v?"selected":""}>${n}</option>`).join("")}</select></label>
-   <label class="small">色 <input type="color" id="sel-markcolor" value="${h.mark?h.mark.color:"#f2c41c"}" style="width:52px;min-height:32px"></label></dd>
+   <label class="small">色 <input type="color" id="sel-markcolor" value="${h.mark?h.mark.color:"#ffc800"}" style="width:52px;min-height:32px"></label></dd>
    </dl></div></details>
    <details class="fold"><summary>弱点・作戦適性をくわしく見る</summary><div class="foldbody"><h3 style="margin:2px 0 4px">弱点</h3><div class="weakgrid">${flagGrid}</div>
    <p class="small" style="margin:5px 0 0">能力面：${wkAll.length? wkAll.map(w=>w.label).join("、") : "目立った弱点なし"}（喉鳴り・脚部不安は獣医施設がないと判定できず「不明」になります）</p>
@@ -3986,7 +4294,7 @@ function breedEvalHTML(s,m){
   const ev=evalBreed(s,m); if(!ev)return `<p class="small">繁殖牝馬を選ぶと配合評価が表示されます。</p>`;
   const th=ev.theory; const P=pedigreeOf(s.name,m);
   const dangerStars="★".repeat(Math.min(5,Math.ceil(th.danger/2)))+"☆".repeat(Math.max(0,5-Math.ceil(th.danger/2)));
-  const pedRow=(a,label)=> a? `<td><b style="${th.inbred&&th.inbred.names.includes(a.name)?"color:#b02020":""}">${esc(a.name)}</b>${a.damSire?'<span class="mk hot">母</span>':""}${th.inbred&&th.inbred.full.includes(a.name)?'<span class="mk hot">全</span>':""}<span class="mk">${a.parent}</span>${a.grade?`<span class="mk hot">${a.grade}種牡馬</span>`:""}<span class="mk">${a.type==="SP"?"SP":a.type==="ST"?"ST":"中間"}</span><span class="mk">${lineOf(a.name).pop}</span>${(a.factors||[]).map(f=>`<span class="mk">${ABNAME[f]}</span>`).join("")}</td>`:`<td>―</td>`;
+  const pedRow=(a,label)=> a? `<td><b style="${th.inbred&&th.inbred.names.includes(a.name)?"color:#ff4b4b":""}">${esc(a.name)}</b>${a.damSire?'<span class="mk hot">母</span>':""}${th.inbred&&th.inbred.full.includes(a.name)?'<span class="mk hot">全</span>':""}<span class="mk">${a.parent}</span>${a.grade?`<span class="mk hot">${a.grade}種牡馬</span>`:""}<span class="mk">${a.type==="SP"?"SP":a.type==="ST"?"ST":"中間"}</span><span class="mk">${lineOf(a.name).pop}</span>${(a.factors||[]).map(f=>`<span class="mk">${ABNAME[f]}</span>`).join("")}</td>`:`<td>―</td>`;
   const g2=P.anc.filter(a=>a.gen===2), g3=P.anc.filter(a=>a.gen===3).slice(0,4);
   const ss=sireStats(s); const sirePts=Math.round((ss.spd+ss.sta+ss.pow+ss.bst+ss.gut+ss.flx+ss.smt+ss.hlt)/8);
   ensureFullHorse(m); const damPts=Math.round(ABS9.reduce((a,[k])=>a+(m[k]||0),0)/9);
@@ -4001,7 +4309,7 @@ function breedEvalHTML(s,m){
   const vigor=P.anc.filter(a=>a.gen>=2&&(a.grade||(a.factors||[]).length)).slice(0,6);
   const subTxt=Object.keys(th.sub||{}).length? Object.keys(th.sub).map(k=>`${ABNAME[k]} <span class="stars">${"★".repeat(Math.min(5,th.sub[k]))}</span>`).join("／") : "なし";
   const modTxt=Object.keys(th.mods||{}).length? Object.keys(th.mods).map(k=>`${k==="life"?"競走寿命":ABNAME[k]} +${th.mods[k]}`).join("／") : "なし";
-  const nickTxt = NICKS[P.sire.name+"×"+P.damSire.name] ? `<span style="color:#3f6a58;font-weight:800">繁栄</span>` : (P.sire.parent===P.damSire.parent? `<span style="color:#1d7a3c;font-weight:800">安定</span>` : `<span style="color:#b02020;font-weight:800">衰退寄り</span>`);
+  const nickTxt = NICKS[P.sire.name+"×"+P.damSire.name] ? `<span style="color:#58a700;font-weight:800">繁栄</span>` : (P.sire.parent===P.damSire.parent? `<span style="color:#3c3c3c;font-weight:800">安定</span>` : `<span style="color:#ff4b4b;font-weight:800">衰退寄り</span>`);
   return `<div class="parentgrid">
    <div class="parentcard"><div class="small">父（種牡馬）</div><div class="pc-name">${esc(s.name)}</div>
     <div class="small">系統：${sL.parent}／${sL.type==="SP"?"SP系統":sL.type==="ST"?"ST系統":"中間"}${sL.grade?`／${sL.grade}種牡馬`:""}／${sL.pop}</div>
@@ -4416,7 +4724,7 @@ function showDistress(force){
     ? S.horses.slice(dsPage*2, dsPage*2+2).map(h=>`<div class="ticket"><b>${esc(h.name)}</b> <span class="small">${h.age}歳／${h.wins}勝／獲得賞金 ${fmt(h.earnings||0)}万円${h.entry?"／エントリー中（売却すると取消）":""}</span><div class="mt"><button class="btn sm red" data-ds-sell="${h.id}">緊急売却（${fmt(horseSellPrice(h))}万円）</button></div></div>`).join("") + (dsPages>1?`<div class="pager"><button class="btn ghost sm" data-ds-pg="-1" ${dsPage<=0?"disabled":""}>← 前</button><span>${dsPage+1} / ${dsPages}</span><button class="btn ghost sm" data-ds-pg="1" ${dsPage>=dsPages-1?"disabled":""}>次 →</button></div>`:"")
     : `<p class="small">売却できる所有馬がいません。</p>`;
   showOverlay(`<h2>${S.funds<0?"資金が底をつきました":"資金繰りの相談"}</h2>
-   <p><img src="assets/secretary-worried.webp" alt="秘書・佐倉澪" style="width:58px;height:58px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px"><b>秘書・佐倉 澪</b><br>${S.funds<0?`資金が <b style="color:#d23b2e">${fmt(S.funds)}万円</b> になってしまいました…。でも、まだ立て直す方法があります。どれで凌ぎましょうか。`:`資金はあと <b>${fmt(S.funds)}万円</b> です。底をつく前に、融資かスポンサー支援で備えておきましょうか。`}</p>
+   <p><img src="assets/secretary-worried.webp" alt="秘書・佐倉澪" style="width:58px;height:58px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px"><b>秘書・佐倉 澪</b><br>${S.funds<0?`資金が <b style="color:#ff4b4b">${fmt(S.funds)}万円</b> になってしまいました…。でも、まだ立て直す方法があります。どれで凌ぎましょうか。`:`資金はあと <b>${fmt(S.funds)}万円</b> です。底をつく前に、融資かスポンサー支援で備えておきましょうか。`}</p>
    ${loanHtml}${sponsorHtml}
    <p style="margin:10px 0 4px"><b>馬を緊急売却する</b></p>${sellHtml}
    <div class="flex" style="justify-content:center;margin-top:10px"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる（様子を見る）</button></div>
@@ -4625,7 +4933,7 @@ function renderOwnSettings(r){
       <div><label>ペース指示<select data-os="tac2" data-hid="${h.id}">${TACTIC2.map(t=>`<option value="${t.id}" ${t.id===(h.tactic2||"normal")?"selected":""}>${t.n}${t.d?" ― "+t.d:""}</option>`).join("")}</select></label><div class="tacfit" data-osfit="${h.id}"></div><div class="small" data-osdet="${h.id}"></div></div>
       <div><label>特殊作戦<select data-os="spec" data-hid="${h.id}"><option value="">なし（通常の作戦）</option>${specOpts}</select></label><span class="small">条件を満たさない作戦は理由つきで選べません</span></div>
       <div><label>騎手（確認・変更）<select data-os="jock" data-hid="${h.id}">${jockOpts}</select></label><div class="flex" style="margin-top:4px"><button class="btn sm" data-osreq="${h.id}">この騎手に依頼する</button><span class="small" data-osreqres="${h.id}">${h.reqJockey!=null&&h.reqJockey!==h.jockey?JOCKEYS[h.reqJockey].name+" に依頼済み":"主戦騎手が騎乗します"}</span></div></div>
-      <div><label>識別マーク<select data-os="markshape" data-hid="${h.id}">${[["diamond","ダイヤ"],["circle","丸"],["triangle","三角"],["star","星"]].map(([v,n])=>`<option value="${v}" ${h.mark&&h.mark.shape===v?"selected":""}>${n}</option>`).join("")}</select></label><label style="margin-top:5px">マーク色 <input type="color" data-os="markcolor" data-hid="${h.id}" value="${h.mark?h.mark.color:"#f2c41c"}" style="width:56px;min-height:34px;vertical-align:middle"></label></div>
+      <div><label>識別マーク<select data-os="markshape" data-hid="${h.id}">${[["diamond","ダイヤ"],["circle","丸"],["triangle","三角"],["star","星"]].map(([v,n])=>`<option value="${v}" ${h.mark&&h.mark.shape===v?"selected":""}>${n}</option>`).join("")}</select></label><label style="margin-top:5px">マーク色 <input type="color" data-os="markcolor" data-hid="${h.id}" value="${h.mark?h.mark.color:"#ffc800"}" style="width:56px;min-height:34px;vertical-align:middle"></label></div>
       <div><label>観戦方法<select data-os="watch">${[["full","フル観戦"],["digest","ダイジェスト（スタート＋最終コーナー少し前〜ゴール）"],["result","結果だけ"]].map(([v,n])=>`<option value="${v}" ${S.watchMode===v?"selected":""}>${n}</option>`).join("")}</select></label><span class="small">馬券画面での作戦変更とも連動します</span></div>
     </div>
     ${(()=>{ const ex=(S.bets||[]).find(b=>b.raceId===r.id&&b.type==="tan"&&b.picks[0]===h._gate);
@@ -4651,8 +4959,8 @@ function renderOwnSettings(r){
     if(kind==="tac")h.tactic=sel.value;
     if(kind==="tac2")h.tactic2=sel.value;
     if(kind==="spec")h.special=sel.value||null;
-    if(kind==="markshape"){ h.mark=h.mark||{shape:"diamond",color:"#f2c41c"}; h.mark.shape=sel.value; }
-    if(kind==="markcolor"){ h.mark=h.mark||{shape:"diamond",color:"#f2c41c"}; h.mark.color=sel.value; }
+    if(kind==="markshape"){ h.mark=h.mark||{shape:"diamond",color:"#ffc800"}; h.mark.shape=sel.value; }
+    if(kind==="markcolor"){ h.mark=h.mark||{shape:"diamond",color:"#ffc800"}; h.mark.color=sel.value; }
     if(kind==="jock")return; /* 騎手は依頼ボタンで確定 */
     h._cardReady=true; updFit(h); saveAuto();
   }));
@@ -5239,7 +5547,7 @@ function drawSubtitle(ctx,W,H){
   ctx.fillText(line, 14, H-16);
 }
 function drawMark(ctx,x,y,sz,mk){
- ctx.save(); ctx.translate(x,y); ctx.fillStyle=mk.color||"#f2c41c"; ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1;
+ ctx.save(); ctx.translate(x,y); ctx.fillStyle=mk.color||"#ffc800"; ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1;
  const s=sz/2;
  ctx.beginPath();
  if(mk.shape==="circle"){ ctx.arc(0,0,s,0,7); }
@@ -5748,9 +6056,9 @@ function rebuildGLHorses(){
   if(mineH && S.markOn!==false){
     const Pm=GL.horses.get(mineH);
     if(Pm){
-      const mk=mineH.mark||{shape:"diamond",color:"#f2c41c"};
+      const mk=mineH.mark||{shape:"diamond",color:"#ffc800"};
       const grp=new THREE.Group();
-      const dia=new THREE.Mesh(new THREE.OctahedronGeometry(0.30), new THREE.MeshStandardMaterial({color:new THREE.Color(mk.color||"#f2c41c"), emissive:0x6b5200, emissiveIntensity:0.5, roughness:0.35, metalness:0.15}));
+      const dia=new THREE.Mesh(new THREE.OctahedronGeometry(0.30), new THREE.MeshStandardMaterial({color:new THREE.Color(mk.color||"#ffc800"), emissive:0x6b5200, emissiveIntensity:0.5, roughness:0.35, metalness:0.15}));
       dia.position.y=2.95; grp.add(dia);
       const lc=document.createElement("canvas"); lc.width=512; lc.height=112;
       const lg=lc.getContext("2d"); const txt=String(mineH._gate||"")+" "+mineH.name;
@@ -6226,7 +6534,7 @@ function drawRace(simT){
       const pb3=$("#posbar");
       if(pb3){ const str=srt3.slice(0,6).map((h,i)=>{ const mc=capChipColor(h._gate, sim.all.length);
         return `<span class="poschip"><span class="gnum" style="background:${mc.bg};color:${mc.fg}">${h._gate}</span> ${i+1}位 ${esc(h.name)}</span>`; }).join("");
-        const _nv3=remain+"m|"+str; if(pb3._v!==_nv3){ pb3._v=_nv3; pb3.innerHTML=`<span class="poschip" style="background:#ffe9a8;color:#5b4300">残り ${remain}m</span>`+str; } }
+        const _nv3=remain+"m|"+str; if(pb3._v!==_nv3){ pb3._v=_nv3; pb3.innerHTML=`<span class="poschip" style="background:#ffc800;color:#3c3c3c">残り ${remain}m</span>`+str; } }
       const rh3=$("#racehud");
       if(rh3){ const lines=[];
         const mineList = raceState.mine? [raceState.mine] : sim.all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
@@ -6269,7 +6577,7 @@ function drawRace(simT){
   raceState._lblList.forEach(it=>{
     const topY=it.y-84*it.s;
     if(it.h===leadH && it.h!==raceState.mine) diamond(it.x, topY-16+bobM, 13, "#ef7d1a");
-    if(it.h===raceState.mine && S.markOn!==false){ const mk=it.h.mark||{shape:"diamond",color:"#f2c41c"}; drawMark(ctx, it.x, topY-18+bobM, 16, mk); }
+    if(it.h===raceState.mine && S.markOn!==false){ const mk=it.h.mark||{shape:"diamond",color:"#ffc800"}; drawMark(ctx, it.x, topY-18+bobM, 16, mk); }
   });
   const lblSet=new Set(srt.slice(0,6)); if(raceState.mine)lblSet.add(raceState.mine);
   ctx.font="bold 10px sans-serif"; ctx.textAlign="center";
@@ -7131,17 +7439,23 @@ function renderFarm(){
  <br><label class="small">配置先 <select id="mgr-post"><option value="">配置しない</option>${FACILITIES.filter(f=>facLv(f.id)>0).map(f=>`<option value="${f.id}" ${S.mgrPost===f.id?"selected":""}>${f.n}</option>`).join("")}</select></label> <span class="small">得意施設（坂路）に配置すると効果がさらに上がります。現在：${postName}</span></div>`;
  html+=`<div class="panel"><b>牧場状況と施設効果</b>
  <div class="small" style="margin:3px 0">スペース ${sp.used}/${sp.base}（空き ${sp.free}）／月維持費 ${fmt(upkeepM)}万円／繋養上限：繁殖牝馬 ${mareCap()}頭・種牡馬 ${sireCap()}頭／名声 ${S.fame||0}</div>
- ${FAC_CATS.map(c=>{ const base=Math.min(100,(cats[c]||0)*14), inc=Math.min(100-base,(preview[c]||0)*14); return `<div class="stat"><span style="min-width:52px">${c}</span><span class="facbar"><i class="base" style="width:${base}%"></i><i class="inc" style="width:${inc}%"></i></span><b>${(cats[c]||0).toFixed(1)}</b>${preview[c]?`<span class="small" style="color:#c25e00">+${preview[c].toFixed(1)}（${sf.n}）</span>`:""}</div>`; }).join("")}
+ ${FAC_CATS.map(c=>{ const base=Math.min(100,(cats[c]||0)*14), inc=Math.min(100-base,(preview[c]||0)*14); return `<div class="stat"><span style="min-width:52px">${c}</span><span class="facbar"><i class="base" style="width:${base}%"></i><i class="inc" style="width:${inc}%"></i></span><b>${(cats[c]||0).toFixed(1)}</b>${preview[c]?`<span class="small" style="color:#58a700">+${preview[c].toFixed(1)}（${sf.n}）</span>`:""}</div>`; }).join("")}
  <p class="small" style="margin:4px 0 0">オレンジ部分は、選択中の施設「${sf.n}」を建設・拡張した場合に増える効果です。</p></div>`;
+  /* スペース満杯のときは、広げる方法（基本施設の建設）をその場で提示し、
+     ここから直接建設できるようにする。基本施設はスペースを消費しないので
+     満杯でも建設でき、建設した時点で farmSpaces の容量に即反映される */
+  if(sp.free<=0&&facLv("base")===0&&facBuilding("base")===0){ const bf=FACILITIES.find(f=>f.id==="base");
+    html+=`<div class="panel" style="border:2px solid #ffc800"><b>📐 スペースが満杯です（${sp.used}/${sp.base}）</b><div class="small" style="margin:3px 0">牧場を大きくするには「基本施設（面積）」の建設が必要です。建設するとスペースが <b>${sp.base} → ${sp.base+4}</b> に広がります（基本施設自体はスペースを消費しません）。他の施設の拡張ではスペースは増えません。</div><div class="flex"><button class="btn gold sm" data-fac-build="base" ${S.funds>=bf.cost?"":"disabled"}>基本施設（面積）を建設する（${fmt(bf.cost)}万円・${bf.weeks}週）</button>${S.funds<bf.cost?`<span class="small">資金が不足しています</span>`:""}</div></div>`;
+  }
  html+=panelClose();
  /* 施設詳細（選択中） */
  { const f=sf, lv=facLv(f.id), building=facBuilding(f.id)>0, maxLv=f.maxLv||2;
    const cost= lv===0? f.cost : f.upCost*lv;
-   const canBuild= building? false : lv===0? (sp.free>=1 && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
-   const ngTxt= building? "工事中は建設・拡張できません" : lv>=maxLv? "最大まで拡張済みです" : lv===0&&sp.free<1? "スペースが不足しています" : (!canBuild&&S.funds<cost)? "資金が不足しています" : "";
+   const canBuild= building? false : lv===0? ((f.id==="base"||sp.free>=1) && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
+   const ngTxt= building? "工事中は建設・拡張できません" : lv>=maxLv? "最大まで拡張済みです" : lv===0&&f.id!=="base"&&sp.free<1? "スペースが不足しています" : (!canBuild&&S.funds<cost)? "資金が不足しています" : "";
    html+=panelOpen("farm","detail")+`<h2 class="sec" id="farm-fac-detail">施設詳細</h2><div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${f.n}</b><span class="aptchip">${FAC_PLACE[f.id]||"放牧場"}</span><span class="aptchip">${f.cat}効果</span>${lv>0?`<span class="aptchip on">Lv.${lv}</span>`:`<span class="aptchip">未建設</span>`}${S.mgrPost===f.id?`<span class="aptchip strong">牧場長を配置中</span>`:""}${building?` <span class="sale-tag">工事中（あと${S.building[f.id]}週）</span>`:""}</div>
    <p class="small" style="margin:6px 0">${f.desc}</p>
-   <dl class="kv"><dt>${lv===0?"建設費用":"拡張費用"}</dt><dd>${lv>=maxLv?"―":fmt(cost)+"万円"}</dd><dt>工事期間</dt><dd>${f.weeks}週</dd><dt>月維持費</dt><dd>${f.maint}万円／Lv（現在 ${fmt(f.maint*lv)}万円）</dd><dt>場所</dt><dd>${FAC_PLACE[f.id]||"放牧場"}（スペース消費：${lv===0?"建設時に1":"なし"}）</dd><dt>スタッフ配置</dt><dd>${lv>0? (S.mgrPost===f.id? "牧場長を配置中（効果1.5倍）" : "未配置（牧場長の配置先から変更できます）") : "建設後に配置できます"}</dd></dl>
+   <dl class="kv"><dt>${lv===0?"建設費用":"拡張費用"}</dt><dd>${lv>=maxLv?"―":fmt(cost)+"万円"}</dd><dt>工事期間</dt><dd>${f.weeks}週</dd><dt>月維持費</dt><dd>${f.maint}万円／Lv（現在 ${fmt(f.maint*lv)}万円）</dd><dt>場所</dt><dd>${FAC_PLACE[f.id]||"放牧場"}（スペース消費：${f.id==="base"?"なし（面積そのもの）":lv===0?"建設時に1":"なし"}）</dd>${f.id==="base"?`<dt>容量</dt><dd>建設するとスペース ${sp.base} → ${sp.base+4} に拡大します（現在 ${sp.used}/${sp.base}）</dd>`:""}<dt>スタッフ配置</dt><dd>${lv>0? (S.mgrPost===f.id? "牧場長を配置中（効果1.5倍）" : "未配置（牧場長の配置先から変更できます）") : "建設後に配置できます"}</dd></dl>
    ${ngTxt?`<p class="small" style="color:var(--red);font-weight:700;margin:6px 0 0">× ${ngTxt}</p>`:""}
    <div class="flex mt">${lv===0?`<button class="btn sm" data-fac-build="${f.id}" ${canBuild?"":"disabled"}>建設する</button>`: lv<maxLv?`<button class="btn sm" data-fac-up="${f.id}" ${canBuild?"":"disabled"}>拡張する（Lv.${lv+1}）</button>`:`<span class="small">最大まで拡張済み</span>`}
    ${lv>0&&!f.noremove?`<button class="btn ghost sm" data-fac-del="${f.id}">撤去</button>`:`<span class="small">${lv>0?"この施設は撤去できません":""}</span>`}</div></div>`;
@@ -7152,7 +7466,7 @@ function renderFarm(){
  FACILITIES.forEach(f=>{
   const lv=facLv(f.id), building=facBuilding(f.id)>0, maxLv=f.maxLv||2;
   const cost= lv===0? f.cost : f.upCost*lv;
-  let ng=""; if(building) ng="工事中"; else if(lv>=maxLv) ng=""; else if(lv===0&&sp.free<1) ng="× スペース不足"; else if(S.funds<cost) ng="× 資金不足";
+  let ng=""; if(building) ng="工事中"; else if(lv>=maxLv) ng=""; else if(lv===0&&f.id!=="base"&&sp.free<1) ng="× スペース不足"; else if(S.funds<cost) ng="× 資金不足";
   const pips=Array.from({length:maxLv},(_,i)=>i<lv?"●":'<span class="off">●</span>').join("");
   facRows.push(`<div class="facrow ${f.id===selFac?"sel":""}" data-fac-sel="${f.id}"><div style="flex:1;min-width:0"><span class="fname">${f.n}</span> <span class="small">${FAC_PLACE[f.id]||"放牧場"}・${f.cat}</span><div class="small">${f.desc}</div></div><span class="pips">${pips}</span>${S.mgrPost===f.id?'<span class="aptchip on">配置中</span>':""}${ng?`<span class="ng">${ng}</span>`:""}</div>`);
  });
@@ -7220,8 +7534,8 @@ function renderFarm(){
  /* 下部固定アクションバー：選択中の施設をスクロールなしで建設・拡張できる */
  { const f=sf, lv=facLv(f.id), building=facBuilding(f.id)>0, maxLv=f.maxLv||2;
    const cost= lv===0? f.cost : f.upCost*lv;
-   const canBuild= building? false : lv===0? (sp.free>=1 && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
-   const stTxt= building? `工事中（あと${S.building[f.id]}週）` : lv>=maxLv? "最大まで拡張済み" : lv===0&&sp.free<1? "スペース不足" : (!canBuild&&S.funds<cost)? "資金不足" : "";
+   const canBuild= building? false : lv===0? ((f.id==="base"||sp.free>=1) && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
+   const stTxt= building? `工事中（あと${S.building[f.id]}週）` : lv>=maxLv? "最大まで拡張済み" : lv===0&&f.id!=="base"&&sp.free<1? "スペース不足" : (!canBuild&&S.funds<cost)? "資金不足" : "";
    html+=`<div class="actionbar"><span class="ab-name">🏗 ${f.n}${lv>0?` Lv.${lv}`:"（未建設）"}</span><span class="ab-cost">${lv>=maxLv?"":`${lv===0?"建設":"拡張"} ${fmt(cost)}万円・${f.weeks}週`}${stTxt?`／${stTxt}`:""}</span><span style="flex:1"></span>${lv===0?`<button class="btn gold sm" data-fac-build="${f.id}" ${canBuild?"":"disabled"}>建設する</button>`: lv<maxLv?`<button class="btn gold sm" data-fac-up="${f.id}" ${canBuild?"":"disabled"}>拡張する（Lv.${lv+1}）</button>`:""}</div>`;
  }
  html+=`</div>`;
@@ -7356,7 +7670,7 @@ function saveInfo(key){
   }catch(e){ return null; }
 }
 /* ============ 引き継ぎコード（端末間のデータ移行：圧縮＋チェックサム＋任意の合言葉） ============ */
-function toast(msg){ let t=$("#toast"); if(!t){ t=document.createElement("div"); t.id="toast"; t.style.cssText="position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:#26382b;color:#fff;padding:10px 18px;border-radius:999px;font-weight:700;font-size:14px;z-index:999;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:88vw;text-align:center"; document.body.appendChild(t); } t.textContent=msg; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.display="none"; },2300); }
+function toast(msg){ let t=$("#toast"); if(!t){ t=document.createElement("div"); t.id="toast"; t.style.cssText="position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:#3c3c3c;color:#fff;padding:10px 18px;border-radius:999px;font-weight:700;font-size:14px;z-index:999;box-shadow:0 4px 14px rgba(0,0,0,.3);max-width:88vw;text-align:center"; document.body.appendChild(t); } t.textContent=msg; t.style.display="block"; clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.display="none"; },2300); }
 function fnv1a(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,0x01000193); } return (h>>>0).toString(16).padStart(8,"0"); }
 async function sha256hex(str){ try{ const b=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join(""); }catch(e){ return fnv1a(str)+fnv1a("~"+str)+fnv1a("#"+str); } }
 function b64enc(u8){ let s=""; for(let i=0;i<u8.length;i+=0x8000) s+=String.fromCharCode.apply(null, u8.subarray(i,i+0x8000)); return btoa(s); }
@@ -7402,16 +7716,16 @@ function showSavePanel(){
   }).join("");
   const tcHTML=`<div class="ticket" style="text-align:left"><b>🔑 引き継ぎ（別の端末へ）</b>
   <p class="small">今のデータをコード化して発行し、別の端末で貼り付ければ続きから遊べます。</p>
-  <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="tc-pass" type="text" placeholder="合言葉（任意）" style="flex:1;min-width:140px;padding:10px;border-radius:8px;border:1.5px solid #9db894">
+  <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="tc-pass" type="text" placeholder="合言葉（任意）" style="flex:1;min-width:140px;padding:10px;border-radius:12px;border:2px solid #e5e5e5">
   <button class="btn sm" id="tc-issue">コードを発行</button></div>
-  <textarea id="tc-code" rows="3" readonly placeholder="発行するとここに引き継ぎコードが出ます" style="width:100%;margin-top:6px;border-radius:8px;border:1.5px solid #9db894;padding:8px"></textarea>
+  <textarea id="tc-code" rows="3" readonly placeholder="発行するとここに引き継ぎコードが出ます" style="width:100%;margin-top:6px;border-radius:12px;border:2px solid #e5e5e5;padding:8px"></textarea>
   <div class="flex"><button class="btn ghost sm" id="tc-copy">コードをコピー</button><button class="btn ghost sm" id="tc-dl">ファイルで保存（JSON）</button></div>
   <div class="sep"></div>
-  <textarea id="tc-in" rows="3" placeholder="引き継ぎコードを貼り付け" style="width:100%;border-radius:8px;border:1.5px solid #9db894;padding:8px"></textarea>
-  <div class="flex" style="flex-wrap:wrap;gap:6px;margin-top:6px"><input id="tc-pass2" type="text" placeholder="合言葉（設定した場合）" style="flex:1;min-width:140px;padding:10px;border-radius:8px;border:1.5px solid #9db894">
+  <textarea id="tc-in" rows="3" placeholder="引き継ぎコードを貼り付け" style="width:100%;border-radius:12px;border:2px solid #e5e5e5;padding:8px"></textarea>
+  <div class="flex" style="flex-wrap:wrap;gap:6px;margin-top:6px"><input id="tc-pass2" type="text" placeholder="合言葉（設定した場合）" style="flex:1;min-width:140px;padding:10px;border-radius:12px;border:2px solid #e5e5e5">
   <button class="btn gold sm" id="tc-restore">引き継ぎ（復元）</button>
   <label class="btn ghost sm" style="cursor:pointer">ファイルから復元<input type="file" id="tc-file" accept=".json,.txt,text/plain" style="display:none"></label></div>
-  <p class="small" id="tc-msg" style="color:#a33;font-weight:700"></p></div>`;
+  <p class="small" id="tc-msg" style="color:#ff4b4b;font-weight:700"></p></div>`;
   showOverlay(`<h2>セーブ／ロード</h2><div class="ov-body">${rows}${tcHTML}<p class="small">保存先はこの端末のブラウザ内です。ブラウザのデータを消すとセーブも消えます。</p></div><div class="ov-foot"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
   const tcMsg=t=>{ const m=$("#tc-msg"); if(m)m.textContent=t; };
   const tcIssue=$("#tc-issue"); if(tcIssue) tcIssue.addEventListener("click", async()=>{ tcMsg(""); try{ $("#tc-code").value=await issueTransferCode(($("#tc-pass").value||"").trim()); toast("引き継ぎコードを発行しました"); }catch(e){ tcMsg("発行に失敗しました: "+e.message); } });
@@ -7419,10 +7733,10 @@ function showSavePanel(){
   const tcDl=$("#tc-dl"); if(tcDl) tcDl.addEventListener("click", ()=>{ const blob=new Blob([JSON.stringify(saveData(),null,1)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="keiba-save.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); });
   const tcRestore=$("#tc-restore"); if(tcRestore) tcRestore.addEventListener("click", async()=>{ tcMsg(""); const code=($("#tc-in").value||"").trim(); if(!code){ tcMsg("コードを貼り付けてください"); return; }
     let d; try{ d=await parseTransferCode(code, ($("#tc-pass2").value||"").trim()); }catch(e){ tcMsg(e.message); return; }
-    if(await confirm2("現在のデータを引き継ぎデータで上書きします。よろしいですか？")) restoreSaveObject(d); });
+    confirm2("現在のデータを引き継ぎデータで上書きします。よろしいですか？","引き継ぎデータの内容で、今のプレイ記録が置き換わります。",()=>restoreSaveObject(d)); });
   const tcFile=$("#tc-file"); if(tcFile) tcFile.addEventListener("change", async()=>{ const f=tcFile.files[0]; if(!f)return; tcMsg(""); const text=await f.text();
     try{ let d; if(text.trim().startsWith("KMG1")) d=await parseTransferCode(text, ($("#tc-pass2").value||"").trim()); else { d=JSON.parse(text); if(!d||!Array.isArray(d.horses)) throw new Error("セーブデータではありません"); }
-      if(await confirm2("現在のデータをファイルのデータで上書きします。よろしいですか？")) restoreSaveObject(d); }catch(e){ tcMsg(e.message); } });
+      confirm2("現在のデータをファイルのデータで上書きします。よろしいですか？","ファイルの内容で、今のプレイ記録が置き換わります。",()=>restoreSaveObject(d)); }catch(e){ tcMsg(e.message); } });
   document.querySelectorAll("[data-sv-save]").forEach(b=>b.addEventListener("click",()=>{ try{localStorage.setItem(SAVE_KEY+b.dataset.svSave, JSON.stringify(saveData()));}catch(e){} showSavePanel(); }));
   document.querySelectorAll("[data-sv-load]").forEach(b=>b.addEventListener("click",()=>{ try{ const d=JSON.parse(localStorage.getItem(SAVE_KEY+b.dataset.svLoad)); if(d){applySave(d); booted=true; raceState.phase="idle"; $("#overlay").style.display="none"; renderAll();} }catch(e){} }));
   document.querySelectorAll("[data-sv-del]").forEach(b=>b.addEventListener("click",()=>{ localStorage.removeItem(SAVE_KEY+b.dataset.svDel); showSavePanel(); }));
@@ -7531,6 +7845,13 @@ function buildGuide(){
   const buildable=FACILITIES.filter(f=>facLv(f.id)===0&&facBuilding(f.id)===0&&f.cost<=S.funds).sort((a,b)=>a.cost-b.cost)[0];
   if(sp.free>0&&buildable){
     cards.push({key:"fac"+buildable.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースに空きがあります。「${buildable.n}」（${fmt(buildable.cost)}万円）はいかがですか`, btn:"施設を見る", act:"facility", fid:buildable.id});
+  } else if(sp.free<=0){
+    /* 満杯のときは、スペースを生む基本施設（面積）だけは提案する。
+       基本施設はスペースを消費しないので、満杯でも建設できる */
+    const bf=FACILITIES.find(f=>f.id==="base");
+    if(bf&&facLv("base")===0&&facBuilding("base")===0&&bf.cost<=S.funds){
+      cards.push({key:"facbase", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。「${bf.n}」（${fmt(bf.cost)}万円）を建設すると 6→10 に広がります`, btn:"施設を見る", act:"facility", fid:"base"});
+    }
   }
   /* 資金が厳しい：マイナスなら立て直し案（融資・スポンサー・緊急売却）を最優先で提示 */
   if(S.funds<0){
@@ -7699,7 +8020,7 @@ function renderActionBar(){
 
 /* ============ 固定レイアウト共通（サブタブ／ページ送り） ============
    スクロールを廃止し、画面内の情報はサブタブ切替とページ送りで分割する */
-const UI={stable:"horses", train:"plan", race:"list", bet:"races", breed:"breed", jockey:"list", farm:"fac", rank:"hall", racedone:"result", sdetail:"0"};
+const UI={stable:"horses", train:"plan", race:"list", bet:"races", breed:"breed", jockey:"list", farm:"top", rank:"hall", racedone:"result", sdetail:"0"};
 const PG={};
 function subnavHTML(view, items){ return `<div class="subnav" role="tablist">${items.map(([k,n])=>`<button type="button" data-subnav="${view}:${k}" class="${UI[view]===k?"on":""}">${n}</button>`).join("")}</div>`; }
 function panelHTML(view, key, inner){ return `<div class="subpanel ${UI[view]===key?"on":""}" data-panel="${view}:${key}">${inner}</div>`; }
@@ -7735,9 +8056,9 @@ function tabSplitHTML(html){
    停止条件に触れたらその場で止まり、理由をバーに残す。レース自体は
    自動で走らないため出走週では必ず止まる。確認画面（年末・資金不足・
    延滞警告など）が出た場合も、内容を確認してもらうため止まる */
-const AUTO={running:false, timer:null, steps:0, weeksDone:0, skip:{}, planSet:{}, label:"", stopReason:"", injured:""};
+const AUTO={running:false, timer:null, steps:0, weeksDone:0, skip:{}, planSet:{}, bredTried:{}, label:"", stopReason:"", injured:""};
 function autoCfg(){
-  const d={weeks:4, fundsMin:-1, stopInjury:true, stopRace:true, stopSale:true, stopBreed:true, stopFacility:true, stopFinance:true};
+  const d={weeks:4, fundsMin:-1, stopInjury:true, stopRace:true, stopSale:true, stopFacility:true, stopFinance:true};
   if(!S.autoCfg||typeof S.autoCfg!=="object") S.autoCfg={};
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
@@ -7749,7 +8070,7 @@ function autoSchedule(ms){ if(AUTO.timer)clearTimeout(AUTO.timer); AUTO.timer=se
 function autoStart(){
   if(AUTO.running||S.gameover) return;
   if(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done")){ toast("レース中はオートを開始できません"); return; }
-  AUTO.running=true; AUTO.steps=0; AUTO.weeksDone=0; AUTO.skip={}; AUTO.planSet={}; AUTO._rc={}; AUTO.stopReason=""; AUTO.label="開始します"; AUTO.injured=autoInjuredKey();
+  AUTO.running=true; AUTO.steps=0; AUTO.weeksDone=0; AUTO.skip={}; AUTO.planSet={}; AUTO.bredTried={}; AUTO._rc={}; AUTO.stopReason=""; AUTO.label="開始します"; AUTO.injured=autoInjuredKey();
   pendingTrain=null; pendingAnchor=null;
   switchView("stable");
   renderAll();
@@ -7835,7 +8156,7 @@ function autoCardAction(c,cfg){
   if(c.act==="facility"){
     if(cfg.stopFacility) return {type:"stop", reason:"施設の建設提案があります（停止条件：施設）。内容を確認してください"};
     const f=FACILITIES.find(x=>x.id===c.fid);
-    if(!f||facLv(f.id)>0||facBuilding(f.id)>0||S.funds<f.cost||farmSpaces().free<=0) return {type:"skip"};
+    if(!f||facLv(f.id)>0||facBuilding(f.id)>0||S.funds<f.cost||(f.id!=="base"&&farmSpaces().free<=0)) return {type:"skip"};
     return {type:"run", label:`施設「${f.n}」を建設`, run:()=>{ S.funds-=f.cost; if(!S.facilities)S.facilities={}; if(!S.building)S.building={}; S.facilities[f.id]=1; S.building[f.id]=f.weeks; log(`🏗 施設「${f.n}」の建設を開始（${f.weeks}週）`); }};
   }
   if(c.act==="finance"){
@@ -7847,15 +8168,17 @@ function autoCardAction(c,cfg){
     return {type:"skip"};
   }
   if(c.act==="breed"){
-    /* 調教師の配合提案：おまかせ中は停止条件より優先して提案どおり登録する。
-       おまかせでない場合は、停止条件（種付け）がONなら止め、OFFなら提案どおり進める */
-    if(cfg.stopBreed&&!S.omakase) return {type:"stop", reason:"種付けの季節です（停止条件：種付け）。調教師の配合提案を確認してください"};
+    /* オート中の種付けは停止条件の対象にしない：繁殖シーズンは止まらず、
+       調教師の配合提案（相馬眼ランクで提案の質が変わる既存の仕組み）どおりに
+       自動で種付けを登録し、オートはそのまま進行を続ける（おまかせと同じ扱い）。
+       手動プレイ時の種付けフロー・提案カードの表示は従来どおり */
     const m=(S.mares||[]).find(x=>x.id===c.mid), s=(S.stallions||[]).find(x=>x.name===c.sname);
     if(!m||!s||m.pregnant) return {type:"skip"};
-    return {type:"run", label:`配合：${m.name} × ${s.name}`, run:()=>{ const r=tryBreed(s,m); if(r.err) AUTO.skip[c.key+"@"+S.week]=1; else AUTO.label=`種付けを登録：${m.name} × ${s.name}（評価${r.ev.rank}）`; }};
+    return {type:"run", label:`配合：${m.name} × ${s.name}`, run:()=>{ const r=tryBreed(s,m); if(r.err) AUTO.skip[c.key+"@"+S.week]=1; else { AUTO.label=`種付けを登録：${m.name} × ${s.name}（評価${r.ev.rank}）`; log(`🤖 オート：調教師の配合提案で種付けを登録 ― ${m.name} × ${s.name}（評価${r.ev.rank} ${r.ev.total}）`); } }};
   }
   if(c.act==="view"&&c.anchor==="breed-form"){
-    if(cfg.stopBreed) return {type:"stop", reason:"種付けの季節です（停止条件：種付け）。配合を決めてください"};
+    /* 配合提案が無い場合（種牡馬がいない等）は、調教師にも決めようがないので
+       止まらずに見送って進行を続ける（提案がある場合は上の breed 分岐で実行済み） */
     return {type:"skip"};
   }
   return {type:"skip"};
@@ -7899,6 +8222,23 @@ function autoStep(){
       h.plan=JSON.parse(JSON.stringify(prop.plan));
       AUTO.label=`${h.name} の定常指示を変更（調教師の提案）`;
       log(`🤖 オート：${h.name} の定常指示を調教師の提案どおりに変更 ― ${planText(h.plan)}`);
+      renderAll(); autoSchedule(850); return;
+    }
+  }
+  /* 繁殖シーズン（5〜6月）の種付けは、提案カードの表示状態（未表示・非表示・
+     資金不足での無効化など）に左右されず、調教師が直接実行する：未種付けの
+     繁殖牝馬がいれば、調教師の配合提案（相馬眼で質が変わる既存の仕組み）
+     どおりに1頭ずつ種付けを登録し、止まらずに進行を続ける。資金不足など
+     登録できない牝馬はその週は見送りとして記録し、空転させない */
+  if(month()===5||month()===6){
+    if(!AUTO.bredTried) AUTO.bredTried={};
+    let bprops=[]; try{ bprops=trainerBreedProposals(); }catch(e){}
+    const bp=bprops.find(p=>p&&p.mare&&p.sire&&!p.mare.pregnant&&!AUTO.bredTried[S.week+":"+p.mare.id]);
+    if(bp){
+      AUTO.bredTried[S.week+":"+bp.mare.id]=1; AUTO.steps++;
+      const r=tryBreed(bp.sire,bp.mare);
+      if(!r.err){ AUTO.label=`種付けを登録：${bp.mare.name} × ${bp.sire.name}（評価${r.ev.rank}）`; log(`🤖 オート：調教師の配合提案で種付けを登録 ― ${bp.mare.name} × ${bp.sire.name}（評価${r.ev.rank} ${r.ev.total}）`); }
+      else { AUTO.label=`${bp.mare.name} の種付けは見送りました（${r.err==="funds"?"資金不足":"登録不可"}）`; log(`🤖 オート：${bp.mare.name} の種付けは見送りました（${r.err}）`); }
       renderAll(); autoSchedule(850); return;
     }
   }
@@ -7959,7 +8299,7 @@ function showAutoSettings(){
   ${tog("stopRace","出走週で止まる（OFFの場合は「結果だけ」でレースを消化して続行します）")}
   ${tog("stopInjury","故障が発生したら止まる")}
   ${tog("stopSale","セール開催週で止まる（OFFの場合はセールをスキップして続行）")}
-  ${tog("stopBreed","種付けの季節で止まる（OFFの場合はスキップして続行）")}
+  <p class="small mt">🌱 種付け（5〜6月）は停止条件の対象外です：オート中は止まらず、調教師の配合提案（相馬眼が高い調教師ほど評価の高い配合を提案）どおりに自動で種付けを登録して、そのまま進行します。</p>
   ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は提案どおり建設します）")}
   ${tog("stopFinance","資金繰りの相談（融資・スポンサー）で止まる（OFFの場合はスキップして続行）")}
   </div></div><div class="ov-foot"><button class="btn ghost" id="auto-set-close">閉じる</button><button class="btn gold" id="auto-set-start">この条件でオート開始</button></div>`);
