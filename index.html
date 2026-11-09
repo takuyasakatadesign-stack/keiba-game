@@ -3619,16 +3619,53 @@ function nearestEntry(){ const a=allEntries(); return a.length?a[0]:null; }
 function blockedEntries(){ return allEntries().filter(x=>x.left<=0); }
 function entryLabel(e){ return `${e.name}（${e.course} ${e.surf}${e.dist}m・${e.month}月第${e.week}週）`; }
 function registerEntry(h,raceLike,absWeek){
-  if(!h||!raceLike)return;
+  if(!h||!raceLike)return false;
+  /* 適格チェックは登録の入口（ここ）で必須にする：手動・秘書提案・自動登録の
+     どの経路から呼ばれても、出走条件を満たさないエントリーは作らない。
+     判定は開催時点（開催月の馬齢・開催までの週数）で行い、呼び出し側の
+     事前チェックと同じ基準にそろえる。弾いた場合は理由を記録に残す */
+  const rr=(S.races||[]).find(x=>x.name===raceLike.name)||raceLike;
+  const wkAhead=Math.max(0,(absWeek!=null?absWeek:S.week)-S.week);
+  let rs="";
+  try{ rs=eligibleAt(h,rr,ageAtRaceMonth(h,rr.month!=null?rr.month:raceLike.month,rr.week!=null?rr.week:raceLike.week),wkAhead); }
+  catch(e){ rs=""; try{ log(`⚠ エントリーの条件判定でエラーが発生しました：${(e&&e.message)||e}`); }catch(e2){} }
+  if(rs){ log(`⚠ ${h.name} は「${raceLike.name}」の出走条件を満たしていないため、エントリーできませんでした（${rs}）`); return false; }
   h.entry={name:raceLike.name, course:raceLike.course, dist:raceLike.dist, surf:raceLike.surf, cls:raceLike.cls,
     month:raceLike.month!=null?raceLike.month:month(), week:raceLike.week!=null?raceLike.week:weekInMonth(), absWeek};
   h.nextPlan=h.entry.name+"（"+h.entry.course+" "+h.entry.surf+h.entry.dist+"m）";
   log(`${h.name} が ${esc(entryLabel(h.entry))} にエントリー（あと${Math.max(0,absWeek-S.week)}週）`);
+  return true;
 }
 function cancelEntry(h){
   if(!h||!h.entry)return;
   log(`${h.name} の ${h.entry.name} へのエントリーを取り消し`);
   h.entry=null; h.nextPlan="";
+}
+/* 条件外になったエントリーの自動取消し：登録後に別のレースで勝ってクラスが
+   上がる等で、開催週に出走条件を満たさなくなったエントリーを、エラーの
+   原因として残さず、理由を記録に残して自動で取り消す（進行は止めない） */
+function cancelEntryStale(h,why){
+  if(!h||!h.entry)return;
+  log(`⚠ ${h.name} の「${h.entry.name}」へのエントリーを自動で取り消しました ― 出走条件を満たしていません（${why}）`);
+  h.entry=null; h.nextPlan="";
+}
+/* 開催週を迎えた（期限到来済みの）エントリーの掃除。読み込み時と週の開始時に
+   実行し、条件外・番組に無いエントリーを自動取消しにして、消化時のエラー
+   停止を防ぐ。まだ先のエントリーは対象外（条件は開催週に改めて判定する） */
+function sweepDueEntries(){
+  if(!S||!Array.isArray(S.horses)) return 0;
+  let n=0;
+  S.horses.forEach(h=>{
+    const e=h&&h.entry; if(!e) return;
+    if(e.absWeek==null||e.absWeek>S.week) return;
+    const r=(S.races||[]).find(x=>x.name===e.name);
+    if(!r){ cancelEntryStale(h,"今週の番組にこのレースが見つかりませんでした"); n++; return; }
+    let why="";
+    try{ why=eligible(h,r); }
+    catch(err){ why=""; try{ log(`⚠ エントリーの条件判定でエラーが発生しました：${(err&&err.message)||err}`); }catch(e2){} }
+    if(why){ cancelEntryStale(h,why); n++; }
+  });
+  return n;
 }
 function entriesHTML(){
   const list=allEntries();
@@ -5597,6 +5634,9 @@ function nextWeekBody(){
   }
   if(S.week%4===0) refreshMarket();
   genRaces();
+  /* レース週の開始時：昇級などで条件外になった到来済みエントリーを自動取消し
+     （理由は記録に残る）。これで週送りの停止判定に条件外エントリーが残らない */
+  sweepDueEntries();
   log(`${year()}年目${month()}月第${weekInMonth()}週：維持費 ${upkeep()}万円 を支払い`);
   /* 資金がマイナスになったら即破産ではなく、秘書経由で立て直しの選択肢を出す。
      立て直す手段（融資枠・スポンサー・売却できる馬）が何も残っていない時だけ破産 */
@@ -5924,7 +5964,7 @@ function renderRace(){
     if(rs){ alert2("エントリーできません",`${esc(h.name)}は「${esc(g.name)}」の出走条件を満たしていません（${rs}）。`); return; }
     registerEntry(h,g,S.week+w); renderAll();
   }));
-  const be=$("#btn-entry"); if(be) be.addEventListener("click",()=>{ const rr=S.races.find(x=>x.id===S.selRace); const hid=+($("#entry-horse")?$("#entry-horse").value:0)||S.selected; const h=S.horses.find(x=>x.id===hid); if(rr&&h){ registerEntry(h,rr,S.week); renderAll(); } });
+  const be=$("#btn-entry"); if(be) be.addEventListener("click",()=>{ const rr=S.races.find(x=>x.id===S.selRace); const hid=+($("#entry-horse")?$("#entry-horse").value:0)||S.selected; const h=S.horses.find(x=>x.id===hid); if(rr&&h){ const rs=eligible(h,rr); if(rs){ alert2("エントリーできません",`${esc(h.name)}は「${esc(rr.name)}」の出走条件を満たしていません（${rs}）。`); return; } registerEntry(h,rr,S.week); renderAll(); } });
   const ca=$("#course-ana"); if(ca) ca.addEventListener("change",()=>{ selCourseAna=ca.value; renderAll(); });
   el.querySelectorAll("[data-race]").forEach(c=>c.addEventListener("click",()=>{S.selRace=c.dataset.race; raceState.rivals=null; UI.race="card"; PG.cardtable=0; const rr=S.races.find(x=>x.id===S.selRace); if(rr&&S.watchMatrix){ S.watchMode= rr.cls===8? (S.watchMatrix.g1||"full") : rr.cls>=6? (S.watchMatrix.graded||"full") : (S.watchMatrix.cond||"full"); } renderAll();}));
   el.querySelectorAll("[data-race-btn]").forEach(b=>b.addEventListener("click",ev=>{ev.stopPropagation(); S.selRace=b.dataset.raceBtn; raceState.rivals=null; cardFocus=true; renderAll(); const t=$("#entry-panel"); if(t)t.scrollIntoView({block:"start"});}));
@@ -9101,8 +9141,28 @@ function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="of
 const ACCT_KEY="keibaGemu_account";
 let cloudAvail=null; /* null=未確認 / true=APIあり / false=この環境では使えない */
 let acctBusy=false, acctMsg="", acctPushTimer=null, acctPendingRender=false;
+/* iPad Safari対策の中核：アカウント欄の再描画を「安全なタイミング」まで保留する。
+   入力欄にフォーカスがある間／送信中／送信直後（キーボードが閉じ切るまで）は
+   フォームの innerHTML を差し替えない。フォーカス中の入力要素がDOMから消えると
+   Safari の画面プロセスが落ち、ページが再読み込み・白画面になることがあるため。
+   保留した再描画は、安全になるまで短い間隔で再試行して必ず反映する */
+let acctHoldUntil=0, acctRenderTimer=null;
+function acctInputFocused(){ const ae=document.activeElement; return !!(ae&&(ae.id==="acct-name"||ae.id==="acct-pass")); }
+function acctBlurInputs(){ ["acct-name","acct-pass"].forEach(id=>{ const e=document.getElementById(id); if(e){ try{ e.blur(); }catch(_){} } }); }
+function acctHold(ms){ acctHoldUntil=Math.max(acctHoldUntil, Date.now()+(ms||600)); }
+function acctRenderBlocked(){ return acctInputFocused()||acctBusy||Date.now()<acctHoldUntil; }
+function scheduleAcctRender(){
+  if(acctRenderTimer) return;
+  const tick=()=>{ acctRenderTimer=null; if(!$("#acct-box")) return;
+    if(acctRenderBlocked()){ acctRenderTimer=setTimeout(tick,160); return; }
+    renderAcctBox(); };
+  acctRenderTimer=setTimeout(tick,90);
+}
+/* 応答後の画面更新（確認ダイアログ表示など）は、入力欄がフォーカスを失い
+   キーボードが閉じ切ってから行う。そのタイミングまで待つ */
+function acctWaitSafe(){ return new Promise(res=>{ let n=0; const chk=()=>{ if(!acctRenderBlocked()||++n>50) return res(); setTimeout(chk,140); }; chk(); }); }
 /* フォーカスが外れたら、保留していたアカウント欄の再描画を反映する */
-document.addEventListener("focusout",()=>{ if(acctPendingRender) setTimeout(()=>{ if($("#acct-box")) renderAcctBox(); },60); });
+document.addEventListener("focusout",()=>{ if(acctPendingRender) scheduleAcctRender(); });
 function acctGet(){ try{ const a=JSON.parse(localStorage.getItem(ACCT_KEY)||"null"); return (a&&a.name&&a.token)?a:null; }catch(e){ return null; } }
 function acctSet(a){ try{ if(a) localStorage.setItem(ACCT_KEY, JSON.stringify(a)); else localStorage.removeItem(ACCT_KEY); }catch(e){} }
 async function acctApi(path, body, token){
@@ -9140,9 +9200,9 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
      非同期処理（接続確認・保存応答など）の完了に合わせて innerHTML を差し替えると、
      キーボード表示中のフォーカス要素がDOMから消えて Safari が落ちることがある。
      その場合はメッセージだけ更新し、本体の差し替えはフォーカスが外れてから行う */
-  const ae=document.activeElement;
-  if(ae&&(ae.id==="acct-name"||ae.id==="acct-pass")){ acctPendingRender=true;
+  if(acctRenderBlocked()){ acctPendingRender=true;
     const m=$("#acct-msg"); if(m) m.textContent=acctMsg||"";
+    scheduleAcctRender();
     return; }
   acctPendingRender=false;
   const a=acctGet();
@@ -9176,19 +9236,25 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
   const setBusy=b=>{ acctBusy=b; const r=$("#acct-reg"), l=$("#acct-login"); if(r)r.disabled=b; if(l)l.disabled=b; };
   const creds=()=>{ const n=($("#acct-name").value||"").trim(), p=$("#acct-pass").value||"";
     if(!n){ msg("名前を入力してください"); return null; } if(p.length<4){ msg("パスワードは4文字以上で入力してください"); return null; } return {name:n,password:p}; };
-  $("#acct-reg").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; setBusy(true); msg("");
-    try{ const r=await acctApi("/api/register",c); setBusy(false);
-      if(r.data&&r.data.token){ acctSet({name:r.data.name||c.name, token:r.data.token}); acctMsg=""; toast("登録しました。今のデータをクラウドに保存します"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); }
+  $("#acct-reg").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctBusy=true; setBusy(true); msg("");
+    /* 送信前に必ず入力欄のフォーカスを外し、キーボードが閉じ切るまでの間は
+       画面の差し替えを保留する（フォーカス中の要素を消すと iPad Safari が落ちる） */
+    acctBlurInputs(); acctHold(650);
+    try{ const r=await acctApi("/api/register",c); acctBusy=false; setBusy(false);
+      if(r.data&&r.data.token){ acctSet({name:r.data.name||c.name, token:r.data.token}); acctMsg=""; await acctWaitSafe(); toast("登録しました。今のデータをクラウドに保存します"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); }
       else msg((r.data&&r.data.error)||"登録できませんでした");
-    }catch(e){ setBusy(false); cloudAvail=false; renderAcctBox(); } });
-  $("#acct-login").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; setBusy(true); msg("");
-    try{ const r=await acctApi("/api/login",c); setBusy(false);
+    }catch(e){ acctBusy=false; setBusy(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log("⚠ アカウント登録で接続エラーが発生しました"); }catch(e2){} renderAcctBox(); } });
+  $("#acct-login").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctBusy=true; setBusy(true); msg("");
+    acctBlurInputs(); acctHold(650);
+    try{ const r=await acctApi("/api/login",c); acctBusy=false; setBusy(false);
       if(r.data&&r.data.token){ const acc={name:r.data.name||c.name, token:r.data.token}; if(r.data.updatedAt) acc.cloudAt=r.data.updatedAt; acctSet(acc); acctMsg="";
         const sv=acctParseSave(r.data.save);
-        if(sv){ confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ showSettings(); }); }
-        else { toast("ログインしました"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); } }
+        /* 確認ダイアログ（showOverlay で入力欄ごと画面を差し替える）も、
+           フォーカスが外れてキーボードが閉じ切ってから表示する */
+        if(sv){ await acctWaitSafe(); confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ showSettings(); }); }
+        else { await acctWaitSafe(); toast("ログインしました"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); } }
       else msg((r.data&&r.data.error)||"ログインできませんでした");
-    }catch(e){ setBusy(false); cloudAvail=false; renderAcctBox(); } });
+    }catch(e){ acctBusy=false; setBusy(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log("⚠ アカウントのログインで接続エラーが発生しました"); }catch(e2){} renderAcctBox(); } });
 }
 /* ============ 騎手画面 ============ */
 function renderJockey(){
@@ -9563,6 +9629,8 @@ function applySave(d){
   S.cups=d.cups||[]; S.g1Wins=d.g1Wins||0; S.club=d.club||null; S.ended=!!d.ended; S.overseasFarm=d.overseasFarm||null; S.clubFarm=!!d.clubFarm; S.firstWinDone=!!d.firstWinDone;
   (S.youngStock||[]).forEach(h=>ensureFullHorse(h));
   S.gameover=false; S.horses.forEach(h=>{ensureFullHorse(h); if(typeof h.name==="string")h.name=h.name.replace(/[<>&"]/g,"");}); (d.mares||[]).forEach(h=>{ensureFullHorse(h); if(typeof h.name==="string")h.name=h.name.replace(/[<>&"]/g,"");}); (S.market||[]).forEach(h=>ensureFullHorse(h)); genRaces();
+  /* 旧セーブに残る条件外の期限到来済みエントリーを、読み込み時点で掃除する */
+  sweepDueEntries();
 }
 /* セーブ文字列の検証つきパース：JSONとして読めない／主要データが無い／
    チェックサムが合わない場合は null（＝壊れている）を返す */
@@ -10025,15 +10093,15 @@ function autoDigestRace(ne){
   const h=ne&&ne.h; if(!h||!h.entry) return false;
   AUTO.digestFailReason="";
   const r=S.races.find(x=>x.name===h.entry.name);
-  if(!r){ AUTO.digestFailReason=`今週の番組に「${h.entry.name}」が見つかりませんでした`; return false; }
-  const owns=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week&&!eligible(x,r));
-  if(!owns.length){
-    /* 出走条件で落ちている理由を特定して返す（警告画面で止めず、理由つきでオートを止めるため） */
-    const due=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week);
-    const why=due.length? eligible(due[0],r) : "";
-    AUTO.digestFailReason=`${due.length? due[0].name+" は":""}出走条件を満たしていません${why?`（${why}）`:""}`;
-    return false;
-  }
+  if(!r){ /* 番組に無いエントリーは消化のしようがない：理由を残して取り消し、止まらずに進める */
+    cancelEntryStale(h,"今週の番組にこのレースが見つかりませんでした"); return true; }
+  /* 開催週を迎えた同レースのエントリーを、出走できる馬と条件外の馬に分ける。
+     条件外（登録後に別のレースで勝ってクラスが上がった等）はエラー停止にせず、
+     理由を記録に残して自動で取り消し、出走できる馬だけを消化する */
+  const due=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week);
+  const owns=[];
+  for(const x of due){ const why=eligible(x,r); if(why) cancelEntryStale(x,why); else owns.push(x); }
+  if(!owns.length) return true; /* 全頭取り消し済み：消化するレースは無いので進行を続ける */
   /* 繰り返しガード：同じレース（同じ週・同じエントリー）の消化が2回目に
      入ったら、前回でエントリーが消費されなかった異常とみなして即失敗にする。
      startRace を再実行しないので、騎乗料だけが毎手引かれ続けることもない */
@@ -10112,7 +10180,7 @@ function autoRegisterBest(h){
     const cur=S.races.find(x=>x.id===race.id);
     const rs=cur? eligible(h,cur) : eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
     if(rs){ lastRs=`${race.name}：${rs}`; continue; }
-    registerEntry(h,race,S.week+(race.weeks||0));
+    if(!registerEntry(h,race,S.week+(race.weeks||0))){ lastRs=`${race.name}：登録時に出走条件を満たしませんでした`; continue; }
     log(`🤖 オート：${h.name} の次走をエントリー方針「${policyName()}」で登録 ― ${race.name}（${year()}年${race.month||month()}月第${race.week||weekInMonth()}週・あと${race.weeks||0}週）`);
     return true;
   }
