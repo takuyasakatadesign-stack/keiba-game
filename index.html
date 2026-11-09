@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="color-scheme" content="light" />
 <link rel="icon" href="data:," />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
 <title>競馬ゲーム</title>
 <style>
 :root{
@@ -776,7 +773,7 @@ button{ border-radius:999px; }
 .dtabs button{ background:#eef4ea; background-image:none; box-shadow:none; }
 .dtabs button.on{ background:var(--green); color:#fff; box-shadow:none; text-shadow:none; }
 /* 下部固定アクションバー（選択→その場で実行） */
-.actionbar{ position:sticky; bottom:8px; z-index:6; margin-top:12px; background:#fff; border:2px solid var(--gold-mid); border-radius:16px; box-shadow:0 10px 26px rgba(31,64,38,.3); padding:10px 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.actionbar{ margin-top:12px; background:#fff; border:2px solid var(--gold-mid); border-radius:16px; box-shadow:0 10px 26px rgba(31,64,38,.3); padding:10px 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 @media (prefers-color-scheme: dark){ .actionbar{ background:#223528; } }
 .actionbar .ab-name{ font-weight:900; font-size:15px; }
 .actionbar .ab-cost{ font-size:12.5px; color:var(--ink2); font-weight:700; }
@@ -1231,7 +1228,7 @@ img.faceimg{ object-position:center 20%; }
 #racecam-float .cambtn{ min-height:44px; min-width:58px; padding:7px 10px; font-size:13.5px; border-radius:999px; background:rgba(255,255,255,.14); color:#fff; border:1.5px solid rgba(255,255,255,.4); box-shadow:none; }
 #racecam-float .cambtn.on{ background:linear-gradient(180deg,#ffe066,#f5a301); color:#3a2400; border-color:#8a5a00; font-weight:900; }
 #racecam-float .cambtn:disabled{ opacity:.4; }
-#racectl{ position:sticky; bottom:0; z-index:5; }
+#racectl{ }
 @media (max-width:640px){
   #racecam-float{ top:8px; right:8px; left:8px; justify-content:flex-end; }
   #racecam-float .cambtn{ flex:1; min-width:0; }
@@ -1288,7 +1285,7 @@ th,td{ padding:4px 6px; }
 
 /* 第13次：提案から着地した調教を、その場で実行できる固定バー（調教画面の上部に吸着）。
    提案ボタン→このバーの実行ボタン→次の提案、とボタンの連打だけで週が進む */
-.tpropbar{ position:sticky; top:0; z-index:6; display:flex; gap:10px; align-items:center; background:#fff8dc; border:2.5px solid var(--gold-mid); border-radius:14px; padding:10px 12px; margin:10px 0; box-shadow:0 6px 18px rgba(120,84,0,.28); }
+.tpropbar{ display:flex; gap:10px; align-items:center; background:#fff8dc; border:2.5px solid var(--gold-mid); border-radius:14px; padding:10px 12px; margin:10px 0; box-shadow:0 6px 18px rgba(120,84,0,.28); }
 .tpropbar .tp-text{ flex:1; min-width:0; font-weight:700; font-size:14.5px; line-height:1.45; }
 .tpropbar .tp-kicker{ display:block; font-size:11.5px; font-weight:900; color:#b8860b; letter-spacing:.08em; }
 .tpropbar .tp-exec{ flex:none; min-height:54px; font-size:16.5px; padding:10px 20px; }
@@ -1475,7 +1472,7 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
 .salecard .sc-eval{ font-size:11.5px; color:var(--ink2); line-height:1.4; }
 .salecard .sc-actions{ display:flex; flex-direction:column; gap:5px; flex:none; }
 .salecard .sc-actions .btn{ min-width:150px; min-height:44px; white-space:nowrap; }
-.subpanel .pager{ position:sticky; bottom:0; z-index:3; background:var(--panel2); padding:6px 0 2px; }
+.subpanel .pager{ background:var(--panel2); padding:6px 0 2px; }
 @media (max-width:640px){
   .salecard{ flex-direction:column; align-items:stretch; gap:6px; padding:8px 9px; }
   .salecard .sc-actions{ flex-direction:row; }
@@ -1489,7 +1486,7 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
    ・カード：白地＋2px枠＋角丸20px＋下辺シャドウ 0 4px 0 #E5E5E5。
      入れ子にしない（内側の箱は面色＋無影）
    ・ボタン：角丸12px＋下辺4pxの「押せる」造形。タップで2px沈む（約80ms）
-   ・書体：Nunito＋丸ゴシック。見出し800／ラベル700、本文15-18px
+   ・書体：システムゴシック（ヒラギノ角ゴ／Noto Sans JP／游ゴシック）。見出し800／ラベル700、本文15-18px
    ・紫バー・金リボン・金属グラデ・発光などの旧装飾はすべて置き換える
    ・動きはボタンの押し込みのみ。常時アニメーションは置かない
    ============================================================ */
@@ -1503,7 +1500,7 @@ body{ background:linear-gradient(180deg,#e7efe1 0%,#dde7d2 45%,#d2dfc2 100%); }
   --duo-green-d:#58a700; --duo-blue-d:#1899d6; --duo-yellow-d:#e0a800;
 }
 body{
-  font-family:"Nunito","Arial Rounded MT Bold","Hiragino Maru Gothic ProN","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif;
   background:#ffffff; color:var(--ink); font-size:16px; font-weight:700; line-height:1.55;
 }
 #app{ background:#ffffff; box-shadow:none; }
@@ -1786,6 +1783,79 @@ details.fold>summary{ font-weight:800; }
 #sceneband .sb-cap{ position:static; display:flex; align-items:baseline; gap:10px; padding:6px 12px; }
 #sb-title{ font-size:19px; font-weight:900; color:var(--ink); }
 #sb-sub{ font-size:12.5px; font-weight:700; color:var(--ink2); }
+/* ===== 馬詳細の視覚表示（ゲージ／チップ／着順内訳バー） ===== */
+.hstat{ display:flex; flex-direction:column; gap:7px; margin-top:9px; }
+.hs-row{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.statechip{ display:inline-flex; align-items:center; gap:6px; font-weight:900; font-size:13.5px; background:#fff; border:2px solid var(--line); border-radius:999px; padding:4px 11px; color:var(--ink); }
+.statechip .sdot{ width:10px; height:10px; border-radius:50%; flex:none; }
+.nxchip{ display:inline-flex; align-items:center; gap:4px; font-weight:800; font-size:12.5px; background:var(--chip); border:2px solid var(--line); border-radius:999px; padding:4px 11px; color:var(--ink); max-width:100%; overflow-wrap:anywhere; }
+.nxchip.nx-entry{ background:#fff7d1; border-color:var(--gold); }
+.nxchip .nx-now{ color:var(--red); }
+.nxchip.nx-inj{ background:#ffecec; border-color:var(--red); color:#a02c2c; }
+.nxchip.nx-ok{ background:#eef9e4; border-color:var(--green); }
+.meter{ display:flex; align-items:center; gap:8px; }
+.meter .m-lb{ flex:0 0 52px; font-size:12.5px; font-weight:800; color:var(--ink2); }
+.meter .m-track{ flex:1 1 auto; min-width:0; height:12px; background:var(--bar); border-radius:99px; overflow:hidden; }
+.meter .m-track i{ display:block; height:100%; border-radius:99px; }
+.meter .m-v{ flex:0 0 28px; text-align:right; font-size:14px; }
+.meter .m-t{ flex:0 0 auto; font-size:12px; font-weight:700; color:var(--ink2); }
+.recwrap{ background:#fff; border:2px solid var(--line); border-radius:14px; padding:8px 11px; }
+.recline{ display:flex; align-items:baseline; gap:10px; }
+.recbig{ font-size:19px; font-weight:900; }
+.recrate{ font-size:12px; font-weight:800; color:var(--ink2); }
+.recbar{ display:flex; height:12px; border-radius:99px; overflow:hidden; background:var(--bar); margin-top:6px; }
+.recbar i{ display:block; height:100%; }
+.recleg{ display:flex; gap:10px; flex-wrap:wrap; margin-top:5px; font-size:12px; font-weight:800; color:var(--ink2); }
+@media (prefers-color-scheme: dark){
+  .statechip,.recwrap{ background:#ffffff; color:#3c3c3c; }
+  .recbig{ color:#3c3c3c; } .nxchip{ color:#3c3c3c; }
+}
+/* ===== レース画面：映像ステージとモバイル最適化 =====
+   3Dキャンバスは以前 #racewrap 全体（実況・操作列の上まで）に広がっており、
+   下部が操作列に隠れて映像が見切れていた。キャンバス類は映像専用ステージ
+   #racestage の中だけに重ね、実況・操作列はステージの外に置く */
+#racestage{ position:relative; flex:1 1 auto; min-height:0; overflow:hidden; background:#0d2013; border-radius:18px 18px 0 0; }
+#racestage #racecv{ position:absolute; inset:0; width:100%; height:100%; }
+#racestage #racegl{ position:absolute; inset:0; width:100%; height:100%; }
+#app.racing #todo, #app.racing #weekplan, #app.racing #sceneband, #app.racing #docktoggle, #app.racing #actionbar{ display:none !important; }
+@media (max-width:640px){
+  #racectl{ gap:5px; padding:6px; }
+  #racectl .btn{ min-height:40px; padding:5px 8px; font-size:12.5px; }
+  #racectl .spdlbl, #racectl .camblbl{ display:none; }
+  #glfps{ display:none; }
+  #racehud{ min-height:0; padding:6px 10px; gap:10px; }
+  #commentary{ min-height:34px; padding:6px 10px; }
+}
+/* ============================================================
+   固定最小化（2026-11-09）：固定レイアウトを通常フローへ戻す
+   ・従来は html,body を overflow:hidden にし、#app を 100dvh の
+     flex 列として、HUD／秘書／情景バンドを上部に、各ビュー内の
+     サブナビ（牧場の施設詳細・施設一覧・幼駒・セール等）をビュー
+     上端に、下部に畳むトグル＋提案バー＋オートバー＋次週へバー＋
+     タブナビを常時固定していたため、スクロールしても常に画面を
+     圧迫していた。
+   ・ページ全体を通常のドキュメントスクロールに戻し、HUD・
+     サブナビ・各バーは本文と一緒に流れるようにする。
+   ・残す固定は下部タブナビ（#tabs）だけ。畳むトグルは廃止し、
+     dock-min（自動で畳む処理）が付いてもバーが消えないように
+     する。モーダル（#overlay）とトーストは一時表示なので例外。
+   ============================================================ */
+html,body{ height:auto; overflow:visible; }
+#app{ height:auto; min-height:100dvh; padding-bottom:calc(74px + env(safe-area-inset-bottom,0px)); }
+#main{ display:block; flex:none; overflow:visible; }
+.view{ height:auto; flex:none; }
+.view.on{ overflow:visible; }
+.subpanel{ flex:none; }
+.subpanel.on{ overflow:visible; }
+.fillpanel{ flex:none; overflow:visible; }
+#docktoggle{ display:none !important; }
+#app.dock-min #actionbar{ display:flex; }
+#app.dock-min #autobar{ display:flex; }
+#app.dock-min #autobar.is-running{ display:flex; }
+#tabs{ position:fixed; left:0; right:0; bottom:0; z-index:40; width:100%; max-width:1100px; margin-left:auto; margin-right:auto; }
+#racewrap{ flex:none; }
+#racestage{ flex:none; height:clamp(280px,52dvh,520px); }
+#toast{ bottom:86px !important; }
 </style>
 </head>
 <body>
@@ -2450,7 +2520,7 @@ function planText(p){
 }
 /* ============ 牧場施設 ============ */
 const FACILITIES=[
- {id:"base",n:"基本施設（面積）",cat:"成長",cost:1500,upCost:3000,weeks:6,maint:40,noremove:true,maxLv:1,desc:"牧場の面積。建設で配置スペース 6→10（この施設自体はスペースを消費しない）"},
+ {id:"base",n:"基本施設（面積）",cat:"成長",cost:1500,upCost:3000,weeks:6,maint:40,noremove:true,maxLv:1,desc:"牧場の面積。建設で配置スペース+4（この施設自体はスペースを消費しない）。さらに名声5ごとにスペース+1（重賞・G1勝利で名声が上がる）"},
  {id:"grass",n:"牧草",cat:"身体",cost:300,upCost:600,weeks:2,maint:8,noremove:true,desc:"幼駒の健康が上がりやすくなる"},
  {id:"stable",n:"厩舎",cat:"成長",cost:800,upCost:1600,weeks:4,maint:20,noremove:true,desc:"繁殖牝馬の繋養数 5→10→20"},
  {id:"walker",n:"ウォーキングマシン",cat:"疲労回復",cost:500,upCost:1000,weeks:3,maint:12,desc:"放牧時の疲労回復アップ・故障期間短縮。2基目で受胎率も"},
@@ -2486,7 +2556,7 @@ const FAC_CATS=["身体","精神","成長","疲労回復","調教","観光","名
 function facLv(id){ return S&&S.facilities? (S.facilities[id]||0):0; }
 function facBuilding(id){ return S&&S.building? (S.building[id]||0):0; }
 function facEffect(id){ const lv=facLv(id); if(lv<=0||facBuilding(id)>0) return 0; let m=1; if(S&&S.mgrPost===id) m=1.5; return lv*m; }
-function farmSpaces(){ const base=6+facLv("base")*4; let used=0; Object.keys(S?S.facilities||{}:{}).forEach(k=>{ if(k!=="base"&&facLv(k)>0) used++; }); return {base, used, free:base-used}; }
+function farmSpaces(){ const fame=(S&&S.fame||0); const fameBonus=Math.floor(fame/5); const base=6+facLv("base")*4+fameBonus; let used=0; Object.keys(S?S.facilities||{}:{}).forEach(k=>{ if(k!=="base"&&facLv(k)>0) used++; }); return {base, used, free:base-used, fameBonus, nextFame:(Math.floor(fame/5)+1)*5}; }
 function facCatTotals(){ const t={}; FAC_CATS.forEach(c=>t[c]=0); FACILITIES.forEach(f=>{ const e=facEffect(f.id); if(e>0) t[f.cat]=(t[f.cat]||0)+e; }); t["名声"]=facEffect("merit")*0.6+facEffect("tourism")*0.3; return t; }
 function mareCap(){ return [5,10,20][Math.min(2,facLv("stable"))]||5; }
 function sireCap(){ return [5,10,20][Math.min(2,facLv("sirebarn"))]||5; }
@@ -3416,10 +3486,12 @@ S.stallions.push({name:"ハーツクライ",spd:3,sta:7,pow:4,bst:4,gut:6,fee:55
 S.stallions.push({name:"ステイゴールド",spd:3,sta:7,pow:5,bst:3,gut:6,fee:500,ext:true});
 S.stallions.push({name:"キタサンブラック",spd:5,sta:7,pow:5,bst:4,gut:6,fee:580,ext:true});
 
+/* 素質の生成分布：中央寄り（2つの乱数の平均）にして、高素質の出現を「出るが頻繁ではない」に抑える */
+function triBase(lo,hi){ return Math.round(lo+(rnd(0,1)+rnd(0,1))/2*(hi-lo)); }
 function refreshMarket(){
   S.market=[];
   for(let i=0;i<3;i++){
-    const base=ri(50,74);
+    const base=triBase(50,71);
     const h=newHorse({base,age:2});
     h.price=Math.round((base-40)*55+rnd(200,700));
     S.market.push(h);
@@ -3796,6 +3868,25 @@ const ABS9=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["
 function condTxt(c){ return c>=75?"絶好調":c>=55?"好調":c>=40?"普通":"不調"; }
 function fatTxt(f){ return f>=75?"限界":f>=50?"高":f>=25?"中":"低"; }
 function condStateOf(h){ const f=h.fat||0, c=h.cond||50; if(h.injured>0) return {t:"故障休養中", c:"#d23b2e"}; if(f>=80||c<30) return {t:"危険", c:"#d23b2e"}; if(f>=55||c<45) return {t:"注意", c:"#e8a812"}; return {t:"良好", c:"#3d9950"}; }
+/* 馬詳細の視覚表示ヘルパー：状態はゲージ／チップ／内訳バーで一目で分かるようにする */
+function meterRow(label, v, mode, txt){
+  v=clamp(Math.round(v||0),0,100);
+  const col= mode==="fat" ? (v<=40?"var(--green)":v<=65?"var(--gold)":"var(--red)") : (v>=65?"var(--green)":v>=45?"var(--gold)":"var(--red)");
+  return `<div class="meter"><span class="m-lb">${label}</span><span class="m-track"><i style="width:${v}%;background:${col}"></i></span><b class="m-v">${v}</b>${txt?`<span class="m-t">${txt}</span>`:""}</div>`;
+}
+function recordBreak(h){ const r=h.races||0, w=h.wins||0; const t2=Math.max(w,h.top2||0), t3=Math.max(t2,h.top3||0); return {r, w, n2:Math.max(0,t2-w), n3:Math.max(0,t3-t2), out:Math.max(0,r-t3)}; }
+function recordHTML(h, compact){
+  const b=recordBreak(h);
+  if(!b.r) return `<div class="recwrap"><span class="recbig">未出走</span> <span class="small">まだレースに出走していません</span></div>`;
+  const seg=(n,c)=> n>0? `<i style="width:${(n/b.r*100).toFixed(1)}%;background:${c}"></i>` : "";
+  return `<div class="recwrap">${compact?"":`<div class="recline"><span class="recbig">${b.r}戦${b.w}勝</span><span class="recrate">勝率 ${Math.round(b.w/b.r*100)}%</span></div>`}<div class="recbar">${seg(b.w,"var(--gold)")}${seg(b.n2,"var(--blue)")}${seg(b.n3,"var(--green)")}${seg(b.out,"#d9d9d9")}</div><div class="recleg"><span>1着 ${b.w}</span><span>2着 ${b.n2}</span><span>3着 ${b.n3}</span><span>着外 ${b.out}</span></div></div>`;
+}
+function nextChipHTML(h){
+  if(h.entry){ const left=entryWeeksLeft(h); return `<span class="nxchip nx-entry">🏁 ${esc(h.entry.name)}${left<=0?` <b class="nx-now">今週出走！</b>`:` あと<b>${left}週</b>`}</span>`; }
+  if(h.injured>0) return `<span class="nxchip nx-inj">🩹 故障休養中（あと${h.injured}週）</span>`;
+  if(h.nextPlan) return `<span class="nxchip">次走：${esc(h.nextPlan)}</span>`;
+  return `<span class="nxchip">次走：未定</span>`;
+}
 function traitDesc(id){ const t=TRAITS.find(x=>x.id===id); return t?t.d:""; }
 function jockeyFaceSVG(jk){
  return `<img class="faceimg" style="filter:hue-rotate(${(jk.id*53)%360}deg) saturate(1.05)" src="assets/portrait-jockey.webp" alt="騎手・${jk.name}のイメージイラスト">`;
@@ -3814,7 +3905,7 @@ function horseDetailHTML(h, sugs){
  const tabs=[["detail","詳細"],["record","成績"],["ped","血統"],["rival","ライバル"],["ability","能力"],["cond","体調"]];
  const sumHTML=`<dl class="sumlist">
    <dt>クラス</dt><dd><span class="aptchip strong">${CLASSES[h.clsIdx||0]}</span> レーティング <b>${ratingOf(h)}</b></dd>
-   <dt>戦績</dt><dd>${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}</dd>
+   <dt>戦績</dt><dd>${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}${h.races?` ― 2着 ${recordBreak(h).n2}・3着 ${recordBreak(h).n3}・着外 ${recordBreak(h).out}`:""}</dd>
    <dt>収得賞金</dt><dd>${fmt(h.earnings)}万円</dd>
    <dt>路線</dt><dd>${route}</dd>
    <dt>次走</dt><dd>${nextTxt}</dd>
@@ -3860,7 +3951,7 @@ function horseDetailHTML(h, sugs){
  } else if(detailTab==="record"){
    const dr=dirRecOf(h); const cr=ensureCourseRec(h);
    const crTxt=Object.keys(cr).length? Object.keys(cr).map(c=>`${c} ${recText(cr[c])}`).join("／") : "―";
-   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<p style="margin:2px 0 8px"><b>通算 ${h.races}戦${h.wins}勝</b>／近走 ${formDisp(h)}／獲得賞金 ${fmt(h.earnings)}万円</p><details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
+   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<p style="margin:2px 0 8px"><b>通算 ${h.races}戦${h.wins}勝</b>／近走 ${formDisp(h)}／獲得賞金 ${fmt(h.earnings)}万円</p>${recordHTML(h,true)}<details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
    <div class="quad"><h4>全成績</h4><dl class="kv"><dt>通算</dt><dd>${h.races}戦 ${h.wins}勝（2着 ${Math.max(0,(h.top2||0)-h.wins)}回・3着 ${Math.max(0,(h.top3||0)-(h.top2||0))}回）</dd><dt>近走</dt><dd>${formDisp(h)}</dd><dt>前走</dt><dd>${esc(h.lastRace||"―")}</dd><dt>休養</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd></dl></div>
    <div class="quad"><h4>芝・ダート別</h4><dl class="kv"><dt>芝</dt><dd>${h.surfRec&&h.surfRec["芝"]?recText(h.surfRec["芝"]):"―"}</dd><dt>ダート</dt><dd>${h.surfRec&&h.surfRec["ダート"]?recText(h.surfRec["ダート"]):"―"}</dd><dt>重馬場</dt><dd>${h.heavyRec?recText(h.heavyRec):"―"}</dd><dt>距離帯</dt><dd>${h.distRec? Object.keys(h.distRec).map(b=>BAND_JP[b]+" "+recText(h.distRec[b])).join("／"):"―"}</dd></dl></div>
    <div class="quad"><h4>左右・競馬場別</h4><dl class="kv"><dt>左回り</dt><dd>${recText(dr.left.r?dr.left:(h.dirRec||{})["左"])}</dd><dt>右回り</dt><dd>${recText(dr.right.r?dr.right:(h.dirRec||{})["右"])}</dd><dt>競馬場別</dt><dd>${crTxt}</dd></dl></div>
@@ -3886,20 +3977,22 @@ function horseDetailHTML(h, sugs){
    <h3 style="margin:8px 0 4px">レース傾向への適応（星評価）</h3>${trendStars}
    <div class="mt"><h3 style="margin:0 0 4px">特性の習得進捗</h3>${learnProgressHTML(h)}</div></div></details>`;
  } else {
-   body=`<dl class="kv"><dt>調子</dt><dd>${h.cond}（${condTxt(h.cond)}）</dd><dt>疲労</dt><dd>${Math.round(h.fat)}（${fatTxt(h.fat)}）</dd>
-   <dt>気合乗り</dt><dd>${h.kiai||50}</dd><dt>馬体重</dt><dd>${h.weight}kg（前走 ${h.wPrev?h.wPrev+"kg":"―"}）</dd>
-   <dt>故障</dt><dd>${h.injured>0?`休養中（あと${h.injured}週）`:"なし"}</dd>
-   <dt>休養期間</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd>
-   <dt>成長曲線</dt><dd>${growthSVG(h)}</dd></dl><details class="fold"><summary>調子・疲労の推移（週次グラフ）</summary><div class="foldbody">${condHistSVG(h)}</div></details>`;
+   body=`<div class="hstat">${meterRow("調子", h.cond, "cond", condTxt(h.cond))}${meterRow("疲労", h.fat, "fat", fatTxt(h.fat))}${meterRow("気合乗り", h.kiai||50, "cond", "")}
+   <div class="hs-row"><span class="nxchip">馬体重 <b>${h.weight}kg</b>${h.wPrev?`（前走 ${h.wPrev}kg／${h.weight-h.wPrev>=0?"+":""}${h.weight-h.wPrev}kg）`:""}</span>${h.injured>0?`<span class="nxchip nx-inj">🩹 故障休養中（あと${h.injured}週）</span>`:`<span class="nxchip nx-ok">故障なし</span>`}<span class="nxchip">${h.races?`前走から ${h.restW||0} 週`:"未出走"}</span></div></div>
+   <div class="mt">${growthSVG(h)}</div><details class="fold"><summary>調子・疲労の推移（週次グラフ）</summary><div class="foldbody">${condHistSVG(h)}</div></details>`;
  }
  if(detailTab==="detail") body+=`<details class="fold"><summary>能力・適性・主戦騎手などをくわしく見る</summary><div class="foldbody">${sumHTML}</div></details><details class="fold"><summary>主戦騎手・脚質・馬名・勝負服を変更する</summary><div class="foldbody">${ctlHTML}</div></details>`;
  return `<h2 class="sec">馬詳細</h2><div class="panel">
  <div class="namebar"><span class="nb-name">${esc(h.name)}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span></div>
  <div class="detail-art" style="margin-top:9px">${horseArt(h, true)}</div>
- <div class="dstat"><span style="color:${condState.c}">●</span> <b>${condState.t}</b> ― 調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}<br>次走：${nextTxt}</div>
- <div class="gauges">${[["スピード",h.spd],["スタミナ",h.sta],["瞬発力",h.bst],["パワー",h.pow],["持続力",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]].map(([n,v])=>{ const rk=v>=90?"S":v>=80?"A":v>=68?"B":v>=55?"C":v>=42?"D":"E"; return `<div class="gauge"><span class="gname">${n}</span><span class="rankb rk${rk}">${rk}</span><span class="gtrack"><span class="gbar"><i style="width:${clamp(Math.round(v||0),0,100)}%"></i></span><span class="gscale"><span class="glo">LOW</span><span class="ghi">HIGH</span></span></span></div>`; }).join("")}</div>
+ <div class="hstat"><div class="hs-row"><span class="statechip"><span class="sdot" style="background:${condState.c}"></span>${condState.t}</span>${nextChipHTML(h)}</div>
+ ${meterRow("調子", h.cond, "cond", condTxt(h.cond))}
+ ${meterRow("疲労", h.fat, "fat", fatTxt(h.fat))}
+ ${recordHTML(h)}
+ </div>
+ <div class="gauges">${[["スピード",h.spd],["スタミナ",h.sta],["瞬発力",h.bst],["パワー",h.pow],["持続力",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]].map(([n,v])=>{ const rk=v>=90?"S":v>=80?"A":v>=68?"B":v>=55?"C":v>=42?"D":"E"; return `<div class="gauge"><span class="gname">${n}</span><span class="rankb rk${rk}">${rk}</span><span class="gtrack"><span class="gbar"><i style="width:${clamp(Math.round(v||0),0,100)}%"></i></span></span></div>`; }).join("")}</div>
  <div class="aptrow"><span class="small">適性</span><span class="aptchip">芝 <b>${h.turf||"-"}</b></span><span class="aptchip">ダ <b>${h.dirt||"-"}</b></span>${h.heavy?`<span class="aptchip">重 <b>${h.heavy}</b></span>`:""}${h.dmin&&h.dmax?`<span class="aptchip">距離 <b>${h.dmin}〜${h.dmax}m</b></span>`:""}<span class="aptchip">馬体重 <b>${h.weight}kg</b></span></div>
- <div class="talk"><img src="assets/secretary-normal.webp" alt="秘書・佐倉澪"><div><b>秘書・佐倉 澪</b><br>${esc(h.name)}は${condState.t}です（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）。次走：${nextTxt}</div></div>
+ <div class="talk"><img src="assets/secretary-normal.webp" alt="秘書・佐倉澪"><div><b>秘書・佐倉 澪</b><br>${esc(h.name)}は${condState.t}です。${h.fat>=70?"疲労がかなり溜まっています。放牧で回復させましょう。":h.fat>=45?"疲労が少し見えます。無理は禁物です。":h.injured>0?"完治まで焦らず休ませましょう。":"調子は上向きです。"}</div></div>
  <div class="dtabs">${tabs.map(([k,n])=>`<button data-dtab="${k}" class="${detailTab===k?"on":""}">${n}</button>`).join("")}</div>
  ${body}
  </div>`;
@@ -3988,7 +4081,7 @@ function buyHorse(id){
   S.funds-=h.price; h.owner=true; S.horses.push(h); S.market=S.market.filter(x=>x.id!==id); S.selected=h.id;
   log(`「${h.name}」を ${fmt(h.price)}万円 で購入`); renderAll();
 }
-function retireHorse(id){
+function retireHorse(id,back){
   const h=S.horses.find(x=>x.id===id); if(!h)return;
   confirm2(`${esc(h.name)} を引退させますか？`, h.sex==="牝"?"繁殖牝馬として生産パートで使えます。":h.sex==="牡"?"種牡馬として生産パートで使えます。":"騸馬は繁殖に使えません。",
   ()=>{
@@ -3998,7 +4091,8 @@ function retireHorse(id){
     log(`${h.name} が引退（${h.races}戦${h.wins}勝・賞金${fmt(h.earnings)}万円）`);
     if(S.selected===id) S.selected=S.horses[0]?S.horses[0].id:null;
     renderAll();
-  });
+    if(back)back(); /* 年末処理から呼ばれた場合は年末処理の画面に戻る */
+  }, back||null);
 }
 
 /* ---- 調教 ---- */
@@ -4214,7 +4308,10 @@ function doTrain(tid, quiet, targetH){
   if(TRAINER.traits.includes("スパルタ")&&!["rest","bokujou"].includes(tid)&&tid!=="pool"){ tMul*= (h.hlt>=65&&!(h.flags||[]).includes("leganx"))?1.25:0.8; }
   if(TRAINER.traits.includes("軽め調教")&&["rest","bokujou","pool"].includes(tid)){ tMul*=1.2; }
   if(TRAINER.traits.includes("気性難")&&(h.temper==="激"||h.temper==="荒い")){ tMul*=1.1; }
-  const up=(k,v)=>{h[k]=clamp(Math.round(h[k]+grow(h, k===weakKey?v*1.6*tMul:v*tMul)),20,99);};
+  /* 伸びの天井：能力が高いほど1回の伸びが細る（72から逓減、95以上はほぼ止まる）。
+     以前は回数を重ねるだけで全能力99に到達し、無敵化していた */
+  const ceilMul=v=> v>=95?0.08 : v>=91?0.18 : v>=86?0.32 : v>=80?0.5 : v>=72?0.75 : 1;
+  const up=(k,v)=>{h[k]=clamp(Math.round(h[k]+grow(h, (k===weakKey?v*1.6:v)*tMul*ceilMul(h[k]))),20,99);};
   let msg="";
   if(tid==="saka"){up("spd",rnd(1,2.4)); up("pow",rnd(.8,2)); h.fat+=ri(14,22); h.cond+=ri(0,4); msg="坂路でスピードとパワーが向上";}
   if(tid==="wood"){up("spd",rnd(.8,2)); up("bst",rnd(1,2.4)); h.fat+=ri(12,20); h.cond+=ri(0,4); ensureTrendApt(h).kire=clamp(ensureTrendApt(h).kire+2,20,96); msg="ウッドで瞬発力が向上（切れ味適応＋2）";}
@@ -4465,14 +4562,16 @@ function showYearEnd(data){
   if(data) YE=data;
   const D=YE; if(!D) return;
   const box=$("#overlay-box"); box.classList.add("wide");
-  const yePages=Math.max(1,Math.ceil(D.retire.length/3),Math.ceil(((S.youngStock||[]).filter(y=>y.age>=2)).length/2)); yePage=clamp(yePage,0,yePages-1);
-  const retireList=D.retire.length?D.retire.slice(yePage*3,yePage*3+3).map(h=>`<div class="ticket">${esc(h.name)}（${h.age}歳・${h.races}戦${h.wins}勝）― ${h.age>=7?"高齢のため繁殖・引退の検討を":"戦績と年齢から引退検討対象"} <button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
+  /* 引退済みの馬は勧告リストから落とす（引退後に年末処理へ戻ってきた再表示用） */
+  const retireAlive=(D.retire||[]).filter(h=>S.horses.some(x=>x.id===h.id));
+  const yePages=Math.max(1,Math.ceil(retireAlive.length/3),Math.ceil(((S.youngStock||[]).filter(y=>y.age>=2)).length/2)); yePage=clamp(yePage,0,yePages-1);
+  const retireList=retireAlive.length?retireAlive.slice(yePage*3,yePage*3+3).map(h=>`<div class="ticket">${esc(h.name)}（${h.age}歳・${h.races}戦${h.wins}勝）― ${h.age>=7?"高齢のため繁殖・引退の検討を":"戦績と年齢から引退検討対象"} <button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
   /* 明け2歳の幼駒の処遇（入厩／売却／クラブ募集）と牧場長コメント */
   const young2=(S.youngStock||[]).filter(y=>y.age>=2).slice(yePage*2,yePage*2+2);
   const youngHTML= young2.length? `<p><b>明け2歳の処遇</b></p>`+young2.map(y=>{ const mgrC=`牧場長：${(y.spd+y.bst)>=150?"脚の速さは一級品。":(y.sta>=75?"スタミナ豊富で距離が持つ。":"バランス型で堅実。")}判明度${y.known||0}%`; return `<div class="ticket"><b>${esc(y.name)}</b>（父 ${esc(y.sire)}）<br><span class="small">${mgrC}</span><br><input type="text" id="ye-name-${y.id}" value="${esc(y.name)}" maxlength="12" style="width:130px"> <button class="btn sm" data-ye-in="${y.id}">入厩させる</button> <button class="btn ghost sm" data-ye-sell="${y.id}">売却（${fmt(Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12))}万円）</button> <button class="btn ghost sm" data-ye-club="${y.id}" ${S.club?"":"disabled"}>クラブ募集へ</button></div>`; }).join("") : "";
   /* 年間表彰とお守り */
   let awardHTML="";
-  if(D.topEarner){ addCharm("copper",1); awardHTML=`<p>🏅 部門表彰：${esc(D.topEarner.name)} が厩舎の最高賞金馬（お守り・銅を獲得）</p>`; if((D.topEarner.yearEarnings||0)>=100000){ addCharm("silver",1); awardHTML+=`<p>🏅 年度代表級の活躍（年間1億円超）につき、お守り・銀を獲得</p>`; } }
+  if(D.topEarner){ if(!D._charmGiven){ D._charmGiven=true; addCharm("copper",1); if((D.topEarner.yearEarnings||0)>=100000) addCharm("silver",1); } awardHTML=`<p>🏅 部門表彰：${esc(D.topEarner.name)} が厩舎の最高賞金馬（お守り・銅を獲得）</p>`; if((D.topEarner.yearEarnings||0)>=100000){ awardHTML+=`<p>🏅 年度代表級の活躍（年間1億円超）につき、お守り・銀を獲得</p>`; } }
   /* 年末の特別入手（お守りの使い道）：輸入馬・特別な繁殖牝馬 */
   const charmHTML=`<p><b>お守りの使い道</b><br><span class="small">お守り（緑）3個で、年末に特別な繁殖牝馬を迎えられます。</span> ${(S.charms.green||0)>=3?`<button class="btn sm" id="ye-charm-mare">お守り（緑）3個で特別な繁殖牝馬を迎える</button>`:`<span class="small">現在 緑 ${(S.charms.green||0)}個</span>`}</p>
   <p><b>クラブ</b><br>${S.club?`<span class="small">設立済み（${esc(S.club.name)}）</span>`:`<button class="btn sm" id="ye-club">クラブを設立する</button>`}</p>`;
@@ -4487,7 +4586,7 @@ function showYearEnd(data){
   ${yePages>1?`<div class="pager"><button class="btn ghost sm" data-ye-pg="-1" ${yePage<=0?"disabled":""}>← 前</button><span>${yePage+1} / ${yePages}（引退勧告・幼駒の処遇つづき）</span><button class="btn ghost sm" data-ye-pg="1" ${yePage>=yePages-1?"disabled":""}>次 →</button></div>`:""}
   <div style="text-align:center;margin-top:12px"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none';document.getElementById('overlay-box').classList.remove('wide')">新年を始める</button></div>`);
   box.querySelectorAll("[data-ye-pg]").forEach(b=>b.addEventListener("click",()=>{ yePage+=+b.dataset.yePg; showYearEnd(); }));
-  box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ document.getElementById('overlay').style.display='none'; box.classList.remove("wide"); retireHorse(+b.dataset.yeRetire); }));
+  box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetire, ()=>showYearEnd()); }));
   box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; const nm=($("#ye-name-"+y.id)||{}).value; if(nm)y.name=nm.trim().replace(/[<>&"]/g,"")||y.name; y.age=2; y.known=100; S.horses.push(y); S.youngStock=S.youngStock.filter(x=>x!==y); log(`🐴 ${y.name} が入厩（明け2歳）`); b.parentElement.innerHTML=`<b>${esc(y.name)}</b> 入厩しました`; renderAll(); }));
   box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; const price=Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12); S.funds+=price; S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} を ${fmt(price)}万円で売却`); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; renderAll(); }));
   box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; S.club.offers=S.club.offers||[]; S.club.offers.push({name:y.name, price:Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*20), filled:false}); S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} をクラブ募集馬に回した`); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; renderAll(); }));
@@ -4543,7 +4642,7 @@ function farmWeekly(){
    const reveal=clamp(18+y.bredWeeks*3 + facEffect("group")*2 + rankVal(FARM_MANAGER.ranks.breakin)*1.5,0,100);
    y.known=Math.max(y.known||0, Math.round(reveal));
    const growFac={saka:"pow",track:"bst",kado:"flx",gatef:"gut",pool_f:"sta",longe:"men",flower:"smt",merit:"smt",grass:"hlt"};
-   Object.keys(growFac).forEach(fid=>{ const e=facEffect(fid); if(e>0 && Math.random()<0.30){ const k=growFac[fid]; y[k]=clamp(y[k]+ (Math.random()<0.5?1:0) + (e>=2?1:0),20,99); } });
+   Object.keys(growFac).forEach(fid=>{ const e=facEffect(fid); if(e>0 && Math.random()<0.18){ const k=growFac[fid]; y[k]=clamp(y[k]+ (Math.random()<0.5?1:0) + (e>=2?1:0),20,99); } });
    if(FARM_MANAGER.policy==="スピード重視"&&Math.random()<0.2) y.spd=clamp(y.spd+1,20,99);
    if(Math.random()<0.5) y.cond=clamp((y.cond||60)+ri(-3,4),20,100);
  });
@@ -4565,9 +4664,9 @@ function genSale(kind){
  const n=5;
  for(let i=0;i<n;i++){
    let h;
-   if(kind==="mare"){ h=newHorse({base:ri(56,72), age:ri(5,9), sex:"牝"}); h.price=ri(300,2400); h.saleKind="mare"; }
-   else if(kind==="overseas"){ h=newHorse({base:ri(64,84), age:1}); h.sire=pick(["海外・欧州スタミナ種牡馬","海外・米国ダート種牡馬"]); h.price=ri(900,4200); h.saleKind="young"; if(Math.random()<0.2){ h.charmPrice=true; h.price*=3; } }
-   else { h=newHorse({base:ri(58,80), age:0}); h.price=ri(250,1800); h.saleKind="young"; }
+   if(kind==="mare"){ h=newHorse({base:triBase(52,68), age:ri(5,9), sex:"牝"}); h.price=ri(300,2400); h.saleKind="mare"; }
+   else if(kind==="overseas"){ h=newHorse({base:triBase(60,80), age:1}); h.sire=pick(["海外・欧州スタミナ種牡馬","海外・米国ダート種牡馬"]); h.price=ri(900,4200); h.saleKind="young"; if(Math.random()<0.2){ h.charmPrice=true; h.price*=3; } }
+   else { h=newHorse({base:triBase(55,76), age:0}); h.price=ri(250,1800); h.saleKind="young"; }
    h.saleEvals={sec:saleEval("sec",h), mgr:saleEval("mgr",h), tr:saleEval("tr",h)};
    list.push(h);
  }
@@ -4577,12 +4676,12 @@ function makeFoalFromTheory(p){
  const mare=(S.mares||[]).find(m=>m.id===p.mareId);
  const T=p.theory||{burst:0,danger:0,mods:{}};
  const stRec=(S.stallions||[]).find(x=>x.name===p.sireName); const sireH=stRec?stRec.own:null;
- const base=58+Math.min(10,T.burst)+ri(-4,6);
+ const base=55+Math.min(7,T.burst)+ri(-5,4);
  const f=newHorse({base, age:0, sire:p.sireName, dam:mare?mare.name:""});
  f.name=applyCrownName(genUniqueName()); /* 仔馬は固有名＋設定があれば冠名を付ける */
- if(mare){ ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ const sv=sireH?sireH[k]:(mare[k]+8); f[k]=clamp(Math.round((sv+mare[k])/2+gauss()*5),25,97); }); f.turf=mare.turf; f.dirt=mare.dirt; f.heavy=mare.heavy; }
+ if(mare){ ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ const sv=sireH?sireH[k]:(mare[k]+8); f[k]=clamp(Math.round(62+((sv+mare[k])/2-62)*0.88+gauss()*5),25,95); }); f.turf=mare.turf; f.dirt=mare.dirt; f.heavy=mare.heavy; }
  /* 父系因子の活性化：受胎確定時に表示された父系因子は確実に上昇 */
- ((p.theory&&p.theory.sireFactors)||[]).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+ri(3,6),20,99); });
+ ((p.theory&&p.theory.sireFactors)||[]).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+ri(2,4),20,99); });
  Object.keys(T.sub||{}).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+T.sub[k],20,99); });
  Object.keys(T.mods||{}).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+T.mods[k]*2,20,99); });
  if(T.danger>=4){ f.hlt=clamp(f.hlt-ri(4,10),20,99); if(Math.random()<0.35&&!f.flags.length)f.flags=["leganx"]; if(Math.random()<0.3)f.temper=pick(["激","荒い","普通"]); }
@@ -4640,7 +4739,7 @@ function nextWeek(){
       h.age++;
       const peakAge={"早熟":3,"早め":4,"遅め":5,"晩成":5,"覚醒":6}[h.growth]||4;
       ["spd","sta","pow","bst","gut"].forEach(k=>{
-        if(h.age<=peakAge) h[k]=clamp(h[k]+ri(1,4),20,99);
+        if(h.age<=peakAge) h[k]=clamp(h[k]+ri(0,2),20,99);
         else if(h.age>=7) h[k]=clamp(h[k]-ri(1,4)*(S.onsenGuard?0.5:1),20,99);
       });
     });
@@ -4659,7 +4758,13 @@ function nextWeek(){
   if(year()!==prevYear){ // 年末処理：表彰・引退勧告・世代更新をまとめて出す
     const sortedW=[...S.horses].sort((a,b)=>(b.yearWins||0)-(a.yearWins||0));
     const sortedE=[...S.horses].sort((a,b)=>(b.yearEarnings||0)-(a.yearEarnings||0));
-    const data={year:prevYear, mostWins:sortedW[0]&&(sortedW[0].yearWins||0)>0?sortedW[0]:null, topEarner:sortedE[0]&&(sortedE[0].yearEarnings||0)>0?sortedE[0]:null,
+    /* 集計値はこの時点で値として固定する。馬オブジェクトへの参照を渡すと、
+       直後の yearWins/yearEarnings リセット（と再表示時の読み直し）で
+       「最多勝馬なのに0勝」のように順位と数値が食い違ってしまう */
+    const mwH=sortedW[0], teH=sortedE[0];
+    const data={year:prevYear,
+      mostWins: mwH&&(mwH.yearWins||0)>0 ? {name:mwH.name, yearWins:mwH.yearWins} : null,
+      topEarner: teH&&(teH.yearEarnings||0)>0 ? {name:teH.name, yearEarnings:teH.yearEarnings, earnings:teH.earnings||0} : null,
       retire:S.horses.filter(h=>h.age>=7||(h.age>=6&&h.wins===0&&h.races>=6)),
       aged:S.horses.slice()};
     S.horses.forEach(h=>{h.yearWins=0; h.yearEarnings=0;});
@@ -4741,10 +4846,10 @@ function gameOver(reason){
 }
 function showOverlay(html){$("#overlay-box").innerHTML=html; $("#overlay").style.display="flex";}
 function alert2(t,b){showOverlay(`<h2>${t}</h2><p>${b}</p><button class="btn" onclick="document.getElementById('overlay').style.display='none'">閉じる</button>`);}
-function confirm2(t,b,ok){
+function confirm2(t,b,ok,ng){
   showOverlay(`<h2>${t}</h2><p>${b}</p><div class="flex" style="justify-content:center"><button class="btn red" id="cf-ok">実行する</button><button class="btn ghost" id="cf-ng">やめる</button></div>`);
   $("#cf-ok").addEventListener("click",()=>{$("#overlay").style.display="none"; ok();});
-  $("#cf-ng").addEventListener("click",()=>{$("#overlay").style.display="none";});
+  $("#cf-ng").addEventListener("click",()=>{$("#overlay").style.display="none"; if(ng)ng();});
 }
 
 /* ============ レース ============ */
@@ -4791,9 +4896,12 @@ function makeRivals(r){
   /* 実在馬の注入（主要G1） */
   if(r.cls===8 && REAL_FIELDS[r.name]){ REAL_FIELDS[r.name].forEach(nm=>{ const rh=makeRealRival(nm); if(rh && out.length<n){ out.push(rh); } }); }
   if(r.overseas){ [["カランダガン",0],["クロワデュノール",0]].forEach(([nm])=>{ const rh=makeRealRival(nm); if(rh&&out.length<n-2) out.push(rh); }); }
-  const baseByCls=[52,54,60,65,70,76,82,88,93][r.cls];
+  /* 年数が進むほど相手も強くなる（中盤以降も勝ち続けにくくする）。1年目は従来どおり */
+  const yrB = r.cls>=2 ? Math.min(5, Math.max(0, year()-1)) : 0;
+  const baseByCls=[52,54,60,65,72,78,84,88,93][r.cls]+yrB;
   for(let i=out.length;i<n;i++){
-    const h=newHorse({base:baseByCls+gauss()*7, age:r.age||(r.ageMin?ri(r.ageMin,r.ageMin+2):pick([3,3,4,4,5,6]))});
+    const ace = r.cls>=3 && Math.random()<0.12 ? ri(4,7) : 0; // たまに格上の強豪が混ざる
+    const h=newHorse({base:baseByCls+gauss()*7+ace, age:r.age||(r.ageMin?ri(r.ageMin,r.ageMin+2):pick([3,3,4,4,5,6]))});
     if(r.sex==="牝")h.sex="牝"; if(r.sex==="牡騸"&&h.sex==="牝")h.sex="牡";
     h.name=genUniqueName(out); /* 相手馬も固有名：この出馬表の中で重複させない */
     if(r.cls===0){h.races=0; h.wins=0;}
@@ -6114,7 +6222,7 @@ function render3DFrame(el, cam){
   const progsNow=sim.all.map(h=>h._prog||0);
   const spreadNow=(Math.max.apply(null,progsNow)-Math.min.apply(null,progsNow))*r.dist;
   const tanH=Math.tan((GL.camera.fov*Math.PI/180)/2)*asp;
-  const fitDistAll=clamp((spreadNow/2+9)/Math.max(0.12,tanH*0.94), 0, 190);
+  const fitDistAll=clamp((spreadNow/2+9)/Math.max(0.12,tanH*0.94), 0, 125);
   let off;
   if(mode==="all"){
     const zz=Math.max(19.5*zf, Math.sqrt(Math.max(0, fitDistAll*fitDistAll-13*13)));
@@ -6178,7 +6286,12 @@ function render3DFrame(el, cam){
   if(fb){ const kk=clamp((now-fb.t0)/700,0,1), ss=kk*kk*(3-2*kk);
     if(kk>=1) raceState.camFocusBlend=null;
     else { focDist=fb.fromS+(focDist-fb.fromS)*ss; focLat=fb.fromLat+(focLat-fb.fromLat)*ss; } }
-  const anchS= focusM+(focDist-focusM)*sideG;
+  /* アンカーは全区間でライブ焦点（focDist）に取る。以前は真横区間以外で
+     事前計算パス cam.f（焦点の二重平滑化）を使っていたため、コーナーや
+     加速局面でアンカーが実際の先頭／馬群から遅れ、スマホ幅では馬群が
+     フレーム外に出て「レースが見切れる」状態になっていた。カメラ位置は
+     後段の lerp と焦点ブレンドで平滑化されるので、ライブで問題ない */
+  const anchS= focDist;
   const A=pathAt(anchS); // アンカー地点の位置と進行方向（コーナーでは方向が回る）
   /* 真横区間のカメラ距離は視点ごとに変える：先頭は至近の真横、自馬は
      それより引いた真横、全体は馬群の広がりに合わせて引いて全頭を収める。
@@ -6187,18 +6300,25 @@ function render3DFrame(el, cam){
   /* 真横区間でも全体視点は水平画角から逆算した距離まで引いて全頭を収める
      （真横そのものは維持：進行方向オフセットゼロ・高さ1.45mは不変）。
      自馬視点の真横距離も先頭視点より大きく取る */
-  const SIDE_DIST= mode==="all"? clamp((spreadM/2+9)/Math.max(0.12,tanH*0.94),21,190) : mode==="mine"? 19.5*zf : 13.4*zf;
+  const SIDE_DIST= mode==="all"? clamp((spreadM/2+9)/Math.max(0.12,tanH*0.94),21,115) : mode==="mine"? 19.5*zf : 13.4*zf;
   const camLatN=off.z + (mode==="all"?0:focLat*0.55), camLatG=focLat+SIDE_DIST;
   const camLat=camLatN+(camLatG-camLatN)*sideG;
   const camBack=off.x*(1-sideG); // 真横では進行方向オフセットをゼロにする
-  const camY=off.y+(1.45-off.y)*sideG;
+  /* 全体視点だけは真横区間でも高さを落とさない。馬群全体を100m級の
+     距離から高さ1.45mで撮ると、馬が地平線の帯に潰れて見えなくなる
+     （スマホで「全体が見えない」主因）。横方向は真横のまま、高さは
+     俯瞰（off.y）を維持して馬群全体を視認できるようにする */
+  const camY= mode==="all"? off.y : off.y+(1.45-off.y)*sideG;
   /* カメラ位置はアンカーの接線座標系で置く：直線では従来どおり真横、
      コーナーでは接線が回るのに合わせてカメラも回り込み、常に馬の
      側面を捉え続ける（コーナーを「横から撮り続ける」中継の動き） */
   const tp=_v.set(A.x + A.dx*camBack + A.px*camLat, camY, A.z + A.dz*camBack + A.pz*camLat);
   const tpX=tp.x, tpY=tp.y, tpZ=tp.z;
-  if(GL.camPos.distanceTo(tp)>30) GL.camPos.copy(tp); // 直線スキップ等の大きなジャンプでは即座に合わせる
-  const k=1-Math.exp(-dt*3.6); GL.camPos.lerp(tp,k);
+  if(GL.camPos.distanceTo(tp)>16) GL.camPos.copy(tp); // 直線スキップ等の大きなジャンプでは即座に合わせる
+  /* 追従の平滑化はシミュレーション時間基準にする。実時間基準のままだと
+     早送り（4倍）で目標が4倍速で動くのにカメラだけ遅れ、定常ラグが
+     約18mまで膨らんで先頭馬がフレーム端に寄り・馬群が外れた */
+  const k=1-Math.exp(-dt*5*(raceState.rate||1)); GL.camPos.lerp(tp,k);
   if(sideG>0.98){ GL.camPos.x=tpX; GL.camPos.y=tpY; GL.camPos.z=tpZ; } // 直線区間では追従の遅れを残さず、完全に真横を保つ
   GL.camera.position.copy(GL.camPos);
   const lookLat=focLat*(0.72+0.28*sideG), lookFwd=1.6*(1-sideG);
@@ -6230,7 +6350,7 @@ function render3DFrame(el, cam){
     const spawnN= GL.tier===1? 1 : 2;
     sim.all.forEach(h=>{
       const hp=horsePos.get(h); if(!hp) return;
-      if(Math.abs(posM(h)-focusM)>26) return;
+      if(Math.abs(posM(h)-anchS)>26) return;
       for(let i=0;i<spawnN;i++) if(Math.random()<0.75&&GL.parts.length<240) GL.parts.push({x:hp.x-hp.dx*1.35, y:0.22, z:hp.z-hp.dz*1.35+rnd(-0.3,0.3), vx:-hp.dx*rnd(2.2,4.6), vy:rnd(0.7,2.3), vz:-hp.dz*rnd(2.2,4.6), t:0, life:rnd(0.45,0.85)});
     });
   }
@@ -7072,7 +7192,7 @@ function renderRaceScreen(el){
   renderActionBar();
   const r=raceState.race;
   if(raceState.phase==="run"){
-    el.innerHTML=`<div id="racewrap"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬</button><button class="btn ghost sm cambtn" data-cam="all">全体</button></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
+    el.innerHTML=`<div id="racewrap"><div id="racestage"><canvas id="racecv"></canvas><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬</button><button class="btn ghost sm cambtn" data-cam="all">全体</button></div></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
     <div id="racectl"><b>${r.name}</b><span class="small">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
     <div class="spdctl"><span class="spdlbl">再生速度</span><button class="btn ghost sm spd" data-rate="1">そのまま（1倍）</button><button class="btn ghost sm spd" data-rate="2">早送り 2倍</button><button class="btn ghost sm spd" data-rate="4">早送り 4倍</button></div>
     <button class="btn ghost sm mapbtn" id="btn-form">隊列図 OFF</button>
@@ -7331,6 +7451,9 @@ function secretaryState(){
 function renderChrome(){
   renderActionBar();
   renderAutoBar();
+  /* レース中・レース終了画面では、アプリ側のバー類（秘書・週予定・情景・提案・畳むトグル）を
+     畳んで映像エリアを最大化する（スマホで映像が見切れる主因だった） */
+  const appR=$("#app"); if(appR) appR.classList.toggle("racing", typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done"));
   /* レース終了画面の間は「次の週へ」を隠し、レースタブ以外の移動も封じる（「帰る」を押すまで次週に到達できない） */
   const locked=(typeof raceState!=="undefined"&&raceState.phase==="done");
   const nwBtn=$("#btn-nextweek"); if(nwBtn) nwBtn.style.display=(locked||(typeof raceState!=="undefined"&&raceState.phase==="run"))?"none":"";
@@ -7438,24 +7561,25 @@ function renderFarm(){
  <span class="small">能力：</span>${[["eye","相馬眼"],["blood","血統知識"],["breakin","馴致"],["health","健康管理"],["breed","種付け"]].map(([k,n])=>`${n} <b class="rankmark rank${FARM_MANAGER.ranks[k]}">${FARM_MANAGER.ranks[k]}</b>`).join("／")}
  <br><label class="small">配置先 <select id="mgr-post"><option value="">配置しない</option>${FACILITIES.filter(f=>facLv(f.id)>0).map(f=>`<option value="${f.id}" ${S.mgrPost===f.id?"selected":""}>${f.n}</option>`).join("")}</select></label> <span class="small">得意施設（坂路）に配置すると効果がさらに上がります。現在：${postName}</span></div>`;
  html+=`<div class="panel"><b>牧場状況と施設効果</b>
- <div class="small" style="margin:3px 0">スペース ${sp.used}/${sp.base}（空き ${sp.free}）／月維持費 ${fmt(upkeepM)}万円／繋養上限：繁殖牝馬 ${mareCap()}頭・種牡馬 ${sireCap()}頭／名声 ${S.fame||0}</div>
+ <div class="small" style="margin:3px 0">スペース ${sp.used}/${sp.base}（空き ${sp.free}／名声ボーナス +${sp.fameBonus}）／月維持費 ${fmt(upkeepM)}万円／繋養上限：繁殖牝馬 ${mareCap()}頭・種牡馬 ${sireCap()}頭／名声 ${S.fame||0}</div>
  ${FAC_CATS.map(c=>{ const base=Math.min(100,(cats[c]||0)*14), inc=Math.min(100-base,(preview[c]||0)*14); return `<div class="stat"><span style="min-width:52px">${c}</span><span class="facbar"><i class="base" style="width:${base}%"></i><i class="inc" style="width:${inc}%"></i></span><b>${(cats[c]||0).toFixed(1)}</b>${preview[c]?`<span class="small" style="color:#58a700">+${preview[c].toFixed(1)}（${sf.n}）</span>`:""}</div>`; }).join("")}
  <p class="small" style="margin:4px 0 0">オレンジ部分は、選択中の施設「${sf.n}」を建設・拡張した場合に増える効果です。</p></div>`;
-  /* スペース満杯のときは、広げる方法（基本施設の建設）をその場で提示し、
-     ここから直接建設できるようにする。基本施設はスペースを消費しないので
-     満杯でも建設でき、建設した時点で farmSpaces の容量に即反映される */
-  if(sp.free<=0&&facLv("base")===0&&facBuilding("base")===0){ const bf=FACILITIES.find(f=>f.id==="base");
-    html+=`<div class="panel" style="border:2px solid #ffc800"><b>📐 スペースが満杯です（${sp.used}/${sp.base}）</b><div class="small" style="margin:3px 0">牧場を大きくするには「基本施設（面積）」の建設が必要です。建設するとスペースが <b>${sp.base} → ${sp.base+4}</b> に広がります（基本施設自体はスペースを消費しません）。他の施設の拡張ではスペースは増えません。</div><div class="flex"><button class="btn gold sm" data-fac-build="base" ${S.funds>=bf.cost?"":"disabled"}>基本施設（面積）を建設する（${fmt(bf.cost)}万円・${bf.weeks}週）</button>${S.funds<bf.cost?`<span class="small">資金が不足しています</span>`:""}</div></div>`;
+  /* スペース満杯のときは、広げる方法をその場で提示する。広げ方は2つ：
+     基本施設（面積）の建設（+4、スペース消費なし）と、名声の上昇
+     （名声5ごとに+1、重賞・G1勝利で上昇）。名声は際限なく上がるので
+     満杯で永久に詰むことはなく、最終的に全施設を建てられる */
+  if(sp.free<=0){ const bf=FACILITIES.find(f=>f.id==="base"); const baseUnbuilt=facLv("base")===0&&facBuilding("base")===0;
+    html+=`<div class="panel" style="border:2px solid #ffc800"><b>📐 スペースが満杯です（${sp.used}/${sp.base}）</b><div class="small" style="margin:3px 0">スペースは<b>名声</b>が上がると広がります（名声5ごとに+1／現在 名声 ${S.fame||0}、次は名声 ${sp.nextFame} で+1）。重賞・G1を勝つと名声が上がります。${baseUnbuilt?`「基本施設（面積）」の建設でも <b>${sp.base} → ${sp.base+4}</b> に広がります（基本施設自体はスペースを消費しません）。`:""}</div>${baseUnbuilt?`<div class="flex"><button class="btn gold sm" data-fac-build="base" ${S.funds>=bf.cost?"":"disabled"}>基本施設（面積）を建設する（${fmt(bf.cost)}万円・${bf.weeks}週）</button>${S.funds<bf.cost?`<span class="small">資金が不足しています</span>`:""}</div>`:""}</div>`;
   }
  html+=panelClose();
  /* 施設詳細（選択中） */
  { const f=sf, lv=facLv(f.id), building=facBuilding(f.id)>0, maxLv=f.maxLv||2;
    const cost= lv===0? f.cost : f.upCost*lv;
    const canBuild= building? false : lv===0? ((f.id==="base"||sp.free>=1) && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
-   const ngTxt= building? "工事中は建設・拡張できません" : lv>=maxLv? "最大まで拡張済みです" : lv===0&&f.id!=="base"&&sp.free<1? "スペースが不足しています" : (!canBuild&&S.funds<cost)? "資金が不足しています" : "";
+   const ngTxt= building? "工事中は建設・拡張できません" : lv>=maxLv? "最大まで拡張済みです" : lv===0&&f.id!=="base"&&sp.free<1? `スペースが不足しています（名声 ${sp.nextFame} で+1されます）` : (!canBuild&&S.funds<cost)? "資金が不足しています" : "";
    html+=panelOpen("farm","detail")+`<h2 class="sec" id="farm-fac-detail">施設詳細</h2><div class="panel"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:17px">${f.n}</b><span class="aptchip">${FAC_PLACE[f.id]||"放牧場"}</span><span class="aptchip">${f.cat}効果</span>${lv>0?`<span class="aptchip on">Lv.${lv}</span>`:`<span class="aptchip">未建設</span>`}${S.mgrPost===f.id?`<span class="aptchip strong">牧場長を配置中</span>`:""}${building?` <span class="sale-tag">工事中（あと${S.building[f.id]}週）</span>`:""}</div>
    <p class="small" style="margin:6px 0">${f.desc}</p>
-   <dl class="kv"><dt>${lv===0?"建設費用":"拡張費用"}</dt><dd>${lv>=maxLv?"―":fmt(cost)+"万円"}</dd><dt>工事期間</dt><dd>${f.weeks}週</dd><dt>月維持費</dt><dd>${f.maint}万円／Lv（現在 ${fmt(f.maint*lv)}万円）</dd><dt>場所</dt><dd>${FAC_PLACE[f.id]||"放牧場"}（スペース消費：${f.id==="base"?"なし（面積そのもの）":lv===0?"建設時に1":"なし"}）</dd>${f.id==="base"?`<dt>容量</dt><dd>建設するとスペース ${sp.base} → ${sp.base+4} に拡大します（現在 ${sp.used}/${sp.base}）</dd>`:""}<dt>スタッフ配置</dt><dd>${lv>0? (S.mgrPost===f.id? "牧場長を配置中（効果1.5倍）" : "未配置（牧場長の配置先から変更できます）") : "建設後に配置できます"}</dd></dl>
+   <dl class="kv"><dt>${lv===0?"建設費用":"拡張費用"}</dt><dd>${lv>=maxLv?"―":fmt(cost)+"万円"}</dd><dt>工事期間</dt><dd>${f.weeks}週</dd><dt>月維持費</dt><dd>${f.maint}万円／Lv（現在 ${fmt(f.maint*lv)}万円）</dd><dt>場所</dt><dd>${FAC_PLACE[f.id]||"放牧場"}（スペース消費：${f.id==="base"?"なし（面積そのもの）":lv===0?"建設時に1":"なし"}）</dd>${f.id==="base"?`<dt>容量</dt><dd>建設するとスペース ${sp.base} → ${sp.base+4} に拡大します（現在 ${sp.used}/${sp.base}）。名声5ごとに+1（現在 +${sp.fameBonus}）も加わっています</dd>`:""}<dt>スタッフ配置</dt><dd>${lv>0? (S.mgrPost===f.id? "牧場長を配置中（効果1.5倍）" : "未配置（牧場長の配置先から変更できます）") : "建設後に配置できます"}</dd></dl>
    ${ngTxt?`<p class="small" style="color:var(--red);font-weight:700;margin:6px 0 0">× ${ngTxt}</p>`:""}
    <div class="flex mt">${lv===0?`<button class="btn sm" data-fac-build="${f.id}" ${canBuild?"":"disabled"}>建設する</button>`: lv<maxLv?`<button class="btn sm" data-fac-up="${f.id}" ${canBuild?"":"disabled"}>拡張する（Lv.${lv+1}）</button>`:`<span class="small">最大まで拡張済み</span>`}
    ${lv>0&&!f.noremove?`<button class="btn ghost sm" data-fac-del="${f.id}">撤去</button>`:`<span class="small">${lv>0?"この施設は撤去できません":""}</span>`}</div></div>`;
@@ -7510,8 +7634,8 @@ function renderFarm(){
    ${myTop?`<p class="small mt">自厩舎の最高賞金馬 <b>${myTop.name}</b>（通算 ${fmt(myTop.earnings||0)}万円）${ab&&ab.isTop?"は、歴代名馬の最高額を超えています！":ab&&ab.below?`は <b>${ab.below.n}</b>（${fmt(ab.below.earn)}万円）を超えました。次は <b>${ab.above?ab.above.n:"―"}</b>${ab.above?`（${fmt(ab.above.earn)}万円）`:""}が目標です。`:`は歴代名馬の殿堂入り（最下位 ${fmt([...LEGENDS].sort((a,b)=>a.earn-b.earn)[0].earn)}万円〜）を目指すところです。`}</p>`:`<p class="small mt">自厩舎馬が賞金を重ねると、ここで歴代名馬との比較が出ます。</p>`}
    <div class="flex mt"><button class="btn sm" data-goto-rank="1">名馬ランキングで全馬と比べる</button></div></div>`;
  }
- html+=panelClose();
- /* 海外牧場・クラブ牧場 */
+ /* 海外牧場・クラブ牧場／クラブは「記録」パネルの一部として流し込む
+    （以前はパネルの外に常時表示され、スクロール領域を圧迫していた） */
  html+=`<details class="fold"><summary>分場（海外牧場・クラブ牧場）</summary><div class="foldbody"><div class="panel">`;
  if(S.overseasFarm) html+=`<p>🌍 海外牧場（${S.overseasFarm.region}）を開設済み。ここで生産した馬は海外レースにも出走できます。</p>`;
  else html+=`<p class="small">海外牧場：名声30以上・G1勝利・資金2億円以上で、7〜11月に開設の話が来ます（現在 名声${S.fame||0}／G1 ${S.g1Wins||0}勝）。</p><button class="btn sm" id="btn-overseas" ${((S.fame||0)>=30&&(S.g1Wins||0)>=1&&S.funds>=20000&&month()>=7&&month()<=11)?"":"disabled"}>開設する（2億円・維持費は国内の2倍）</button>`;
@@ -7531,13 +7655,7 @@ function renderFarm(){
   <div class="mt"><b>馬主リーディング（クラブ別賞金）</b><div class="small">${[[c.owner+"（自分のクラブ）",(c.prize||0)],["青葉クラブ",12400],["星野クラブ",9800],["南関クラブ",7600]].sort((a,b)=>b[1]-a[1]).map((x,i)=>`${i+1}位 ${esc(x[0])} ${fmt(x[1])}万円`).join("<br>")}</div></div>`;
  }
  html+=`</div></div></details>`;
- /* 下部固定アクションバー：選択中の施設をスクロールなしで建設・拡張できる */
- { const f=sf, lv=facLv(f.id), building=facBuilding(f.id)>0, maxLv=f.maxLv||2;
-   const cost= lv===0? f.cost : f.upCost*lv;
-   const canBuild= building? false : lv===0? ((f.id==="base"||sp.free>=1) && S.funds>=f.cost) : (lv<maxLv && S.funds>=cost);
-   const stTxt= building? `工事中（あと${S.building[f.id]}週）` : lv>=maxLv? "最大まで拡張済み" : lv===0&&f.id!=="base"&&sp.free<1? "スペース不足" : (!canBuild&&S.funds<cost)? "資金不足" : "";
-   html+=`<div class="actionbar"><span class="ab-name">🏗 ${f.n}${lv>0?` Lv.${lv}`:"（未建設）"}</span><span class="ab-cost">${lv>=maxLv?"":`${lv===0?"建設":"拡張"} ${fmt(cost)}万円・${f.weeks}週`}${stTxt?`／${stTxt}`:""}</span><span style="flex:1"></span>${lv===0?`<button class="btn gold sm" data-fac-build="${f.id}" ${canBuild?"":"disabled"}>建設する</button>`: lv<maxLv?`<button class="btn gold sm" data-fac-up="${f.id}" ${canBuild?"":"disabled"}>拡張する（Lv.${lv+1}）</button>`:""}</div>`;
- }
+ html+=panelClose();
  html+=`</div>`;
  el.innerHTML=html;
  el.querySelectorAll("[data-fmark]").forEach(b=>b.addEventListener("click",()=>{ selFac=b.dataset.fmark; UI.farm="detail"; renderAll(); }));
@@ -7846,11 +7964,14 @@ function buildGuide(){
   if(sp.free>0&&buildable){
     cards.push({key:"fac"+buildable.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースに空きがあります。「${buildable.n}」（${fmt(buildable.cost)}万円）はいかがですか`, btn:"施設を見る", act:"facility", fid:buildable.id});
   } else if(sp.free<=0){
-    /* 満杯のときは、スペースを生む基本施設（面積）だけは提案する。
-       基本施設はスペースを消費しないので、満杯でも建設できる */
+    /* 満杯のときの提案：基本施設（面積）が未建設ならそれを勧め、
+       建設済みなら名声を上げる道を示す（名声5ごとに+1で必ず広がる） */
     const bf=FACILITIES.find(f=>f.id==="base");
     if(bf&&facLv("base")===0&&facBuilding("base")===0&&bf.cost<=S.funds){
-      cards.push({key:"facbase", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。「${bf.n}」（${fmt(bf.cost)}万円）を建設すると 6→10 に広がります`, btn:"施設を見る", act:"facility", fid:"base"});
+      cards.push({key:"facbase", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。「${bf.n}」（${fmt(bf.cost)}万円）を建設すると ${sp.base}→${sp.base+4} に広がります`, btn:"施設を見る", act:"facility", fid:"base"});
+    } else {
+      const unbuilt=FACILITIES.filter(f=>facLv(f.id)===0&&facBuilding(f.id)===0).sort((a,b)=>a.cost-b.cost)[0];
+      if(unbuilt) cards.push({key:"facfame", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。名声 ${sp.nextFame} で +1 広がります（現在 名声 ${S.fame||0}）。重賞・G1を勝って名声を上げましょう`, btn:"施設を見る", act:"facility", fid:unbuilt.id});
     }
   }
   /* 資金が厳しい：マイナスなら立て直し案（融資・スポンサー・緊急売却）を最優先で提示 */
@@ -8030,7 +8151,7 @@ const panelOpen=(view,key)=>`<section class="subpanel ${UI[view]===key?"on":""}"
 const panelClose=()=>`</section>`;
 function wirePanels(root){
   if(!root) return;
-  root.querySelectorAll("[data-subnav]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.subnav.split(":"); UI[pr[0]]=pr[1]; renderAll(); }));
+  root.querySelectorAll("[data-subnav]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.subnav.split(":"); UI[pr[0]]=pr[1]; renderAll(); window.scrollTo(0,0); }));
   root.querySelectorAll("[data-pg]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.pg.split(":"); PG[pr[0]]=(PG[pr[0]]||0)+ +pr[1]; renderAll(); }));
 }
 /* 長い詳細HTMLを <h3> 見出し単位で分割し、タブ切替で見せる（見切れ防止） */
@@ -8063,7 +8184,22 @@ function autoCfg(){
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
+  /* 出走週の扱い（raceStop）：all=すべての出走週で止まる／graded=重賞（G3以上）の週だけ止まる／
+     g1=G1の週だけ止まる／none=止まらず全レースを「結果だけ」で消化する。
+     旧セーブの stopRace（ON=止まる／OFF=止まらない）から移行し、以後は raceStop を正とする */
+  if(!["all","graded","g1","none"].includes(S.autoCfg.raceStop)) S.autoCfg.raceStop = S.autoCfg.stopRace===false? "none" : "all";
+  S.autoCfg.stopRace = S.autoCfg.raceStop!=="none";
   return S.autoCfg;
+}
+/* エントリー中のレースが、オートの停止対象かどうか（クラスで判定） */
+function autoRaceStopFor(ne){
+  const mode=autoCfg().raceStop;
+  if(mode==="all") return true;
+  if(mode==="none") return false;
+  const cls=(ne&&ne.e&&typeof ne.e.cls==="number")? ne.e.cls : -1;
+  if(mode==="g1") return cls>=8;
+  if(mode==="graded") return cls>=6;
+  return true;
 }
 function autoInjuredKey(){ return S.horses.filter(h=>h.injured>0).map(h=>h.id).sort((a,b)=>a-b).join(","); }
 function autoSchedule(ms){ if(AUTO.timer)clearTimeout(AUTO.timer); AUTO.timer=setTimeout(autoStep, ms||850); }
@@ -8152,7 +8288,13 @@ function autoCardAction(c,cfg){
     const h=S.horses.find(x=>x.id===c.hid); if(!h) return {type:"skip"};
     return {type:"run", label:`${h.name} の次走を登録`, run:()=>{ if(!autoRegisterBest(h)) AUTO.skip[c.key+"@"+S.week]=1; }};
   }
-  if(c.act==="card"){ return {type:"stop", reason:"出走週です。作戦を決めてレースへ進んでください"}; }
+  if(c.act==="card"){
+    const h=S.horses.find(x=>x.id===c.hid);
+    const ne=h&&h.entry? {h, e:h.entry, left:h.entry.absWeek-S.week} : null;
+    /* 停止対象でないレースの週は止めない（この後の消化ゲートが「結果だけ」で処理する） */
+    if(ne&&!autoRaceStopFor(ne)) return {type:"skip"};
+    return {type:"stop", reason:"出走週です。作戦を決めてレースへ進んでください"};
+  }
   if(c.act==="facility"){
     if(cfg.stopFacility) return {type:"stop", reason:"施設の建設提案があります（停止条件：施設）。内容を確認してください"};
     const f=FACILITIES.find(x=>x.id===c.fid);
@@ -8204,9 +8346,9 @@ function autoStep(){
   }
   const ne=nearestEntry();
   if(ne&&ne.left<=0){
-    if(cfg.stopRace){ autoStop(`${ne.h.name} の出走週です。作戦を決めてレースへ進んでください`); return; }
-    /* 停止条件（出走週）がOFFの時は、レースを「結果だけ」観戦で即時消化して
-       自動進行を続ける（作戦は現在の設定のまま） */
+    if(autoRaceStopFor(ne)){ autoStop(`${ne.h.name} の出走週です（${ne.e.name}／${CLASSES[ne.e.cls]||""}）。作戦を決めてレースへ進んでください`); return; }
+    /* 停止対象でないレース（設定で「止まらない」側にした通常レース等）は、
+       「結果だけ」観戦で即時消化して自動進行を続ける（作戦は現在の設定のまま） */
     AUTO.steps++;
     if(autoDigestRace(ne)){ AUTO.label=`${ne.h.name} のレースを結果だけ表示で消化しました`; renderAll(); autoSchedule(850); }
     else autoStop("レースを消化できなかったため停止しました（出走条件・騎乗料・資金を確認してください）");
@@ -8261,7 +8403,7 @@ function autoStep(){
   if(AUTO.weeksDone>=cfg.weeks){ autoStop(`指定の ${cfg.weeks} 週を進めたため停止しました`); return; }
   const blocked=blockedEntries();
   if(blocked.length){
-    if(!cfg.stopRace&&autoDigestRace(blocked[0])){ AUTO.steps++; AUTO.label="レースを結果だけ表示で消化しました"; renderAll(); autoSchedule(850); return; }
+    if(!autoRaceStopFor(blocked[0])&&autoDigestRace(blocked[0])){ AUTO.steps++; AUTO.label="レースを結果だけ表示で消化しました"; renderAll(); autoSchedule(850); return; }
     autoStop("出走週のため停止しました"); return;
   }
   AUTO.steps++; AUTO.weeksDone++; AUTO.label="次の週へ（調教は定常指示が自動実行）";
@@ -8295,8 +8437,10 @@ function showAutoSettings(){
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
   <label class="small">資金の下限（下回ったら停止）<br><select id="auto-funds" style="width:100%">${[[-1,"なし"],[0,"0万円"],[500,"500万円"],[1000,"1000万円"],[2000,"2000万円"]].map(([v,l])=>`<option value="${v}" ${cfg.fundsMin===v?"selected":""}>${l}</option>`).join("")}</select></label>
-  <p class="small mt">調教は馬ごとの定常指示に設定され、週送りのたびに自動で実行されます（毎回選びません）。資金がマイナスになった場合と、確認画面（年末・資金不足など）が出た場合は、条件に関係なく必ず止まります。レースは自動で走らないため、出走週では必ず止まります。</p>
-  ${tog("stopRace","出走週で止まる（OFFの場合は「結果だけ」でレースを消化して続行します）")}
+  <p class="small mt">調教は馬ごとの定常指示に設定され、週送りのたびに自動で実行されます（毎回選びません）。資金がマイナスになった場合と、確認画面（年末・資金不足など）が出た場合は、条件に関係なく必ず止まります。止まらない設定にしたレースは「結果だけ」観戦で自動消化されます（作戦・騎手は現在の設定のまま）。</p>
+  <label class="small">出走週の扱い（どのレースで止まるか）<br><select id="auto-racestop" style="width:100%">
+  ${[["all","すべての出走週で止まる"],["graded","重賞（G3以上）の週だけ止まる ― それ以外は結果だけ表示で消化"],["g1","G1の週だけ止まる ― G2以下は結果だけ表示で消化"],["none","止まらない ― すべてのレースを結果だけ表示で消化"]].map(([v,l])=>`<option value="${v}" ${cfg.raceStop===v?"selected":""}>${l}</option>`).join("")}
+  </select></label>
   ${tog("stopInjury","故障が発生したら止まる")}
   ${tog("stopSale","セール開催週で止まる（OFFの場合はセールをスキップして続行）")}
   <p class="small mt">🌱 種付け（5〜6月）は停止条件の対象外です：オート中は止まらず、調教師の配合提案（相馬眼が高い調教師ほど評価の高い配合を提案）どおりに自動で種付けを登録して、そのまま進行します。</p>
@@ -8305,6 +8449,7 @@ function showAutoSettings(){
   </div></div><div class="ov-foot"><button class="btn ghost" id="auto-set-close">閉じる</button><button class="btn gold" id="auto-set-start">この条件でオート開始</button></div>`);
   document.querySelectorAll("[data-autog]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.autog; S.autoCfg[k]=!autoCfg()[k]; saveAuto(true); showAutoSettings(); }));
   const aw=$("#auto-weeks"); if(aw) aw.addEventListener("change",e=>{ S.autoCfg.weeks=+e.target.value; saveAuto(true); });
+  const ar=$("#auto-racestop"); if(ar) ar.addEventListener("change",e=>{ S.autoCfg.raceStop=e.target.value; S.autoCfg.stopRace=e.target.value!=="none"; saveAuto(true); });
   const af=$("#auto-funds"); if(af) af.addEventListener("change",e=>{ S.autoCfg.fundsMin=+e.target.value; saveAuto(true); });
   const cl=$("#auto-set-close"); if(cl) cl.addEventListener("click",()=>{ $("#overlay").style.display="none"; });
   const sta=$("#auto-set-start"); if(sta) sta.addEventListener("click",()=>{ $("#overlay").style.display="none"; autoStart(); });
@@ -8411,6 +8556,7 @@ function switchView(v){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   document.querySelectorAll(".view").forEach(s=>s.classList.toggle("on",s.id==="v-"+v));
   $("#main").scrollTop=0;
+  window.scrollTo(0,0); /* 通常フロー化に伴い、画面切替時はページ先頭へ戻す */
   if(v!=="race"&&raceState.phase!=="run"){ raceState.phase = raceState.phase==="done"?"done":"idle"; if(v!=="race"){raceState.phase="idle";} }
   renderAll();
   applyPendingAnchor(v);
@@ -8438,6 +8584,9 @@ $("#btn-nextweek").addEventListener("click",()=>{ if(raceState.phase==="run"||ra
    オート実行中は renderAutoBar が付ける .is-running でオートバーだけ残す */
 const dockBtn=$("#btn-docktoggle");
 if(dockBtn) dockBtn.addEventListener("click",()=>{ const app=$("#app"); const min=app.classList.toggle("dock-min"); dockBtn.textContent=min?"△ 下のバーを出す":"▽ 下のバーを畳む（表示領域を広げる）"; dockBtn.setAttribute("aria-expanded", String(!min)); });
+/* 固定表示は最小限に：スマホ幅では下のバー（提案／オート）を初期状態で畳んでおく。
+   必要なときはトグルでいつでも出せる。オート実行中はオートバーだけ自動で残る */
+if(dockBtn&&window.innerWidth<=640){ const app=$("#app"); if(app&&!app.classList.contains("dock-min")){ app.classList.add("dock-min"); dockBtn.textContent="△ 下のバーを出す"; dockBtn.setAttribute("aria-expanded","false"); } }
 $("#btn-save").addEventListener("click",()=>showSavePanel());
 const setBtn=$("#btn-settings"); if(setBtn)setBtn.addEventListener("click",()=>showSettings());
 /* サウンド開始はユーザーのタップ以降（自動再生制限対応）：最初のタップでAudioContextを作り、ホームBGMを開始する */
