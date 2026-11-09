@@ -1216,6 +1216,7 @@ img.faceimg{ object-position:center 20%; }
    アカウント入力のような軽い操作はモーダルだけで完結する状態にする */
 body.ov-open #app{ visibility:hidden; }
 body.ov-open #app *{ animation-play-state:paused !important; }
+body.ov-open #overlay .box{ box-shadow:0 4px 14px rgba(0,0,0,.30); }
 #overlay .box > .ov-foot{ flex:none; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; padding-top:12px; margin-top:12px; border-top:1.5px solid var(--line); background:inherit; }
 #overlay .box > .ov-foot .btn{ min-height:52px; flex:1 1 auto; max-width:440px; font-size:15.5px; }
 @media (max-width:640px){ #overlay .box{ padding:16px; } }
@@ -3421,6 +3422,22 @@ function newHorse(o){
 /* 旧セーブ移行：新パラメータが無ければ補完する（既存データは消さない） */
 function ensureFullHorse(h){
   if(!h||typeof h!=="object")return h;
+  /* コア能力の欠けを必ず補う。世界の馬（レジェンド／現役実在馬）は生成時に
+     spd・sta・bst しか持たず、pow・gut が未定義のまま能力計算に入ると
+     ab が NaN になり、その馬の走破時計・勝ち馬の時計（tWin）まで NaN 化して
+     レース全体がスタート地点で固まる（実害が出た不具合）。欠けた能力は
+     既存能力の平均から補い、有限でない値もここで正常化する */
+  ["spd","sta","pow","bst","gut"].forEach(k=>{ if(typeof h[k]!=="number"||!isFinite(h[k])) h[k]=null; });
+  { const have=["spd","sta","pow","bst","gut"].filter(k=>h[k]!=null);
+    const fill= have.length? Math.round(have.reduce((s,k)=>s+h[k],0)/have.length) : 55;
+    ["spd","sta","pow","bst","gut"].forEach(k=>{ if(h[k]==null) h[k]=fill; }); }
+  /* 調子・疲労・年齢・馬場適性も同じ理由で補う。世界の馬はこれらを持たず、
+     ability() の (h.cond-65) や (h.fat-45) が NaN になって時計が壊れた */
+  if(typeof h.cond!=="number"||!isFinite(h.cond)) h.cond=65;
+  if(typeof h.fat!=="number"||!isFinite(h.fat)) h.fat=15;
+  if(typeof h.age!=="number"||!isFinite(h.age)) h.age=5;
+  if(!h.turf) h.turf="B";
+  if(!h.dirt) h.dirt="C";
   const b=Math.round(((h.spd||55)+(h.sta||55)+(h.pow||55)+(h.bst||55)+(h.gut||55))/5);
   if(h.flx==null)h.flx=clamp(b+ri(-8,8),20,99);
   if(h.men==null)h.men=clamp(b+ri(-8,8),20,99);
@@ -3851,8 +3868,8 @@ const LEGENDS=[
  {n:"リバティアイランド",sex:"牝",born:2020,coat:"鹿毛",sire:"ドゥラメンテ",dam:"ヤンキーローズ",races:12,wins:5,earn:98919,g1:"阪神ジュベナイルF・桜花賞・オークス・秋華賞",rider:"川田将雅",style:"差し",dmin:1400,dmax:2400,dept:"マイル・中距離（牝馬）",rating:106},
 ];
 const FICTIONAL_WORLD=["タイタンクイーン","ゴールドエンペラー","シルバーストーム","ルミナスハート","オーシャンキング","コスモブレイズ","アストラノヴァ","ハヤブサエース"];
-function legendWorld(){ return LEGENDS.map(L=>({name:L.n,sex:L.sex,born:L.born,coatName:L.coat,sire:L.sire,dam:L.dam,wins:L.wins,races:L.races,earnings:L.earn,g1:L.g1,rider:L.rider,style:L.style,dmin:L.dmin,dmax:L.dmax,dept:L.dept,rating:L.rating,legend:true,spd:92,sta:92,bst:92})); }
-function currentWorld(){ return Object.keys(REAL_DEFS).map(n=>{ const d=REAL_DEFS[n]; return {name:n,sex:d.sex,age:d.age,wins:d.wins,races:d.races,earnings:d.earnings,gWins:d.gWins,note:d.note,current:true,spd:d.spd,sta:d.sta,bst:d.bst,rating:Math.round((d.spd+d.sta+d.bst)/3+d.wins*2)}; }); }
+function legendWorld(){ return LEGENDS.map(L=>({name:L.n,sex:L.sex,born:L.born,coatName:L.coat,sire:L.sire,dam:L.dam,wins:L.wins,races:L.races,earnings:L.earn,g1:L.g1,rider:L.rider,style:L.style,dmin:L.dmin,dmax:L.dmax,dept:L.dept,rating:L.rating,legend:true,spd:92,sta:92,pow:90,bst:92,gut:90})); }
+function currentWorld(){ return Object.keys(REAL_DEFS).map(n=>{ const d=REAL_DEFS[n]; return {name:n,sex:d.sex,age:d.age,wins:d.wins,races:d.races,earnings:d.earnings,gWins:d.gWins,note:d.note,current:true,spd:d.spd,sta:d.sta,pow:(d.pow!=null?d.pow:d.bst),bst:d.bst,gut:(d.gut!=null?d.gut:Math.round((d.spd+d.sta)/2)),rating:Math.round((d.spd+d.sta+d.bst)/3+d.wins*2)}; }); }
 function defaultWorld(){ return [...legendWorld(), ...currentWorld()]; }
 function legendAboveBelow(earn){
   const sorted=[...LEGENDS].sort((a,b)=>b.earn-a.earn);
@@ -4666,7 +4683,8 @@ function renderStable(){
   wireGuide(el);
   wireEntryButtons(el);
   el.querySelectorAll("[data-policy]").forEach(b=>b.addEventListener("click",()=>{ entryPolicy().id=b.dataset.policy; saveAuto(true); renderAll(); }));
-  const oq=$("#own-q"); if(oq){ oq.addEventListener("input",()=>{ ownFilter.q=oq.value; const pos=oq.selectionStart; renderAll(); const nq=$("#own-q"); if(nq){ nq.focus(); try{nq.setSelectionRange(pos,pos);}catch(e){} } }); }
+  const oq=$("#own-q"); if(oq){ oq.addEventListener("input",()=>{ ownFilter.q=oq.value; /* 1打鍵ごとの全体再描画（フォーカス中の要素の作り直し）は iPad で危険なため、入力が落ち着いてから1回だけ再描画する */
+    clearTimeout(oq._dt); oq._dt=setTimeout(()=>{ if(!document.contains(oq)||document.activeElement!==oq)return; const pos=oq.selectionStart; renderAll(); const nq=$("#own-q"); if(nq){ nq.focus(); try{nq.setSelectionRange(pos,pos);}catch(e){} } },300); }); }
   const oso=$("#own-sort"); if(oso) oso.addEventListener("change",()=>{ ownFilter.sort=oso.value; renderAll(); });
   const oc=$("#own-cls"); if(oc) oc.addEventListener("change",()=>{ ownFilter.cls=oc.value; renderAll(); });
   const ost=$("#own-st"); if(ost) ost.addEventListener("change",()=>{ ownFilter.st=ost.value; renderAll(); });
@@ -6305,6 +6323,7 @@ function startRace(r,mine,field){
     h._lat0=(((h._gate-1)%6)/5-0.5)*1.1;                               // スタート直後の横の散らばり
     const avgLat=h._latIn+h._latSwing*0.35;
     h._time*= 1 + Math.max(0,avgLat+0.5)*0.0016;                       // 外を回す分だけ距離ロス
+    if(!isFinite(h._time)||h._time<=0) h._time=r.dist/16.2;            // 最終ガード：時計が NaN 等の異常値になった馬がいても、その馬だけ標準的な時計に直し、レース全体（tWin・simT）を NaN で止めない
     let skew=(tac.pos-0.48)*0.36 + gauss()*0.018;
     if(t2.id==="late")skew-=0.045; if(t2.id==="front")skew+=0.02;
     if(traitOf(h,"startpro"))skew+=0.012; if(traitOf(h,"startkami"))skew+=0.022; if(traitOf(h,"gatepro"))skew+=0.008;
@@ -7514,10 +7533,16 @@ function rebuildGLCourse(r){
       const scrBack=new THREE.Mesh(new THREE.BoxGeometry(13.9,6.3,0.3), new THREE.MeshStandardMaterial({color:0x2b3540, roughness:0.8}));
       scrBack.position.set(0,7.4,0); grp.add(scrBack);
       g.add(grp); }
-    /* 遠景の丘陵：コース中心の周囲に低い丘を連ね、霧で空へ溶かす */
+    /* 遠景の丘陵：コース中心の周囲に低い丘を連ね、霧で空へ溶かす。
+       配置半径はコースパスの実寸（中心からの最大距離）から決める。以前は
+       半径350〜460m固定で、パスの広がりがそれを超える競馬場（長距離・
+       直線の長いコース）では丘の裾が馬場に被り、馬が丘を貫通して見えた。
+       全周ぶん実測し、丘の半径＋十分な余裕を空けて外側に置く */
     { const hillCols=[0x6f9a6b,0x5d8a72,0x7aa877];
-      for(let hi=0;hi<11;hi++){ const ang=hi/11*Math.PI*2+0.22, rad=350+((hi*67)%110);
-        const hill=new THREE.Mesh(new THREE.ConeGeometry(70+((hi*41)%60), 17+((hi*29)%17), 7), new THREE.MeshStandardMaterial({color:hillCols[hi%3], roughness:1, flatShading:true}));
+      let maxR=0; for(let s=0;s<=P.total;s+=25){ const A0=pathAt(s); const d=Math.hypot(A0.x-CEN.x, A0.z-CEN.z); if(d>maxR) maxR=d; }
+      maxR+=10; // 馬場リボンの半幅＋馬の横位置ぶん
+      for(let hi=0;hi<11;hi++){ const ang=hi/11*Math.PI*2+0.22, hillR=70+((hi*41)%60), rad=maxR+hillR+80+((hi*67)%90);
+        const hill=new THREE.Mesh(new THREE.ConeGeometry(hillR, 17+((hi*29)%17), 7), new THREE.MeshStandardMaterial({color:hillCols[hi%3], roughness:1, flatShading:true}));
         hill.position.set(CEN.x+Math.cos(ang)*rad, 0, CEN.z+Math.sin(ang)*rad); hill.scale.y=0.9; g.add(hill); } }
     /* 雲：柔らかいスプライトを上空に散らす（世界固定） */
     if(GL.pMat&&GL.pMat.map){
@@ -7949,20 +7974,25 @@ function drawRace(simT){
   sky.addColorStop(0,"#5ea3dd"); sky.addColorStop(0.6,"#a8d0f2"); sky.addColorStop(1,"#dff0fa");
   ctx.fillStyle=sky; ctx.fillRect(0,0,W,skyH+4);
   const scrollPx=camLeft*pxPerM;
-  const tileImg=(img,y,hh,off)=>{
+  const tileImg=(img,y,hh,off,srcFrac)=>{
     if(!img||!img.complete||!img.naturalWidth) return false;
-    const w=hh*img.naturalWidth/img.naturalHeight; if(!(w>0)) return false;
+    const sf=srcFrac||1, sh=img.naturalHeight*sf;
+    const w=hh*img.naturalWidth/sh; if(!(w>0)) return false;
     const period=2*w; let start=-(((off%period)+period)%period); if(start>0)start-=period;
     let idx=Math.round((-start)/w);
     for(let x=start;x<W;x+=w,idx++){
       ctx.save();
-      if(idx%2){ ctx.translate(x+w,y); ctx.scale(-1,1); ctx.drawImage(img,0,0,w,hh); }
-      else ctx.drawImage(img,x,y,w,hh);
+      if(idx%2){ ctx.translate(x+w,y); ctx.scale(-1,1); ctx.drawImage(img,0,0,img.naturalWidth,sh,0,0,w,hh); }
+      else ctx.drawImage(img,0,0,img.naturalWidth,sh,x,y,w,hh);
       ctx.restore();
     }
     return true;
   };
-  tileImg(bgImgs.far, 0, trackTop+22, scrollPx*0.12);                     // 遠景：空とスタンドと山並み
+  /* 遠景：bg-far は「空＋スタンド」のシーン（上部約67%）と「山並み＋樹木」の
+     シーン（下部）が1枚に重なった画像。全高をトラック上端まで描くと下部の
+     山並みが馬の頭の高さまで降り、馬が山を貫通して見えるため、上部の
+     シーンだけを切り出して描く（山並みはトラックに重ならない） */
+  tileImg(bgImgs.far, 0, trackTop+22, scrollPx*0.12, 0.67);               // 遠景：空とスタンド
   tileImg(bgImgs.mid, trackTop+2-H*0.335*0.46, H*0.335, scrollPx*0.45);   // 中景：白い柵と樹木（柵がトラック際の高さに合うよう配置）
   /* 内側コース（芝開催では内側にダートコースが見える） */
   ctx.fillStyle= surfDirt? "#7fae5f" : "#c9ab72"; ctx.fillRect(0,skyH,W,H*0.055);
@@ -9146,6 +9176,21 @@ function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="of
    APIに届かない環境（Museカード内など）ではアカウント機能だけが無効になり、
    ローカル保存と引き継ぎコードは従来どおり使える（ゲームは止まらない）。 */
 const ACCT_KEY="keibaGemu_account";
+/* ===== クラッシュ切り分けマーカー（フォレンジクス） =====
+   アカウント操作の各段階を localStorage に即時記録する。iPad Safari が
+   ブラウザごと終了すると JS の例外情報は残らないため、「最後に記録された
+   段階」が落ちた箇所を示す。次回起動時に未完了のマーカーが残っていたら、
+   設定画面のアカウント欄に「前回は『○○』の段階で終了しました」と表示する。
+   マーカーは危険な操作の直前に書く（フォーカスは focus イベントの先頭） */
+const ACCT_TRACE_KEY="keibaGemu_acctTrace";
+const ACCT_TRACE_LABELS={settings_open:"設定を開いた",focus_name:"名前欄にフォーカス",focus_pass:"パスワード欄にフォーカス",input_start:"入力開始",submit_register:"登録ボタン押下",submit_login:"ログインボタン押下",sending:"送信",response:"応答受信",applied:"ログイン反映",cloud_push:"クラウド保存開始",done:"完了"};
+let acctLastCrashStage="";
+function acctTrace(stage){ try{ localStorage.setItem(ACCT_TRACE_KEY, JSON.stringify({stage, at:Date.now()})); }catch(e){} }
+function acctTraceRead(){ try{ const t=JSON.parse(localStorage.getItem(ACCT_TRACE_KEY)||"null"); return (t&&t.stage)? t : null; }catch(e){ return null; } }
+function acctTraceClear(){ try{ localStorage.removeItem(ACCT_TRACE_KEY); }catch(e){} }
+function acctCrashNoteHTML(){ if(!acctLastCrashStage) return "";
+  const lb=ACCT_TRACE_LABELS[acctLastCrashStage]||acctLastCrashStage;
+  return `<p class="small" style="color:#ff4b4b;font-weight:700;margin:6px 0">⚠ 前回は「${esc(lb)}」の段階でアプリが終了しました。もう一度お試しください。</p>`; }
 let cloudAvail=null; /* null=未確認 / true=APIあり / false=この環境では使えない */
 let acctBusy=false, acctMsg="", acctPushTimer=null, acctPendingRender=false;
 /* iPad Safari対策の中核：アカウント欄の再描画を「安全なタイミング」まで保留する。
@@ -9189,6 +9234,7 @@ async function acctProbe(){ if(cloudAvail!==null) return cloudAvail;
 function acctParseSave(sv){ if(typeof sv==="string"){ try{ sv=JSON.parse(sv); }catch(e){ return null; } } return (sv&&Array.isArray(sv.horses)&&saveCkOk(sv))? sv : null; }
 function acctDate(ts){ if(!ts) return ""; try{ return new Date(ts).toLocaleString("ja-JP"); }catch(e){ return ""; } }
 function acctApplyCloud(sv){ const d=acctParseSave(sv); if(!d){ toast("クラウドのセーブを読み込めませんでした"); return; }
+  acctTrace("done"); acctLastCrashStage="";
   applySave(d); booted=true; raceState.phase="idle"; const ov=$("#overlay"); if(ov) ov.style.display="none"; renderAll();
   try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); }catch(e){}
   toast("クラウドのセーブを読み込みました"); }
@@ -9214,10 +9260,10 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
   acctPendingRender=false;
   const a=acctGet();
   if(cloudAvail===false){
-    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b><p class="small" style="margin:6px 0 0">この環境ではクラウド保存を使えません。Vercelで公開しているゲームのURLから開くと、名前とパスワードで登録・ログインして、どの端末でも続きから遊べます。この端末での保存と引き継ぎコードは今までどおり使えます。</p></div>`;
+    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>${acctCrashNoteHTML()}<p class="small" style="margin:6px 0 0">この環境ではクラウド保存を使えません。Vercelで公開しているゲームのURLから開くと、名前とパスワードで登録・ログインして、どの端末でも続きから遊べます。この端末での保存と引き継ぎコードは今までどおり使えます。</p></div>`;
     return; }
   if(a){
-    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>
+    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>${acctCrashNoteHTML()}
     <p class="small" style="margin:6px 0">ログイン中：<b>${esc(a.name)}</b> さん${a.cloudAt?`<br>クラウドの保存日時：${esc(acctDate(a.cloudAt))}`:""}<br>オートセーブのたびに、クラウドへも自動で保存されます。</p>
     <div class="flex" style="flex-wrap:wrap;gap:6px"><button class="btn sm" id="acct-push">クラウドへ保存</button><button class="btn sm" id="acct-pull">クラウドから読み込み</button><button class="btn ghost sm" id="acct-logout">ログアウト</button></div>
     <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
@@ -9233,7 +9279,7 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
       }catch(e){ acctBusy=false; cloudAvail=false; renderAcctBox(); } });
     $("#acct-logout").addEventListener("click",()=>{ acctSet(null); acctMsg=""; toast("ログアウトしました（この端末のセーブはそのまま残ります）"); renderAcctBox(); });
     return; }
-  box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>
+  box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>${acctCrashNoteHTML()}
   <p class="small" style="margin:6px 0">名前とパスワードで登録・ログインすると、セーブがサーバーに保存され、どの端末でも続きから遊べます。${cloudAvail===null?"<br>サーバーへの接続を確認しています…":""}</p>
   <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="acct-name" type="text" autocomplete="username" placeholder="名前" maxlength="32" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5;font-size:16px">
   <input id="acct-pass" type="password" autocomplete="current-password" placeholder="パスワード（4文字以上）" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5;font-size:16px"></div>
@@ -9241,25 +9287,31 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
   <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
   const msg=t=>{ acctMsg=t; const m=$("#acct-msg"); if(m)m.textContent=t; };
   const setBusy=b=>{ acctBusy=b; const r=$("#acct-reg"), l=$("#acct-login"); if(r)r.disabled=b; if(l)l.disabled=b; };
+  /* フォレンジクス：フォーカス／入力開始の段階を即時記録する（落ちた箇所の特定用） */
+  const nmIn=$("#acct-name"), pwIn=$("#acct-pass");
+  if(nmIn) nmIn.addEventListener("focus",()=>acctTrace("focus_name"));
+  if(pwIn) pwIn.addEventListener("focus",()=>acctTrace("focus_pass"));
+  let acctInputTraced=false;
+  [nmIn,pwIn].forEach(e=>{ if(e) e.addEventListener("input",()=>{ if(!acctInputTraced){ acctInputTraced=true; acctTrace("input_start"); } }); });
   const creds=()=>{ const n=($("#acct-name").value||"").trim(), p=$("#acct-pass").value||"";
     if(!n){ msg("名前を入力してください"); return null; } if(p.length<4){ msg("パスワードは4文字以上で入力してください"); return null; } return {name:n,password:p}; };
-  $("#acct-reg").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctBusy=true; setBusy(true); msg("");
+  $("#acct-reg").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctTrace("submit_register"); acctBusy=true; setBusy(true); msg("");
     /* 送信前に必ず入力欄のフォーカスを外し、キーボードが閉じ切るまでの間は
        画面の差し替えを保留する（フォーカス中の要素を消すと iPad Safari が落ちる） */
     acctBlurInputs(); acctHold(650);
-    try{ const r=await acctApi("/api/register",c); acctBusy=false; setBusy(false);
-      if(r.data&&r.data.token){ acctSet({name:r.data.name||c.name, token:r.data.token}); acctMsg=""; await acctWaitSafe(); toast("登録しました。今のデータをクラウドに保存します"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); }
+    try{ acctTrace("sending"); const r=await acctApi("/api/register",c); acctTrace("response"); acctBusy=false; setBusy(false);
+      if(r.data&&r.data.token){ acctSet({name:r.data.name||c.name, token:r.data.token}); acctTrace("applied"); acctMsg=""; await acctWaitSafe(); toast("登録しました。今のデータをクラウドに保存します"); renderAcctBox(); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; renderAcctBox(); } }); }
       else msg((r.data&&r.data.error)||"登録できませんでした");
     }catch(e){ acctBusy=false; setBusy(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log("⚠ アカウント登録で接続エラーが発生しました"); }catch(e2){} renderAcctBox(); } });
-  $("#acct-login").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctBusy=true; setBusy(true); msg("");
+  $("#acct-login").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; acctTrace("submit_login"); acctBusy=true; setBusy(true); msg("");
     acctBlurInputs(); acctHold(650);
-    try{ const r=await acctApi("/api/login",c); acctBusy=false; setBusy(false);
-      if(r.data&&r.data.token){ const acc={name:r.data.name||c.name, token:r.data.token}; if(r.data.updatedAt) acc.cloudAt=r.data.updatedAt; acctSet(acc); acctMsg="";
+    try{ acctTrace("sending"); const r=await acctApi("/api/login",c); acctTrace("response"); acctBusy=false; setBusy(false);
+      if(r.data&&r.data.token){ const acc={name:r.data.name||c.name, token:r.data.token}; if(r.data.updatedAt) acc.cloudAt=r.data.updatedAt; acctSet(acc); acctTrace("applied"); acctMsg="";
         const sv=acctParseSave(r.data.save);
         /* 確認ダイアログ（showOverlay で入力欄ごと画面を差し替える）も、
            フォーカスが外れてキーボードが閉じ切ってから表示する */
         if(sv){ await acctWaitSafe(); confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ showSettings(); }); }
-        else { await acctWaitSafe(); toast("ログインしました"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); } }
+        else { await acctWaitSafe(); toast("ログインしました"); renderAcctBox(); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; renderAcctBox(); } }); } }
       else msg((r.data&&r.data.error)||"ログインできませんでした");
     }catch(e){ acctBusy=false; setBusy(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log("⚠ アカウントのログインで接続エラーが発生しました"); }catch(e2){} renderAcctBox(); } });
 }
@@ -9535,6 +9587,7 @@ function renderRank(){
   el.querySelectorAll("[data-leg]").forEach(r=>r.addEventListener("click",()=>{ rankOpen= rankOpen===r.dataset.leg? null : r.dataset.leg; renderAll(); }));
 }
 function showSettings(){
+  acctTrace("settings_open");
   const sc=sndCfg();
   showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><button class="btn" id="set-finance" style="width:100%;margin-bottom:10px">💰 資金繰り（融資・スポンサー支援）</button><button class="btn" id="set-ledger" style="width:100%;margin-bottom:10px">📒 月次明細（収支の内訳）</button><div id="acct-box" style="margin-bottom:10px"></div><details class="fold"><summary>厩舎の決まりごと（ルール集）</summary><div class="foldbody"><div class="small" style="text-align:left;line-height:1.75">
 <b>初期条件</b>：資金 8,000万円／初期馬 アオイソラ 1頭／初期調教師は手塚貴久（初期調教師は雇用費・維持費 0）。他の調教師は能力合計の3乗で費用が跳ね上がります（合計22で維持費 約266万円/週・雇用費 約9,600万円、平凡な調教師は週数万円）。<br>
@@ -9593,7 +9646,7 @@ function showSettings(){
   const finBtn=$("#set-finance"); if(finBtn)finBtn.addEventListener("click",()=>{ $("#overlay").style.display="none"; showFinance(); });
   const ledBtn=$("#set-ledger"); if(ledBtn)ledBtn.addEventListener("click",()=>{ showLedger(); });
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",()=>{ updLbl(); applySet(); }); if(seIn)seIn.addEventListener("input",()=>{ updLbl(); applySet(); });
-  $("#set-ok").addEventListener("click",()=>{ $("#overlay").style.display="none"; renderAll(); });
+  $("#set-ok").addEventListener("click",()=>{ acctTraceClear(); $("#overlay").style.display="none"; renderAll(); });
   renderAcctBox();
   if(cloudAvail===null) acctProbe().then(()=>{ if($("#acct-box")) renderAcctBox(); });
 }
@@ -10559,23 +10612,48 @@ const setBtn=$("#btn-settings"); if(setBtn)setBtn.addEventListener("click",()=>s
 /* サウンド開始はユーザーの操作以降（自動再生制限・iOS Safari対応）：
    pointerdown／touchend／click のいずれでも、操作の同期処理の中で
    AudioContextを生成・resumeする。画面復帰時も resume を試みる */
-["pointerdown","touchend","click"].forEach(ev=>document.addEventListener(ev,auUnlock,{passive:true}));
+/* オーバーレイ内の入力欄へのタップでは音声の初期化／再開をしない。
+   フォーカスと同時に AudioContext の生成・再開が走ると、キーボード表示と
+   競合して iPad Safari の負荷が上がるため、フォーム操作は音と切り離す */
+["pointerdown","touchend","click"].forEach(ev=>document.addEventListener(ev,e=>{ const t=e.target; if(t&&t.closest&&t.closest("#overlay input, #overlay textarea, #overlay select")) return; auUnlock(); },{passive:true}));
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) auUnlock(); });
 document.addEventListener("click",e=>{ if(e.target.closest("button")) auClick(); });
 window.addEventListener("resize",()=>{ if(raceState.phase==="run"&&raceState.simT!==undefined) drawRace(raceState.simT); });
 log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月開始なので、デビューは6月の新馬戦から。それまでは調教で仕上げよう");
 /* 起動：セーブがあれば「つづきから／はじめから」を選ぶ */
 (function boot(){
+  /* 前回のアカウント操作が未完了のまま終わっていたら（＝途中でアプリが
+     落ちた可能性）、落ちた段階を覚えておき、設定画面で表示する */
+  try{ const t=acctTraceRead(); if(t&&t.stage&&t.stage!=="done") acctLastCrashStage=t.stage; }catch(e){}
   /* モーダルの開閉を監視し、表示中は body.ov-open を付ける（CSS 側で背後の
      アプリ全体を不可視にし、合成・アニメーションを止める）。閉じ方は
      呼び出し側ごとに異なる（style.display の直接変更）ため、属性監視で
      すべての経路を一括して拾う */
   try{
     const ovEl=$("#overlay");
-    const syncOv=()=>{ const open=!!ovEl&&ovEl.style.display!=="none"&&ovEl.style.display!==""; document.body.classList.toggle("ov-open", open); };
+    const syncOv=()=>{ const open=!!ovEl&&ovEl.style.display!=="none"&&ovEl.style.display!==""; document.body.classList.toggle("ov-open", open);
+      if(!open){ const box=$("#overlay-box"); if(box&&box.dataset.hFrozen){ delete box.dataset.hFrozen; box.style.height=""; box.style.maxHeight=""; } document.body.classList.remove("acct-editing"); } };
     new MutationObserver(syncOv).observe(ovEl,{attributes:true,attributeFilter:["style"]});
     syncOv();
   }catch(e){}
+  /* 入力フォーカス中はオーバーレイ枠の高さを px で固定する。キーボード表示で
+     dvh が連続変化すると、モーダルの max-height が毎フレーム再計算され、
+     中の長いコンテンツ全体の再レイアウトが走る（iPad Safari でフォーカス
+     した瞬間に落ちる要因のひとつ）。フォーカスした瞬間の高さで固定し、
+     キーボードの開閉アニメーション中はレイアウトを動かさない。
+     アカウント欄に限らず、オーバーレイ内の全入力欄に効かせる */
+  document.addEventListener("focusin",e=>{
+    const t=e.target; if(!t||!(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.tagName==="SELECT")) return;
+    const box=$("#overlay-box"), ov=$("#overlay");
+    if(box&&ov&&ov.style.display!=="none"&&ov.style.display!==""&&box.contains(t)){
+      if(!box.dataset.hFrozen){ box.dataset.hFrozen="1"; box.style.height=box.clientHeight+"px"; box.style.maxHeight="none"; }
+      document.body.classList.add("acct-editing");
+    }
+  });
+  document.addEventListener("focusout",()=>{ setTimeout(()=>{ const ae=document.activeElement, box=$("#overlay-box");
+    if(ae&&box&&box.contains(ae)&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.tagName==="SELECT")) return;
+    if(box&&box.dataset.hFrozen){ delete box.dataset.hFrozen; box.style.height=""; box.style.maxHeight=""; }
+    document.body.classList.remove("acct-editing"); },80); });
   /* 3Dモデル（GLB）の先読みは、起動直後の混雑を避けてアイドル時に回す。
      モーダル表示中・入力中は行わない（iPad のメモリ圧迫を避ける） */
   try{
