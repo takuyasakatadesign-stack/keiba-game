@@ -4288,6 +4288,11 @@ const COND_TMPL=[
   [[4,"O","芝","M"],[1,"M3","芝","S"],[5,"O","ダート","C"],[2,"O","ダート","S"]],
   [[2,"O","芝","M"],[3,"O","芝","L"],[4,"O","ダート","M"],[0,"Y","芝","M"]],
 ];
+/* 距離帯→距離範囲。genRaces() はスクリプト初期化中に呼ばれるため、この const は
+   その呼び出し（refreshMarket(); genRaces();）より前に置く必要がある。
+   後方（slotDist の直前）に置いた時は初期化前参照（TDZ）でスクリプト全体が
+   止まり、メイン画面が描画されなくなった */
+const COND_BANDS={"芝":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,3000]},"ダート":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,2500]}};
 /* 年が変わると位相をずらし、同じ月×同じ顔ぶれが毎年固定される共振を避ける */
 function condPhase(absWeek){ return (absWeek + 2*Math.floor(absWeek/48)) % 6; }
 function condSlots(m,w,absWeek){
@@ -4450,7 +4455,6 @@ function slotSurf(absWeek,i){
   if(i>=2){ const cell=COND_TMPL[condPhase(absWeek)][i-2]; if(cell) return cell[2]; }
   return ((absWeek*7+i*3)%10)<7 ? "芝" : "ダート";
 }
-const COND_BANDS={"芝":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,3000]},"ダート":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,2500]}};
 function slotDist(course,surf,sp,absWeek,i){
   if(i>=2){
     const cell=COND_TMPL[condPhase(absWeek)][i-2];
