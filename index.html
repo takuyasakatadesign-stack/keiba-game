@@ -4060,7 +4060,7 @@ function condChips(h){
   let s=`<span class="mini ${cond[1]}">調子：${cond[0]} ${h.cond}</span><span class="mini ${fat[1]}">疲労：${fat[0]} ${h.fat}</span><span class="mini">馬体重 ${h.weight}kg${h.races>0&&h.wPrev?`（前走比 ${wdiff>=0?"+":""}${wdiff}）`:""}</span>`;
   if(h.entry) s+=`<span class="mini ${entryWeeksLeft(h)<=0?"bad":"warn"}">🏁 ${esc(h.entry.name)} ${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}</span>`;
   if(h.injured>0) s+=`<span class="mini bad">故障 休養${h.injured}週</span>`;
-  if(h.trainsLeft>0&&h.injured===0) s+=`<span class="mini">今週調教 あと${h.trainsLeft}回</span>`;
+  if(h.trainsLeft>0&&(h.injured||0)===0) s+=`<span class="mini">今週調教 あと${h.trainsLeft}回</span>`;
   return s;
 }
 function horseCard(h,extraBtns){
@@ -4570,7 +4570,7 @@ function renderStable(){
   const el=$("#v-stable");
   const ne=nearestEntry();
   const canRaceN=S.races.filter(r=>S.horses.some(h=>!eligible(h,r))).length;
-  const trainN=S.horses.filter(h=>h.trainsLeft>0&&h.injured===0).length;
+  const trainN=S.horses.filter(h=>h.trainsLeft>0&&(h.injured||0)===0).length;
   /* 固定レイアウト：サブタブで分割し、各パネルはページ送りで収める */
   S.horses.forEach((h,i)=>{h.owner=true; h.cardNo=i+1;});
   if(detailOpen){ UI.stable="detail"; detailTab="detail"; detailOpen=false; }
@@ -5418,7 +5418,16 @@ function makeFoalFromTheory(p){
  if(mare&&mare.famousDam&&Math.random()<0.2) f.inheritUnique=true;
  return f;
 }
+/* 週送りの安全装置：途中で例外が出ても、黙って固まらず理由を残して画面を戻す */
 function nextWeek(){
+  try{ nextWeekBody(); }
+  catch(e){
+    try{ log("⚠ 週の処理でエラーが発生しました："+(e&&e.message||e)); }catch(e2){}
+    try{ toast("週の処理でエラーが発生しました（記録に残しました）"); }catch(e3){}
+    try{ renderAll(); }catch(e4){}
+  }
+}
+function nextWeekBody(){
   if(S.gameover)return;
   if(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done"))return; // レース中・レース終了画面からは進めない（帰ってから厩舎で）
   /* エントリーしたレースの週は、走るか取り消すまで絶対に過ぎられない（最も近いレース週で必ず止まる） */
@@ -6142,7 +6151,7 @@ function startRace(r,mine,field){
   raceState.t0=performance.now() + Math.max(r.graded?1700:0, Math.round((raceState._fanSec||0)*1000)); // タイトルカード表示（演奏がある格は演奏時間ぶん）→発馬
   buildCameraPath(); // 中継カメラ経路を再生前に平滑化して確定（シミュレーション時刻基準）
   cancelAnimationFrame(raceState.raf);
-  raceState.raf=requestAnimationFrame(tickRace);
+  raceState.raf=requestAnimationFrame(tickRaceSafe);
   raceState.watch = mine? (S.watchMode||"full") : "full";
   if(raceState.watch==="result"){ cancelAnimationFrame(raceState.raf); raceState.simT=raceEndT(); finishRace(); }
 }
@@ -6219,9 +6228,9 @@ function syncStraightBtn(){
   const dis=raceState.phase!=="run"||!raceState.sim||raceState.simT>=finalStraightT()-0.05;
   if(raceState._sbDis!==dis){ raceState._sbDis=dis; b.disabled=dis; }
 }
-function tickRace(now){
+function tickRaceBody(now){
   if(!raceState.camPath) buildCameraPath();
-  if(raceState.t0 && now<raceState.t0){ drawTitleFrame(); raceState.lastNow=now; raceState.raf=requestAnimationFrame(tickRace); return; } // 重賞タイトルカード表示中は発走を待つ
+  if(raceState.t0 && now<raceState.t0){ drawTitleFrame(); raceState.lastNow=now; raceState.raf=requestAnimationFrame(tickRaceSafe); return; } // 重賞タイトルカード表示中は発走を待つ
   if(raceState.lastNow==null) raceState.lastNow=now;
   const dt=Math.min(0.25,(now-raceState.lastNow)/1000); raceState.lastNow=now; // タブ復帰時などの大きな飛びを抑える
   const simEnd=raceEndT();
@@ -6252,7 +6261,22 @@ function tickRace(now){
     }
   }
   if(raceState.simT>=simEnd){ finishRace(); return; } // 全馬がラインを越え、勝ち馬が流し切ってから結果へ
-  raceState.raf=requestAnimationFrame(tickRace);
+  raceState.raf=requestAnimationFrame(tickRaceSafe);
+}
+/* レース進行の安全装置：1フレームでも例外が出たら rAF 連鎖が黙って切れて
+   レースが止まったままになる（＝「急に進まなくなる」）。例外を捕まえて
+   結果画面への移行を試み、それも無理なら状態を戻して操作を返す */
+function tickRaceSafe(now){
+  try{ tickRaceBody(now); }
+  catch(e){
+    try{ finishRace(); }
+    catch(e2){
+      try{ cancelAnimationFrame(raceState.raf); }catch(e3){}
+      raceState.phase="idle"; raceState.done=false; raceState.sim=null; raceState.vis=null; raceState.result=null;
+      try{ log("⚠ レース処理でエラーが発生したため、厩舎に戻しました："+(e&&e.message||e)); }catch(e4){}
+      try{ switchView("stable"); renderAll(); }catch(e5){}
+    }
+  }
 }
 /* 再生速度ボタンの見た目を現在の倍率に合わせる */
 function syncSpeedBtns(){
@@ -8881,7 +8905,9 @@ function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="of
    ローカル保存と引き継ぎコードは従来どおり使える（ゲームは止まらない）。 */
 const ACCT_KEY="keibaGemu_account";
 let cloudAvail=null; /* null=未確認 / true=APIあり / false=この環境では使えない */
-let acctBusy=false, acctMsg="", acctPushTimer=null;
+let acctBusy=false, acctMsg="", acctPushTimer=null, acctPendingRender=false;
+/* フォーカスが外れたら、保留していたアカウント欄の再描画を反映する */
+document.addEventListener("focusout",()=>{ if(acctPendingRender) setTimeout(()=>{ if($("#acct-box")) renderAcctBox(); },60); });
 function acctGet(){ try{ const a=JSON.parse(localStorage.getItem(ACCT_KEY)||"null"); return (a&&a.name&&a.token)?a:null; }catch(e){ return null; } }
 function acctSet(a){ try{ if(a) localStorage.setItem(ACCT_KEY, JSON.stringify(a)); else localStorage.removeItem(ACCT_KEY); }catch(e){} }
 async function acctApi(path, body, token){
@@ -8914,7 +8940,17 @@ function cloudQueuePush(){ /* オートセーブのタイミングで、ログ�
   if(!acctGet()||cloudAvail===false) return;
   if(acctPushTimer) clearTimeout(acctPushTimer);
   acctPushTimer=setTimeout(()=>{ acctPushTimer=null; cloudPushNow(false); },2500); }
-function renderAcctBox(){ const box=$("#acct-box"); if(!box) return; const a=acctGet();
+function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
+  /* iOS Safari対策：入力欄にフォーカスがある間はフォームを再描画しない。
+     非同期処理（接続確認・保存応答など）の完了に合わせて innerHTML を差し替えると、
+     キーボード表示中のフォーカス要素がDOMから消えて Safari が落ちることがある。
+     その場合はメッセージだけ更新し、本体の差し替えはフォーカスが外れてから行う */
+  const ae=document.activeElement;
+  if(ae&&(ae.id==="acct-name"||ae.id==="acct-pass")){ acctPendingRender=true;
+    const m=$("#acct-msg"); if(m) m.textContent=acctMsg||"";
+    return; }
+  acctPendingRender=false;
+  const a=acctGet();
   if(cloudAvail===false){
     box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b><p class="small" style="margin:6px 0 0">この環境ではクラウド保存を使えません。Vercelで公開しているゲームのURLから開くと、名前とパスワードで登録・ログインして、どの端末でも続きから遊べます。この端末での保存と引き継ぎコードは今までどおり使えます。</p></div>`;
     return; }
@@ -8937,8 +8973,8 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return; const a=acc
     return; }
   box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>
   <p class="small" style="margin:6px 0">名前とパスワードで登録・ログインすると、セーブがサーバーに保存され、どの端末でも続きから遊べます。${cloudAvail===null?"<br>サーバーへの接続を確認しています…":""}</p>
-  <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="acct-name" type="text" autocomplete="username" placeholder="名前" maxlength="32" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5">
-  <input id="acct-pass" type="password" autocomplete="current-password" placeholder="パスワード（4文字以上）" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5"></div>
+  <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="acct-name" type="text" autocomplete="username" placeholder="名前" maxlength="32" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5;font-size:16px">
+  <input id="acct-pass" type="password" autocomplete="current-password" placeholder="パスワード（4文字以上）" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5;font-size:16px"></div>
   <div class="flex mt" style="gap:6px"><button class="btn gold sm" id="acct-reg">新規登録</button><button class="btn sm" id="acct-login">ログイン</button></div>
   <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
   const msg=t=>{ acctMsg=t; const m=$("#acct-msg"); if(m)m.textContent=t; };
@@ -9418,7 +9454,7 @@ function guideDismissed(key){ return guideSkipSet().includes(S.week+":"+key); }
 function guideSteps(){
   const ne=nearestEntry();
   const raceDue=!!(ne&&ne.left<=0);
-  const trainedAll=!S.horses.some(h=>h.trainsLeft>0&&h.injured===0);
+  const trainedAll=!S.horses.some(h=>h.trainsLeft>0&&(h.injured||0)===0);
   const hasEntry=S.horses.some(h=>h.entry);
   const racedDone=raceState.phase==="done";
   const steps=[
@@ -9479,7 +9515,7 @@ function buildGuide(){
     if(!bprops.length) cards.push({key:"breed"+S.week, who:"牧場長・佐伯 恒夫", face:"mgr", text:"配合評価で理論を確認して種付けへ", btn:"生産へ", act:"view", view:"breed", anchor:"breed-form"});
   }
   /* 次走が未定の馬 → ベストな次走をその場で登録 */
-  const unentered=S.horses.filter(h=>!h.entry&&h.injured===0&&h.age>=2);
+  const unentered=S.horses.filter(h=>!h.entry&&(h.injured||0)===0&&h.age>=2);
   for(const h of unentered){
     const sg=suggestNextRaces(h); const top=sg.list[0]; if(!top) continue;
     if(!nEntry) nEntry={title:`${h.name}の次走を決めましょう`, sub:`${top.race.name}（${top.race.course} ${top.race.surf}${top.race.dist}m・${top.race.when||"今週"}）がベストです`};
@@ -9488,13 +9524,13 @@ function buildGuide(){
     break;
   }
   /* 疲労が高い馬 → 休養/放牧 */
-  const tired=S.horses.filter(h=>h.injured===0).sort((a,b)=>b.fat-a.fat)[0];
+  const tired=S.horses.filter(h=>(h.injured||0)===0).sort((a,b)=>b.fat-a.fat)[0];
   if(tired&&tired.fat>=60){
     if(!nTired) nTired={title:`${tired.name}を休ませましょう`, sub:`疲労 ${Math.round(tired.fat)}。故障の前に抜くのが先決です`};
     cards.push({key:"rest"+tired.id, who:"調教師・"+TRAINER.name, face:"trainer", text:`${tired.name}は疲労 ${Math.round(tired.fat)}。放牧でしっかり抜きましょう`, btn:"放牧へ進む", act:"train", hid:tired.id, tid:"bokujou", dis:tired.trainsLeft<=0||S.funds<30});
   }
   /* 調教が残っている馬 → 調教師のおすすめの調教そのものへ着地させる */
-  const untrained=S.horses.find(h=>h.trainsLeft>0&&h.injured===0);
+  const untrained=S.horses.find(h=>h.trainsLeft>0&&(h.injured||0)===0);
   if(untrained){
     const rec=trainerSuggest(untrained)[0];
     if(rec){ const rt=TRAINS.find(x=>x.id===rec.tid);
@@ -9792,7 +9828,7 @@ function autoDigestRace(ne){
     ok=(raceState.phase==="done");
     if(ok){
       const res=(raceState.result&&raceState.result.ownResults)||[];
-      res.forEach(o=>log(`🤖 オート：${o.h.name} は ${r.name} ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
+      res.forEach(o=>log(`🤖 オート：${year()}年${month()}月第${weekInMonth()}週／${o.h.name} は ${r.name} に出走し ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
       raceState.phase="idle";
       switchView("stable");
     }
@@ -9808,16 +9844,32 @@ function autoDigestRace(ne){
   S.watchMode=prevWatch;
   return ok;
 }
-/* 次走提案のベスト候補をそのまま登録する（確認画面は挟まない） */
+/* 次走提案のベスト候補をそのまま登録する（確認画面は挟まない）。
+   登録できない時は黙って素通りせず、理由を記録に残す（週に1回まで）。
+   1位候補が出走条件で落ちる場合は2位・3位候補へ順に切り替える */
+function autoRegFailLog(h,msg){
+  if(!AUTO.regFailLog) AUTO.regFailLog={};
+  const k=h.id+"@"+S.week; if(AUTO.regFailLog[k]) return;
+  AUTO.regFailLog[k]=1;
+  log(`🤖 オート：${h.name} の次走を登録できませんでした ― ${msg}`);
+}
 function autoRegisterBest(h){
-  const sg=suggestNextRaces(h); const pk=sg&&sg.list[0]; if(!pk) return false;
-  const race=pk.race;
-  const cur=S.races.find(x=>x.id===race.id);
-  const rs=cur? eligible(h,cur) : eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
-  if(rs) return false;
-  registerEntry(h,race,S.week+(race.weeks||0));
-  log(`🤖 オート：${h.name} の次走をエントリー方針「${policyName()}」で登録 ― ${race.name}`);
-  return true;
+  if((h.injured||0)>0){ autoRegFailLog(h,`故障の休養中（あと${h.injured}週）です`); return false; }
+  if(h.age<2){ autoRegFailLog(h,"まだ2歳になっていません"); return false; }
+  const sg=suggestNextRaces(h); const list=(sg&&sg.list)||[];
+  if(!list.length){ autoRegFailLog(h,"条件に合うレースの候補が見つかりませんでした（年齢・クラス・季節を確認してください）"); return false; }
+  let lastRs="";
+  for(const pk of list){
+    const race=pk.race;
+    const cur=S.races.find(x=>x.id===race.id);
+    const rs=cur? eligible(h,cur) : eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
+    if(rs){ lastRs=`${race.name}：${rs}`; continue; }
+    registerEntry(h,race,S.week+(race.weeks||0));
+    log(`🤖 オート：${h.name} の次走をエントリー方針「${policyName()}」で登録 ― ${race.name}（${year()}年${race.month||month()}月第${race.week||weekInMonth()}週・あと${race.weeks||0}週）`);
+    return true;
+  }
+  autoRegFailLog(h,`候補のレースすべて出走条件に合いませんでした（${lastRs}）`);
+  return false;
 }
 /* 調教の提案 → 定常指示の設定・変更として反映する（一回実行はしない）。
    疲労系の提案（放牧・休養）は「疲労が閾値を超えたら切り替える」条件付き
@@ -9860,6 +9912,7 @@ function autoCardAction(c,cfg){
     if(cfg.stopFacility){ const rt=facRecommend()[0]; return {type:"stop", reason: rt? `施設の建設提案があります（停止条件：施設）。⭐おすすめは「${rt.f.n}」（${fmt(rt.f.cost)}万円・${rt.f.cat}効果）：${rt.reasons[0]||""}` : "施設の建設提案があります（停止条件：施設）。内容を確認してください"}; }
     const f=FACILITIES.find(x=>x.id===c.fid);
     if(!f||facLv(f.id)>0||facBuilding(f.id)>0||S.funds<f.cost||(f.id!=="base"&&farmSpaces().free<=0)) return {type:"skip"};
+    if(S.funds-f.cost<500) return {type:"skip"}; // 安全弁：建設後に500万円を割る場合は見送る（レース費用・維持費を確保）
     return {type:"run", label:`施設「${f.n}」を建設`, run:()=>{ S.funds-=f.cost; if(!S.facilities)S.facilities={}; if(!S.building)S.building={}; S.facilities[f.id]=1; S.building[f.id]=f.weeks; log(`🏗 施設「${f.n}」の建設を開始（${f.weeks}週）`); }};
   }
   if(c.act==="finance"){
@@ -9886,7 +9939,17 @@ function autoCardAction(c,cfg){
   }
   return {type:"skip"};
 }
+/* オートの安全装置：1手でも例外が出ると setTimeout 連鎖が黙って切れ、
+   理由も表示されずに止まって見える。例外は必ず「理由つきの停止」に変える */
 function autoStep(){
+  try{ autoStepBody(); }
+  catch(e){
+    try{ log("⚠ オート処理でエラー："+(e&&e.message||e)); }catch(e2){}
+    try{ autoStop("内部エラーが発生したため停止しました（手動で続けられます）"); }
+    catch(e3){ AUTO.running=false; try{ renderAutoBar(); renderAll(); }catch(e4){} }
+  }
+}
+function autoStepBody(){
   AUTO.timer=null;
   if(!AUTO.running) return;
   if(S.gameover){ autoStop("ゲームオーバーになりました"); return; }
