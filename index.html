@@ -3459,7 +3459,7 @@ const S={
   loan:null, sponsorReadyWeek:0, sponsorCutUntil:0,
   bets:[], betStats:{bought:0, returned:0, hit:0, count:0}, betHistory:[], raceSpeed:1, camMode:"leader",
   autosaveFreq:"week", pendingYearEnd:null, autoCfg:null, trainerId:"jp122", omakase:false,
-  friendship:{0:35,1:20,2:25,3:15,4:10,5:15}, jockStats:{}, weekReport:[], watchMode:"full",
+  friendship:{0:35,1:20,2:25,3:15,4:10,5:15}, jockStats:{}, weekReport:[], watchMode:"full", betPct:0,
   facilities:{}, building:{}, mgrPost:null, fame:0,
   pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0,
   club:null, sale:null, saleWeekKey:"", clubOffers:[], ended:false, springFlags:{}, overseasFarm:null, clubFarm:false,
@@ -4783,16 +4783,20 @@ function sponsorGrant(){ return 1500 + (S.champions||0)*500; }
 function sponsorAvailable(){ return S.week>=(S.sponsorReadyWeek||0); }
 function horseSellPrice(h){ const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5; return Math.max(200, Math.round(ab*10 + (h.earnings||0)*0.3)); }
 function canRescue(){ return loanCapacity()>=100 || sponsorAvailable() || S.horses.length>0; }
-function takeLoan(){
-  const cap=loanCapacity(), need=Math.min(cap, 1200-S.funds);
-  if(need<100){ toast("これ以上は借りられません"); showDistress(); return; }
-  const total=Math.ceil(need*1.15); // 利息15%を上乗せした返済総額
+/* 融資は「資金が足りない時」専用ではない：資金があっても、借入限度額の
+   残り枠の範囲ならいつでも・いくらでも（100万円以上）借りられる */
+function takeLoan(amt){
+  const cap=loanCapacity();
+  amt=Math.floor(+amt||0);
+  if(amt>cap) amt=cap;
+  if(amt<100){ toast(cap<100? "借入限度額に達しているため、これ以上は借りられません" : "借入金額は100万円以上で入力してください"); return; }
+  const total=Math.ceil(amt*1.15); // 利息15%を上乗せした返済総額
   const rem=loanOutstanding()+total;
   S.loan={remaining:rem, weekly:Math.ceil(rem/12), weeksLeft:12, missed:0};
-  S.funds+=need;
-  log(`🏦 銀行融資 ${fmt(need)}万円を受けた（返済総額 ${fmt(rem)}万円／12週・週 ${fmt(S.loan.weekly)}万円ずつ自動返済）`);
+  S.funds+=amt;
+  log(`🏦 銀行融資 ${fmt(amt)}万円を受けた（返済総額 ${fmt(rem)}万円／12週・週 ${fmt(S.loan.weekly)}万円ずつ自動返済）`);
   saveAuto(true); renderAll();
-  if(S.funds<0) showDistress(); else { $("#overlay").style.display="none"; toast("融資を受けました"); }
+  if(S.funds<0) showDistress(true); else { $("#overlay").style.display="none"; toast("融資を受けました"); }
 }
 function takeSponsor(){
   if(!sponsorAvailable()) return;
@@ -4818,9 +4822,12 @@ let dsPage=0;
 function showDistress(force){
   if(S.gameover || (S.funds>=0 && !force)) return;
   const dsPages=Math.max(1,Math.ceil(S.horses.length/2)); dsPage=clamp(dsPage,0,dsPages-1);
-  const cap=loanCapacity(), need=Math.min(cap, 1200-S.funds);
-  const loanHtml= need>=100
-    ? `<div class="ticket"><b>🏦 銀行融資</b><div class="mt"><button class="btn gold" id="ds-loan">${fmt(need)}万円 を借りる</button></div><span class="small">利息15%・返済総額 ${fmt(loanOutstanding()+Math.ceil(need*1.15))}万円を12週間で週 ${fmt(Math.ceil((loanOutstanding()+Math.ceil(need*1.15))/12))}万円ずつ自動返済。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）。返済が2回続けて滞ると融資打ち切り＝破産です。</span></div>`
+  const cap=loanCapacity();
+  /* 借入金額は固定ではない：資金が潤沢でも残り枠まで借りられるよう、金額を選べる形にする。
+     既定値は、資金が厳しい時は「1200万円まで立て直す額」、余裕がある時は1000万円 */
+  const defLoan= Math.max(100, Math.min(cap, S.funds<1200? 1200-S.funds : 1000));
+  const loanHtml= cap>=100
+    ? `<div class="ticket"><b>🏦 銀行融資</b><span class="small">（資金があっても借りられます）</span><div class="mt flex"><input type="number" inputmode="numeric" pattern="[0-9]*" id="ds-loan-amt" min="100" step="100" max="${cap}" value="${defLoan}" style="width:118px" aria-label="借入金額（万円）"><span>万円</span><button class="btn gold" id="ds-loan">借りる</button></div><div class="flex mt">${[500,1000,2000].filter(a=>a<cap).map(a=>`<button class="btn ghost sm" data-loan-set="${a}">${fmt(a)}万円</button>`).join("")}<button class="btn ghost sm" data-loan-set="${cap}">枠いっぱい（${fmt(cap)}万円）</button></div><span class="small" id="ds-loan-prev"></span><br><span class="small">利息15%・返済は12週間で週割りの自動返済（追加で借りると、残高合計で週返済額を再計算します）。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）${S.loan?`／現在の借入残高 ${fmt(loanOutstanding())}万円`:""}。返済が2回続けて滞ると融資打ち切り＝破産です。</span></div>`
     : `<div class="ticket"><b>🏦 銀行融資</b><br><span class="small">借入限度額（${fmt(loanLimit())}万円）に達しているため、これ以上は借りられません。</span></div>`;
   const sponsorHtml= sponsorAvailable()
     ? `<div class="ticket"><b>🤝 スポンサー支援</b><div class="mt"><button class="btn" id="ds-sponsor">${fmt(sponsorGrant())}万円 の支援を受ける</button></div><span class="small">条件つき：今後12週間、レースで得た賞金の30%をスポンサーへ。利用できるのは48週に1回まで。</span></div>`
@@ -4829,12 +4836,20 @@ function showDistress(force){
     ? S.horses.slice(dsPage*2, dsPage*2+2).map(h=>`<div class="ticket"><b>${esc(h.name)}</b> <span class="small">${h.age}歳／${h.wins}勝／獲得賞金 ${fmt(h.earnings||0)}万円${h.entry?"／エントリー中（売却すると取消）":""}</span><div class="mt"><button class="btn sm red" data-ds-sell="${h.id}">緊急売却（${fmt(horseSellPrice(h))}万円）</button></div></div>`).join("") + (dsPages>1?`<div class="pager"><button class="btn ghost sm" data-ds-pg="-1" ${dsPage<=0?"disabled":""}>← 前</button><span>${dsPage+1} / ${dsPages}</span><button class="btn ghost sm" data-ds-pg="1" ${dsPage>=dsPages-1?"disabled":""}>次 →</button></div>`:"")
     : `<p class="small">売却できる所有馬がいません。</p>`;
   showOverlay(`<h2>${S.funds<0?"資金が底をつきました":"資金繰りの相談"}</h2>
-   <p><img src="assets/secretary-worried.webp" alt="秘書・佐倉澪" style="width:58px;height:58px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px"><b>秘書・佐倉 澪</b><br>${S.funds<0?`資金が <b style="color:#ff4b4b">${fmt(S.funds)}万円</b> になってしまいました…。でも、まだ立て直す方法があります。どれで凌ぎましょうか。`:`資金はあと <b>${fmt(S.funds)}万円</b> です。底をつく前に、融資かスポンサー支援で備えておきましょうか。`}</p>
+   <p><img src="assets/secretary-worried.webp" alt="秘書・佐倉澪" style="width:58px;height:58px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px"><b>秘書・佐倉 澪</b><br>${S.funds<0?`資金が <b style="color:#ff4b4b">${fmt(S.funds)}万円</b> になってしまいました…。でも、まだ立て直す方法があります。どれで凌ぎましょうか。`:`資金は <b>${fmt(S.funds)}万円</b> です。お金があっても、融資は限度額の範囲でいつでも借りられますし、スポンサー支援も依頼できます。大きな出費の前に備えておきますか。`}</p>
    ${loanHtml}${sponsorHtml}
    <p style="margin:10px 0 4px"><b>馬を緊急売却する</b></p>${sellHtml}
    <div class="flex" style="justify-content:center;margin-top:10px"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる（様子を見る）</button></div>
    <p class="small">閉じても、資金がマイナスのまま週を進めると再び提示されます。融資枠もスポンサーも馬も無い状態でマイナスになると破産です。</p>`);
-  const lb=$("#ds-loan"); if(lb) lb.addEventListener("click", takeLoan);
+  /* 融資：金額入力に連動して返済プレビュー（総額・週返済）を更新し、クイックボタンで金額をセットできる */
+  const li=$("#ds-loan-amt"), lp=$("#ds-loan-prev");
+  const updLoanPrev=()=>{ if(!li||!lp)return; let a=Math.floor(+li.value||0); if(a>cap)a=cap;
+    if(a<100){ lp.textContent="100万円から借りられます。"; return; }
+    const tot=loanOutstanding()+Math.ceil(a*1.15);
+    lp.textContent=`${fmt(a)}万円を借りると → 返済総額 ${fmt(tot)}万円／週 ${fmt(Math.ceil(tot/12))}万円ずつ12週間で自動返済`; };
+  if(li){ li.addEventListener("input",updLoanPrev); updLoanPrev(); }
+  document.querySelectorAll("[data-loan-set]").forEach(b=>b.addEventListener("click",()=>{ if(li){ li.value=b.dataset.loanSet; updLoanPrev(); } }));
+  const lb=$("#ds-loan"); if(lb) lb.addEventListener("click",()=>takeLoan(li?li.value:0));
   const sb=$("#ds-sponsor"); if(sb) sb.addEventListener("click", takeSponsor);
   document.querySelectorAll("[data-ds-sell]").forEach(b=>b.addEventListener("click",()=>distressSell(+b.dataset.dsSell)));
   document.querySelectorAll("[data-ds-pg]").forEach(b=>b.addEventListener("click",()=>{ dsPage+=+b.dataset.dsPg; showDistress(true); }));
@@ -5046,7 +5061,7 @@ function renderOwnSettings(r){
     </div>
     ${(()=>{ const ex=(S.bets||[]).find(b=>b.raceId===r.id&&b.type==="tan"&&b.picks[0]===h._gate);
       if(ex) return `<div class="ownbet done">🎫 単勝購入済み：<b>${ex.stake.toLocaleString("ja-JP",{maximumFractionDigits:2})}万円</b>（${h._gate}番 ${esc(h.name)}・オッズ ${ex.odds}倍）／的中時払戻 <b>${fmt(Math.floor(ex.stake*ex.odds))}万円</b><span class="small">結果画面で精算されます</span></div>`;
-      return `<div class="ownbet"><span>🎫 単勝（${h._gate}番・オッズ <b>${h._tanOdds||"-"}</b>倍）</span><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="100" placeholder="金額（円）" data-osbet-amt="${h.id}" style="width:132px" aria-label="${esc(h.name)}の単勝購入金額（円）"><button class="btn gold sm" data-osbet="${h.id}">単勝を買う</button><span class="small" data-osbet-msg="${h.id}">100円単位／資金の範囲で買えます</span></div>`; })()}
+      return `<div class="ownbet"><span>🎫 単勝（${h._gate}番・オッズ <b>${h._tanOdds||"-"}</b>倍）</span><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" step="100" placeholder="金額（円）" data-osbet-amt="${h.id}" style="width:132px" aria-label="${esc(h.name)}の単勝購入金額（円）"><button class="btn gold sm" data-osbet="${h.id}">単勝を買う</button><span class="small" data-osbet-msg="${h.id}">${S.betPct>0?`基本設定：買わなければ開始時に資金の${S.betPct}%（約${fmt(Math.floor(Math.max(0,S.funds)*S.betPct)/100)}万円）を自動購入／`:""}100円単位／資金の範囲で買えます</span></div>`; })()}
     <div class="small mt">作戦・騎手・観戦方法は、変更した時点でそのまま反映されます（確定ボタンはありません）。</div>
     </div>`;
   }).join("") + `<div class="flex mt"><button class="btn gold" id="btn-cardstart">🏁 レース開始</button></div>`;
@@ -5220,6 +5235,23 @@ function startRace(r,mine,field){
     S.funds-=totalFee;
   }
   all.forEach((h,i)=>{ if(!h._gate)h._gate=i+1; });
+  /* --- 基本設定：自厩舎馬の単勝を「所有資金の○%」で自動購入する ---
+     設定（S.betPct）がある時だけ、レース開始時点で未購入の自厩舎馬全頭に適用する。
+     手動購入と同じ S.bets 形式で積むので、結果画面の精算もそのまま連動する。
+     オートで消化されるレースも startRace を通るため、同じルールで買われる */
+  const autoBetPct=[0,1,3,5,10].includes(+S.betPct)?+S.betPct:0;
+  if(autoBetPct>0&&owns.length){
+    freezePopularity(all,r); // オッズ未確定の経路（オート消化など）でも単勝オッズを確定させる
+    for(const h of owns){
+      if(!h._tanOdds) continue;
+      if((S.bets||[]).some(x=>x.raceId===r.id&&x.type==="tan"&&x.picks[0]===h._gate)) continue; // 購入済みは二重に買わない
+      const stake=Math.floor(Math.max(0,S.funds)*autoBetPct)/100; // 資金の○%を100円（0.01万円）単位に切り捨て
+      if(stake<0.01||stake>S.funds) continue;
+      S.funds-=stake; S.betStats.bought+=stake; S.betStats.count++;
+      S.bets.push({raceId:r.id, raceName:r.name, type:"tan", picks:[h._gate], hid:h.id, stake, odds:h._tanOdds});
+      log(`🎫 基本設定で単勝を自動購入：${r.name} ${h._gate}番 ${h.name} ${stake.toLocaleString("ja-JP",{maximumFractionDigits:2})}万円（資金の${autoBetPct}%）`);
+    }
+  }
   /* --- 展開（ペース）判定：前に行く馬の頭数で決まる --- */
   const fronts=all.filter(h=>tacOf(h).pos>=0.8);
   const slowCaller=fronts.length===1 && (tacOf(fronts[0]).id==="ohnige"||fronts[0].tactic2==="slow");
@@ -7502,7 +7534,7 @@ function renderChrome(){
 let booted=false;
 const SAVE_KEY="keibaGemu_";
 function saveData(){ return {v:3, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, sound:S.sound||{on:true,bgm:0.6,se:0.9},
- friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
+ friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"",
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre"}; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); const el=$("#hud-saved"); if(el)el.textContent="✔ 保存済み"; }catch(e){} }
@@ -7721,7 +7753,7 @@ function renderRank(){
 }
 function showSettings(){
   const sc=sndCfg();
-  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>冠名（自厩舎の命名）</summary><div class="foldbody">
+  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><button class="btn" id="set-finance" style="width:100%;margin-bottom:10px">💰 資金繰り（融資・スポンサー支援）</button><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option></select></label></div></details><details class="fold"><summary>冠名（自厩舎の命名）</summary><div class="foldbody">
   <label class="small">冠名ワード（空欄なら付けません。生産した仔馬など、自厩舎の馬の自動命名に付きます）<br><input type="text" id="set-crown" style="width:100%" maxlength="8" placeholder="例：サクラ" value="${esc(S.crownName||"")}"></label><br><br>
   <label class="small">付ける位置<br><select id="set-crownpos" style="width:100%"><option value="pre" ${S.crownPos!=="post"?"selected":""}>頭に付ける（例：サクラ＋名前）</option><option value="post" ${S.crownPos==="post"?"selected":""}>尻に付ける（例：名前＋サクラ）</option></select></label>
   <p class="small mt">これから生まれる仔馬の名前に反映されます。すで��いる馬の名前は変わりません。</p></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
@@ -7732,7 +7764,9 @@ function showSettings(){
     <tr><td>その他の重賞</td><td><select id="set-wm-graded" style="width:100%">${opts(wm.graded)}</select></td></tr>
     <tr><td>条件戦など</td><td><select id="set-wm-cond" style="width:100%">${opts(wm.cond)}</select></td></tr></table>
     <label class="small">識別マーカー（レース中の自馬マーク）<br><select id="set-mark" style="width:100%"><option value="on" ${S.markOn!==false?"selected":""}>ON（表示する）</option><option value="off" ${S.markOn===false?"selected":""}>OFF（表示しない）</option></select></label><br><br>`; })()}
-  <label class="small">観戦方法の既定値<br><select id="set-watch" style="width:100%"><option value="full" ${S.watchMode==="full"?"selected":""}>フル観戦</option><option value="digest" ${S.watchMode==="digest"?"selected":""}>ダイジェスト</option><option value="result" ${S.watchMode==="result"?"selected":""}>結果だけ</option></select></label></div></details><details class="fold"><summary>サウンド</summary><div class="foldbody">
+  <label class="small">観戦方法の既定値<br><select id="set-watch" style="width:100%"><option value="full" ${S.watchMode==="full"?"selected":""}>フル観戦</option><option value="digest" ${S.watchMode==="digest"?"selected":""}>ダイジェスト</option><option value="result" ${S.watchMode==="result"?"selected":""}>結果だけ</option></select></label></div></details><details class="fold"><summary>馬券の基本設定</summary><div class="foldbody">
+  <label class="small">自厩舎馬の単勝 自動購入（レース開始時に、所有資金の下記割合で自厩舎の出走馬の単勝を自動で買います。すでに単勝を買っている馬には買いません）<br><select id="set-betpct" style="width:100%"><option value="0" ${!S.betPct?"selected":""}>買わない</option>${[1,3,5,10].map(p=>`<option value="${p}" ${S.betPct===p?"selected":""}>資金の${p}%</option>`).join("")}</select></label>
+  <p class="small mt">購入金額は100円単位に切り捨てます。複数頭が出走する場合は1頭ごとに、その時点の資金の割合で買います。オートで消化されるレースにも適用されます。</p></div></details><details class="fold"><summary>サウンド</summary><div class="foldbody">
   <label class="small">サウンド<br><select id="set-snd" style="width:100%"><option value="on" ${sc.on?"selected":""}>ON（BGM・歓声・効果音）</option><option value="off" ${sc.on?"":"selected"}>OFF（ミュート）</option></select></label><br><br>
   <label class="small">BGM音量 <span id="set-bgm-v">${Math.round(sc.bgm*100)}</span><br><input type="range" id="set-bgm" min="0" max="100" value="${Math.round(sc.bgm*100)}" style="width:100%"></label><br>
   <label class="small">効果音・歓声音量 <span id="set-se-v">${Math.round(sc.se*100)}</span><br><input type="range" id="set-se" min="0" max="100" value="${Math.round(sc.se*100)}" style="width:100%"></label>
@@ -7741,12 +7775,14 @@ function showSettings(){
   /* 確定ボタンは廃止：変更した瞬間に反映・保存する */
   const applySet=()=>{ const g=id=>{ const e=$(id); return e?e.value:null; };
     if(g("#set-auto")!=null)S.autosaveFreq=g("#set-auto"); if(g("#set-cam")!=null)S.camMode=g("#set-cam"); if(g("#set-watch")!=null)S.watchMode=g("#set-watch");
+    if(g("#set-betpct")!=null)S.betPct=+g("#set-betpct");
     if(g("#set-crown")!=null)S.crownName=g("#set-crown").replace(/[<>&"']/g,"").slice(0,8); if(g("#set-crownpos")!=null)S.crownPos=g("#set-crownpos")==="post"?"post":"pre";
     if(g("#set-wm-g1")!=null)S.watchMatrix={g1:g("#set-wm-g1"), graded:g("#set-wm-graded"), cond:g("#set-wm-cond")};
     if(g("#set-mark")!=null)S.markOn=g("#set-mark")==="on";
     if(g("#set-snd")!=null)S.sound={on:g("#set-snd")==="on", bgm:(+($("#set-bgm")?$("#set-bgm").value:60))/100, se:(+($("#set-se")?$("#set-se").value:90))/100};
     if(auInit())auApply(); saveAuto(true); };
-  ["#set-auto","#set-cam","#set-watch","#set-wm-g1","#set-wm-graded","#set-wm-cond","#set-mark","#set-snd","#set-crown","#set-crownpos"].forEach(id=>{ const e=$(id); if(e)e.addEventListener("change",applySet); });
+  ["#set-auto","#set-cam","#set-watch","#set-betpct","#set-wm-g1","#set-wm-graded","#set-wm-cond","#set-mark","#set-snd","#set-crown","#set-crownpos"].forEach(id=>{ const e=$(id); if(e)e.addEventListener("change",applySet); });
+  const finBtn=$("#set-finance"); if(finBtn)finBtn.addEventListener("click",()=>{ $("#overlay").style.display="none"; showFinance(); });
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",()=>{ updLbl(); applySet(); }); if(seIn)seIn.addEventListener("input",()=>{ updLbl(); applySet(); });
   $("#set-ok").addEventListener("click",()=>{ $("#overlay").style.display="none"; renderAll(); });
 }
@@ -7768,6 +7804,7 @@ function applySave(d){
   else S.worldHorses=defaultWorld();
   if(d.friendship)S.friendship=d.friendship; if(d.jockStats)S.jockStats=d.jockStats;
   S.watchMode=["full","digest","result"].includes(d.watchMode)?d.watchMode:"full";
+  S.betPct=[0,1,3,5,10].includes(+d.betPct)?+d.betPct:0; /* 単勝の基本設定（旧セーブには無いので0＝買わない で補う） */
   S.guideSkip=Array.isArray(d.guideSkip)?d.guideSkip:[];
   /* セール開催週に再読み込みしてもセールと「セールを見る」提案が消えないよう、開催状態も復元する */
   S.sale=(d.sale&&Array.isArray(d.sale.list))?d.sale:null; S.saleWeekKey=d.saleWeekKey||"";
