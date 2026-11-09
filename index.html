@@ -2109,12 +2109,13 @@ function auNote(freq,t,dur,type,vol,dest){
 }
 /* パッド：デチューンした2声＋サインで厚みを作り、ゆっくり立ち上がる弦風の音 */
 function auPad(freq,t,dur,vol,pan){
-  const ctx=AU.ctx, out=auPan(ctx.createGain(),pan); out.connect(AU.bgmGain);
-  out.gain.setValueAtTime(0.0001,t); out.gain.exponentialRampToValueAtTime(Math.max(0.0011,vol),t+0.38);
-  out.gain.setValueAtTime(Math.max(0.0011,vol),t+Math.max(0.4,dur-0.45)); out.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  const ctx=AU.ctx, g0=ctx.createGain(), out=auPan(g0,pan); out.connect(AU.bgmGain);
+  /* エンベロープはゲインノード g0 に付ける（auPan の戻り値は StereoPanner のことがあり gain を持たない） */
+  g0.gain.setValueAtTime(0.0001,t); g0.gain.exponentialRampToValueAtTime(Math.max(0.0011,vol),t+0.38);
+  g0.gain.setValueAtTime(Math.max(0.0011,vol),t+Math.max(0.4,dur-0.45)); g0.gain.exponentialRampToValueAtTime(0.0001,t+dur);
   [[-6,"triangle",1],[6,"triangle",0.9],[0,"sine",0.8]].forEach(([det,ty,vr])=>{
     const o=ctx.createOscillator(), g=ctx.createGain(); o.type=ty; o.frequency.value=freq; o.detune.value=det; g.gain.value=vr;
-    o.connect(g); g.connect(out); o.start(t); o.stop(t+dur+0.05);
+    o.connect(g); g.connect(g0); o.start(t); o.stop(t+dur+0.05);
   });
 }
 /* プラック：倍音を添えたピアノ風の単音（主旋律用） */
@@ -2189,7 +2190,8 @@ function auSetMode(m){
   if(AU.mode===m)return;
   AU.mode=m; AU.step=0; AU.nextT=AU.ctx.currentTime+0.06;
   if(AU.timer){clearInterval(AU.timer); AU.timer=0;}
-  if(m){ auSchedule(); AU.timer=setInterval(auSchedule,240); }
+  /* 音声スケジュールの例外で呼び出し側（レース開始・クリック処理など）を止めない */
+  if(m){ try{ auSchedule(); }catch(e){} AU.timer=setInterval(()=>{ try{ auSchedule(); }catch(e){} },240); }
 }
 /* ---- レース前のファンファーレ：格で編成と長さを変える（実競馬の入場演奏に寄せる） ----
    G1（cls8）＝金管フル編成＋ティンパニ＋シンバルの荘厳なロング版
@@ -4254,12 +4256,29 @@ function policyAdjust(h,r,why){
   const p=entryPolicy(); let d=0;
   const graded=(r.graded||r.cls>=6), weeks=r.weeks||0;
   const hc= h.races===0?0 : h.wins===0?1 : clamp(1+h.wins,2,5);
-  if(p.id==="winrate"&&h.races>0){
-    const srR=recRate((h.surfRec||{})[r.surf]), drR=recRate((h.distRec||{})[distBand(r.dist)]), rrC=recRate((ensureCourseRec(h)||{})[r.course]);
-    const proven=[[srR,"馬場"],[drR,"距離帯"],[rrC,"競馬場"]].filter(x=>x[0]&&x[0].n>=2&&x[0].top3>=0.5).map(x=>x[1]);
-    if(proven.length){ d+=7*proven.length; why.push(`勝率方針：${proven.join("・")}で実績があり、勝ちやすい条件です`); }
-    if(!graded&&r.cls<=hc) d+=5;
-    if(graded&&(h.gWins||0)===0&&(h.wins||0)<3){ d-=12; why.push(`勝率方針：実績が届いていない格上挑戦は控えめに評価します`); }
+  if(p.id==="winrate"){
+    /* 勝率方針の中核：相手の強さ（クラス別の相手基礎値＝makeRivals と同じ物差し）と
+       自分の能力（ability＝着順計算と同じ物差し）を比べ、「勝ち切れる相手関係か」を
+       大きく評価する。格が上がるほど相手は強くなるので、能力が届かない格上挑戦は
+       強く避け、勝ち切れるクラス・条件を優先する。未出走馬にも適用する
+       （従来は実績条件の微調整だけで、相手の強さを見ていなかった） */
+    const baseByCls=[52,54,60,65,72,78,84,88,93];
+    const yrB= r.cls>=2? Math.min(5, Math.max(0, year()-1)) : 0;
+    const rivalBase=(baseByCls[clamp(r.cls||0,0,8)]||60)+yrB;
+    let ownAb=0; try{ ownAb=ability(h,r,jockOf(h)); }catch(e){ ownAb=0; }
+    if(ownAb>0){
+      const margin=ownAb-rivalBase;
+      d+=clamp(margin*2.4,-34,22);
+      if(margin>=4) why.push(`勝率方針：相手関係に勝ち切れる力があります（能力差 約+${Math.round(margin)}）`);
+      else if(margin<=-6) why.push(`勝率方針：相手が強く、勝ち切るのは厳しい相手関係です（能力差 約${Math.round(margin)}）`);
+    }
+    if(h.races>0){
+      const srR=recRate((h.surfRec||{})[r.surf]), drR=recRate((h.distRec||{})[distBand(r.dist)]), rrC=recRate((ensureCourseRec(h)||{})[r.course]);
+      const proven=[[srR,"馬場"],[drR,"距離帯"],[rrC,"競馬場"]].filter(x=>x[0]&&x[0].n>=2&&x[0].top3>=0.5).map(x=>x[1]);
+      if(proven.length){ d+=7*proven.length; why.push(`勝率方針：${proven.join("・")}で実績があり、勝ちやすい条件です`); }
+      if(!graded&&r.cls<=hc) d+=5;
+      if(graded&&(h.gWins||0)===0&&(h.wins||0)<3){ d-=12; why.push(`勝率方針：実績が届いていない格上挑戦は控えめに評価します`); }
+    }
   } else if(p.id==="cond"){
     const fatAt=Math.max(0,h.fat-7*weeks);
     if(fatAt<=25){ d+=10; if(weeks>0) why.push(`コンディション方針：その頃には疲労が${fatAt}まで抜けています`); }
@@ -5956,9 +5975,10 @@ function startRace(r,mine,field){
      ファンファーレ演奏を入れ、演奏が終わるまで発走を待たせる（実競馬の入場演奏）。
      「結果だけ」観戦では演奏しない（即時消化のため） */
   raceState._fanSec=0;
-  if(auInit()){ auSetMode("race"); auSetCrowd(0.12,0.8); AU.hoofM=-99; raceState._gateSnd=false;
+  /* サウンド切替の例外でレース開始そのものを失敗させない（音は止まってもレースは進める） */
+  try{ if(auInit()){ auSetMode("race"); auSetCrowd(0.12,0.8); AU.hoofM=-99; raceState._gateSnd=false;
     const wmode = mine? (S.watchMode||"full") : "full";
-    if(wmode!=="result") raceState._fanSec=auFanfareFor(r.cls); }
+    if(wmode!=="result") raceState._fanSec=auFanfareFor(r.cls); } }catch(e){ raceState._fanSec=0; }
   switchView("race"); renderRaceScreen($("#v-race"));
   raceState.elapsed=0; raceState.subtitle=""; raceState.subName="";
   raceState.t0=performance.now() + Math.max(r.graded?1700:0, Math.round((raceState._fanSec||0)*1000)); // タイトルカード表示（演奏がある格は演奏時間ぶん）→発馬
@@ -8653,7 +8673,97 @@ function saveData(){ return {v:3, at:Date.now(), HID, funds:S.funds, week:S.week
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[],
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre"}; }
-function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); const el=$("#hud-saved"); if(el)el.textContent="✔ 保存済み"; }catch(e){} }
+function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); const el=$("#hud-saved"); if(el)el.textContent="✔ 保存済み"; }catch(e){} cloudQueuePush(); }
+/* ============ アカウント連携（名前＋パスワード／クラウド保存） ============
+   サーバー側は同一オリジンの /api（Vercel Functions）が担う：
+   ・POST /api/register {name,password} → {token, name} / {error}
+   ・POST /api/login    {name,password} → {token, name, save, updatedAt}
+   ・POST /api/save     (Authorization: Bearer) {save} → {ok, updatedAt}
+   ・POST /api/load     (Authorization: Bearer)        → {save, updatedAt}
+   パスワードはハッシュ化せずそのまま送る（サーバー側で処理・HTTPS前提）。
+   トークンはこの端末の localStorage に保持し、次回起動時にログイン状態を復元する。
+   APIに届かない環境（Museカード内など）ではアカウント機能だけが無効になり、
+   ローカル保存と引き継ぎコードは従来どおり使える（ゲームは止まらない）。 */
+const ACCT_KEY="keibaGemu_account";
+let cloudAvail=null; /* null=未確認 / true=APIあり / false=この環境では使えない */
+let acctBusy=false, acctMsg="", acctPushTimer=null;
+function acctGet(){ try{ const a=JSON.parse(localStorage.getItem(ACCT_KEY)||"null"); return (a&&a.name&&a.token)?a:null; }catch(e){ return null; } }
+function acctSet(a){ try{ if(a) localStorage.setItem(ACCT_KEY, JSON.stringify(a)); else localStorage.removeItem(ACCT_KEY); }catch(e){} }
+async function acctApi(path, body, token){
+  const ctl=("AbortController" in window)? new AbortController():null;
+  const to=ctl? setTimeout(()=>ctl.abort(), 9000):null;
+  try{
+    const res=await fetch(path,{method:"POST", headers:Object.assign({"Content-Type":"application/json"}, token?{"Authorization":"Bearer "+token}:{}), body:JSON.stringify(body||{}), signal:ctl?ctl.signal:undefined});
+    const text=await res.text();
+    let data=null; try{ data=JSON.parse(text); }catch(e){}
+    if(data==null) throw new Error("noapi"); /* JSONで返らない＝APIの無い環境 */
+    return {status:res.status, data};
+  } finally { if(to) clearTimeout(to); }
+}
+async function acctProbe(){ if(cloudAvail!==null) return cloudAvail;
+  try{ await acctApi("/api/load",{}); cloudAvail=true; }catch(e){ cloudAvail=false; }
+  return cloudAvail; }
+function acctParseSave(sv){ if(typeof sv==="string"){ try{ sv=JSON.parse(sv); }catch(e){ return null; } } return (sv&&Array.isArray(sv.horses))? sv : null; }
+function acctDate(ts){ if(!ts) return ""; try{ return new Date(ts).toLocaleString("ja-JP"); }catch(e){ return ""; } }
+function acctApplyCloud(sv){ const d=acctParseSave(sv); if(!d){ toast("クラウドのセーブを読み込めませんでした"); return; }
+  applySave(d); booted=true; raceState.phase="idle"; const ov=$("#overlay"); if(ov) ov.style.display="none"; renderAll();
+  try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); }catch(e){}
+  toast("クラウドのセーブを読み込みました"); }
+async function cloudPushNow(manual){ const a=acctGet(); if(!a) return false;
+  try{ const r=await acctApi("/api/save",{save:saveData()},a.token);
+    if(r.status===401){ acctSet(null); acctMsg="ログインが切れました。もう一度ログインしてください"; renderAcctBox(); return false; }
+    if(r.data&&r.data.ok){ if(r.data.updatedAt){ a.cloudAt=r.data.updatedAt; acctSet(a); } if(manual) toast("クラウドに保存しました"); return true; }
+    if(manual) toast((r.data&&r.data.error)||"クラウド保存に失敗しました"); return false;
+  }catch(e){ cloudAvail=false; if(manual){ toast("サーバーに接続できず、クラウド保存できませんでした"); renderAcctBox(); } return false; } }
+function cloudQueuePush(){ /* オートセーブのタイミングで、ログイン中ならクラウドへも保存する（連続保存は間引く） */
+  if(!acctGet()||cloudAvail===false) return;
+  if(acctPushTimer) clearTimeout(acctPushTimer);
+  acctPushTimer=setTimeout(()=>{ acctPushTimer=null; cloudPushNow(false); },2500); }
+function renderAcctBox(){ const box=$("#acct-box"); if(!box) return; const a=acctGet();
+  if(cloudAvail===false){
+    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b><p class="small" style="margin:6px 0 0">この環境ではクラウド保存を使えません。Vercelで公開しているゲームのURLから開くと、名前とパスワードで登録・ログインして、どの端末でも続きから遊べます。この端末での保存と引き継ぎコードは今までどおり使えます。</p></div>`;
+    return; }
+  if(a){
+    box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>
+    <p class="small" style="margin:6px 0">ログイン中：<b>${esc(a.name)}</b> さん${a.cloudAt?`<br>クラウドの保存日時：${esc(acctDate(a.cloudAt))}`:""}<br>オートセーブのたびに、クラウドへも自動で保存されます。</p>
+    <div class="flex" style="flex-wrap:wrap;gap:6px"><button class="btn sm" id="acct-push">クラウドへ保存</button><button class="btn sm" id="acct-pull">クラウドから読み込み</button><button class="btn ghost sm" id="acct-logout">ログアウト</button></div>
+    <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
+    const msg=t=>{ acctMsg=t; const m=$("#acct-msg"); if(m)m.textContent=t; };
+    $("#acct-push").addEventListener("click",async()=>{ msg(""); const ok=await cloudPushNow(true); if(ok) renderAcctBox(); });
+    $("#acct-pull").addEventListener("click",async()=>{ msg(""); const acc=acctGet(); if(!acc||acctBusy) return; acctBusy=true;
+      try{ const r=await acctApi("/api/load",{},acc.token); acctBusy=false;
+        if(r.status===401){ acctSet(null); acctMsg="ログインが切れました。もう一度ログインしてください"; renderAcctBox(); return; }
+        const sv=acctParseSave(r.data&&r.data.save);
+        if(!sv){ toast("クラウドにセーブデータがありません"); return; }
+        if(r.data.updatedAt){ acc.cloudAt=r.data.updatedAt; acctSet(acc); }
+        confirm2("クラウドのセーブを読み込みますか？",`クラウドの保存日時：${acctDate(r.data.updatedAt)||"不明"}。今のデータはクラウドの内容で置き換わります。`,()=>acctApplyCloud(sv),()=>showSettings());
+      }catch(e){ acctBusy=false; cloudAvail=false; renderAcctBox(); } });
+    $("#acct-logout").addEventListener("click",()=>{ acctSet(null); acctMsg=""; toast("ログアウトしました（この端末のセーブはそのまま残ります）"); renderAcctBox(); });
+    return; }
+  box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>
+  <p class="small" style="margin:6px 0">名前とパスワードで登録・ログインすると、セーブがサーバーに保存され、どの端末でも続きから遊べます。${cloudAvail===null?"<br>サーバーへの接続を確認しています…":""}</p>
+  <div class="flex" style="flex-wrap:wrap;gap:6px"><input id="acct-name" type="text" autocomplete="username" placeholder="名前" maxlength="32" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5">
+  <input id="acct-pass" type="password" autocomplete="current-password" placeholder="パスワード（4文字以上）" style="flex:1;min-width:130px;padding:10px;border-radius:12px;border:2px solid #e5e5e5"></div>
+  <div class="flex mt" style="gap:6px"><button class="btn gold sm" id="acct-reg">新規登録</button><button class="btn sm" id="acct-login">ログイン</button></div>
+  <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
+  const msg=t=>{ acctMsg=t; const m=$("#acct-msg"); if(m)m.textContent=t; };
+  const setBusy=b=>{ acctBusy=b; const r=$("#acct-reg"), l=$("#acct-login"); if(r)r.disabled=b; if(l)l.disabled=b; };
+  const creds=()=>{ const n=($("#acct-name").value||"").trim(), p=$("#acct-pass").value||"";
+    if(!n){ msg("名前を入力してください"); return null; } if(p.length<4){ msg("パスワードは4文字以上で入力してください"); return null; } return {name:n,password:p}; };
+  $("#acct-reg").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; setBusy(true); msg("");
+    try{ const r=await acctApi("/api/register",c); setBusy(false);
+      if(r.data&&r.data.token){ acctSet({name:r.data.name||c.name, token:r.data.token}); acctMsg=""; toast("登録しました。今のデータをクラウドに保存します"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); }
+      else msg((r.data&&r.data.error)||"登録できませんでした");
+    }catch(e){ setBusy(false); cloudAvail=false; renderAcctBox(); } });
+  $("#acct-login").addEventListener("click",async()=>{ const c=creds(); if(!c||acctBusy) return; setBusy(true); msg("");
+    try{ const r=await acctApi("/api/login",c); setBusy(false);
+      if(r.data&&r.data.token){ const acc={name:r.data.name||c.name, token:r.data.token}; if(r.data.updatedAt) acc.cloudAt=r.data.updatedAt; acctSet(acc); acctMsg="";
+        const sv=acctParseSave(r.data.save);
+        if(sv){ confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ showSettings(); }); }
+        else { toast("ログインしました"); renderAcctBox(); cloudPushNow(false).then(ok=>{ if(ok) renderAcctBox(); }); } }
+      else msg((r.data&&r.data.error)||"ログインできませんでした");
+    }catch(e){ setBusy(false); cloudAvail=false; renderAcctBox(); } });
+}
 /* ============ 騎手画面 ============ */
 function renderJockey(){
  const el=$("#v-jockey");
@@ -8900,7 +9010,7 @@ function renderRank(){
 }
 function showSettings(){
   const sc=sndCfg();
-  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><button class="btn" id="set-finance" style="width:100%;margin-bottom:10px">💰 資金繰り（融資・スポンサー支援）</button><button class="btn" id="set-ledger" style="width:100%;margin-bottom:10px">📒 月次明細（収支の内訳）</button><details class="fold"><summary>厩舎の決まりごと（ルール集）</summary><div class="foldbody"><div class="small" style="text-align:left;line-height:1.75">
+  showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><button class="btn" id="set-finance" style="width:100%;margin-bottom:10px">💰 資金繰り（融資・スポンサー支援）</button><button class="btn" id="set-ledger" style="width:100%;margin-bottom:10px">📒 月次明細（収支の内訳）</button><div id="acct-box" style="margin-bottom:10px"></div><details class="fold"><summary>厩舎の決まりごと（ルール集）</summary><div class="foldbody"><div class="small" style="text-align:left;line-height:1.75">
 <b>初期条件</b>：資金 8,000万円／初期馬 アオイソラ 1頭／初期調教師は手塚貴久（初期調教師は雇用費・維持費 0）。他の調教師は能力合計の3乗で費用が跳ね上がります（合計22で維持費 約266万円/週・雇用費 約9,600万円、平凡な調教師は週数万円）。<br>
 <b>時間</b>：1年＝48週（1か月＝4週）。年末処理は手動で行います（オートは年末を跨ぎません）。<br>
 <b>名声</b>：G1勝利 +5／G2・G3勝利 +2（上限120・減衰なし）。効果：牧場スペースが名声5ごとに+1、海外牧場は名声30以上、クラブ牧場は名声20以上で開設可。<br>
@@ -8958,6 +9068,8 @@ function showSettings(){
   const ledBtn=$("#set-ledger"); if(ledBtn)ledBtn.addEventListener("click",()=>{ showLedger(); });
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",()=>{ updLbl(); applySet(); }); if(seIn)seIn.addEventListener("input",()=>{ updLbl(); applySet(); });
   $("#set-ok").addEventListener("click",()=>{ $("#overlay").style.display="none"; renderAll(); });
+  renderAcctBox();
+  if(cloudAvail===null) acctProbe().then(()=>{ if($("#acct-box")) renderAcctBox(); });
 }
 function applySave(d){
   sanitizeSaveData(d);
@@ -9468,6 +9580,14 @@ function autoDigestRace(ne){
       switchView("stable");
     }
   }catch(e){ ok=false; }
+  if(!ok){
+    /* 消化に失敗しても詰ませない：レース状態を初期化して厩舎画面と操作バー
+       （オート開始・次の週へ）を必ず戻し、手動で続けられる状態にフォールバックする。
+       phase が "run"/"done" のまま残るとバーが「レース中」として隠れ続けてしまう */
+    try{ cancelAnimationFrame(raceState.raf); }catch(e){}
+    raceState.phase="idle"; raceState.done=false; raceState.sim=null; raceState.vis=null; raceState.result=null;
+    try{ switchView("stable"); }catch(e){}
+  }
   S.watchMode=prevWatch;
   return ok;
 }
