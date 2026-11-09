@@ -6819,32 +6819,38 @@ function latAt(h,u){ // 横位置：スタートの散らばり→道中の基�
   return clamp(lat,-0.95,0.95);
 }
 /* ============ 見た目の進路（表示専用レイヤー） ============
-   シミュレーション（progAt／着順・着差）は一切変えない。その上で、
-   レース開始時に「表示用の進路」を全馬ぶん事前計算してキーフレーム化する。
-   追い越しの作り方は実馬そのもの：
-   ・前が壁なら、まず減速して前の馬の直後につけ、そのまま付きながら
-     左右のスキマが「開き続ける」のを待つ（スキマ探し）。一瞬空いた
-     だけでは動かず、技術に応じた確認時間（上手い騎手・反応の良い馬で
-     約0.35秒／下手で約1.1秒）ずっと空いていた側にだけ進路を取る。
-     両側とも開かなければ、減速したまま包まれ続けて抜けない。
-     開きかけた側へは、待つ間わずかに寄せて構える。
-   ・進路変更は一度決めた側に固定する（左右へのフラつき・目標の
-     行き来をしない）。途中で塞がれた場合だけ静かに諦めて元の
-     進路に戻る。
-   ・縦も横も「速度」を持って積分する：縦は加速度・減速度に上限を
-     持たせ、前走馬との間隔に応じた追従制御でなめらかに減速して
-     直後で落ち着き、空けば少しずつ加速して遅れを取り戻す（壁への
-     急停止や、空いた瞬間の急加速はしない）。横も速度・加速度に
-     上限を持ち、ブレーキ距離で寄せて止まる。
-   ・計算刻みは 0.05 秒と細かくし、補間は隣接4点の Catmull-Rom
-     （区間両端の範囲にクランプ）で速度が連続する。キーフレーム
-     境界ごとに速度がゼロへ戻る補間は使わない＝カクつかない。
-   ・表示位置は本来の progAt を決して上回らない（sim より前に
-     出ない）。馬同士の押し分けも速度ゼロ化や瞬間移動はせず、
-     1ステップわずかずつ開く。
-   ・抜けやすさの技術差：騎手の技術が高いほど先読みが遠く・狭い
-     隙間を使え・スキマの確認が早く・立て直しの加速も速い。
-     馬の賢さ（反応）と瞬発力も後押しする */
+   構造は「アニメーション側では結果を決めない」（商用タイトルの主流）：
+   レース開始時にシミュレーションが最後まで確定し、各馬の
+   「時刻→進行距離」のタイムライン（progAt）と着順・タイムが決まる。
+   表示はその記録を補間再生するだけで、表示側で縦（進行方向）の
+   物理積分は二度と実行しない。
+   ・縦（進行距離）：表示進行度は sim タイムラインそのもの。着順を
+     決めるのはこの1次元の進行距離だけであり、回避・進路取り・
+     被ブロック等の演出は、すべて横方向のオフセットに閉じ込める。
+   ・横（レーン）：前が壁なら、左右のスキマが「開き続ける」のを
+     待って（技術に応じた確認時間）開いた側にだけ進路を取る。
+     横が塞がれていれば横移動を諦める（縦は sim のまま進む）。
+     進路変更は一度決めた側に固定し、途中で塞がれた場合だけ静かに
+     諦める。横の動きは速度・加速度に上限を持ち、ブレーキ距離で
+     寄せて止まる＝カクつかない。
+   ・順序保存クランプ（念のための安全弁）：各キーフレームで、sim の
+     並び順に処理し、前の馬の表示進行度から最小間隔を引いた値を
+     上限に表示進行度をクランプする。基本は同レーンで重なって見える
+     ペアにだけ効かせ、ゴール付近では間隔を実際の着差相当まで
+     緩める。さらに全馬ゴール後は着順どおりに処理して、余走でも
+     並びが結果と逆転しないようにする。クランプは表示を sim より
+     前に出すことは絶対にない（上限を下げるだけ）。
+   ・通過順の単調化：表示上のライン通過キーフレームが着順と逆転
+     しないよう、着順に走査して後続馬の通過を前の馬より前へ
+     出さない（同着級は同一フレーム＝同時通過として扱う）。
+   ・記録密度：キーフレームは 0.025 秒（40Hz）。縦の記録自体は
+     progAt（解析式）で任意の時刻に正確なため、ゴール前でも
+     「勝者が負けたように見える」記録の粗さは生じない。
+     着順・着差・タイムの判定表示は描画位置ではなく sim の
+     finishTime（_time）から出す（結果・実況・順位バーは sim が正）。
+   ・技術差は横の動きだけに効く：騎手の技術が高いほど先読みが
+     遠く・狭い隙間を使え・スキマの確認が早い。馬の賢さ（反応）と
+     瞬発力も後押しする */
 function pathSkillOf(h){
   const jk=jockOf(h);
   const jk01=clamp(((jk?jk.skill:82)-78)/20,0,1);      // 騎手の技術 78→0 / 98→1
@@ -6857,76 +6863,48 @@ function pathSkillOf(h){
 function buildVisPath(){
   const sim=raceState.sim, r=raceState.race;
   if(!sim||!r){ raceState.vis=null; return; }
-  const dist=r.dist, dt=0.05, tEnd=raceEndT(), tWin=sim.tWin;
+  const dist=r.dist, dt=0.025, tEnd=raceEndT(), tWin=sim.tWin;
   const n=Math.max(2,Math.ceil(tEnd/dt)+1);
-  const GAPMIN=2.55;                                    // 前走馬との最小間隔(m)：これ以上は絶対に詰めない
-  const GAPDES=3.15;                                    // 追従時の目標間隔(m)：ここで速度が釣り合う
   const LW=v=>v*4.6;                                    // 横位置（正規化）→メートル換算（3Dの広がりと一致）
   const LANE=0.30;                                      // 進路変更1回ぶんの横移動量（正規化：約1.4m）
-  const simV=(h,t)=>{ const e=0.06, t0=Math.max(0,t-e); return Math.max(0,(progAt(h,t+e,tWin)-progAt(h,t0,tWin))/((t+e)-t0))*dist; }; // sim 本来の速度(m/秒)
-  const horses=sim.all.map(h=>{
-    const p0=progAt(h,0,tWin);
-    return {h, sk:pathSkillOf(h), s:p0*dist, v:simV(h,0), l:latAt(h,p0), lv:0,
-      mode:"free", holdL:latAt(h,p0), openT:[0,0], targetL:latAt(h,p0), reactT:0, abortT:0,
-      frames:new Float32Array(n*2)};
-  });
-  const freeAt=(o,cand,need,aheadM)=>{                  // その横位置に、本当にスキマがあるか
+  const GAPMIN=2.6;                                     // 順序クランプの最小間隔(m)：同レーンで絵が重ならない下限
+  /* --- sim タイムライン（縦の記録）：全馬×全キーフレームを先に確定 --- */
+  const horses=sim.all.map(h=>({ h, sk:pathSkillOf(h),
+    s:new Float32Array(n),                              // sim 進行距離(m)：縦の正
+    l:latAt(h,0), lv:0, mode:"free", holdL:latAt(h,0), openT:[0,0], targetL:latAt(h,0), reactT:0, abortT:0,
+    frames:new Float32Array(n*2) }));
+  for(let i=0;i<n;i++){ const t=Math.min(i*dt,tEnd);
+    for(const o of horses) o.s[i]=progAt(o.h,t,tWin)*dist; }
+  /* --- 横（レーン）の状態機械：判定はすべて sim 位置で行う --- */
+  const freeAt=(o,cand,need,i)=>{                       // その横位置に、本当にスキマがあるか
     if(cand<-0.93||cand>0.93) return false;
-    for(const q of horses){ if(q===o)continue; const dp=q.s-o.s;
-      if(dp>-3.2&&dp<aheadM&&Math.abs(LW(q.l-cand))<need) return false; }
+    for(const q of horses){ if(q===o)continue; const dp=q.s[i]-o.s[i];
+      if(dp>-3.2&&dp<6.5+5.0*o.sk&&Math.abs(LW(q.l-cand))<need) return false; }
     return true;
   };
   for(let i=0;i<n;i++){
     const t=Math.min(i*dt,tEnd);
-    if(i===0){ horses.forEach(o=>{ o.frames[0]=o.s/dist; o.frames[1]=o.l; }); continue; } // 初回は初期状態そのもの（時刻ずれを作らない）
-    /* 先行している馬から順に確定させ、後ろの馬は確定済みの前の馬に合わせる */
-    const order=[...horses].sort((a,b)=>b.s-a.s);
-    for(const o of order){
-      const tp=progAt(o.h,t,tWin)*dist;
-      const vb=simV(o.h,t);
+    if(i===0){ horses.forEach(o=>{ o.frames[0]=o.s[0]/dist; o.frames[1]=o.l; }); continue; } // 初回は初期状態そのもの
+    for(const o of horses){
+      const tp=o.s[i];
       const aheadM=6.5+5.0*o.sk;                        // 先読み距離：技術が高いほど遠くから壁とスキマを読む
-      /* 前の壁：自分の進路帯で最も近い馬 */
+      /* 前の壁：sim 位置で自分の進路帯にいる最も近い馬 */
       let blk=null, blkGap=Infinity;
-      const finPhase=t>tWin*0.80; // 終盤（位置取りの癖が消え、並びが着順へ収束する区間）
-      for(const q of horses){ if(q===o)continue; const g=q.s-o.s;
-        if(g>0.2&&g<aheadM&&Math.abs(LW(q.l-o.l))<1.15&&g<blkGap){
-          /* 終盤は、シミュレーション上で自分より後ろの馬を壁にしない。
-             表示の遅れで前に出ているだけの馬にゴールまで押さえられると、
-             画面の並びが確定した着順と逆転してしまうため（着順の保証は
-             下の収束パスが最終担保するが、ここで不自然な滞留自体を減らす） */
-          if(finPhase && progAt(q.h,t,tWin)*dist < tp-1.0) continue;
-          blk=q; blkGap=g; } }
-      /* ---- 縦：速度で積分する。壁があれば間隔に応じた追従制御で減速 ---- */
-      let vT=vb;
-      const debt=tp-o.s;
-      if(debt>0.25){                                    // 遅れの取り戻しは速度の上乗せで少しずつ（空いた瞬間に跳ねない）
-        let cap=vb*0.16;
-        if(t>tWin*0.82) cap=vb*(0.16+0.20*(t/tWin-0.82)/0.18); // 終盤は強めて着順・着差と合わせる
-        vT+=Math.min(debt*0.45, cap)*clamp(debt/1.2,0,1); // 借りが尽きる手前で上乗せを絞り、速度が段差なく本来の速度へ戻る（カクつき防止）
-      }
-      let accDn=3.4;                                    // 減速（ブレーキ）の上限。加速は技術で差がつく
-      if(blk){
-        vT=Math.min(vT, Math.max(0, blk.v+(blkGap-GAPDES)*0.85)); // 目標間隔より狭いほど強く減速し、直後で落ち着く
-        if(blkGap<GAPMIN){ vT=Math.min(vT, blk.v*Math.max(0,blkGap/GAPMIN)); accDn=6.0; } // 詰まり切ったら強めのブレーキ（それでも速度は連続に落とす：速度の段差＝カクつきを作らない）
-      }
-      const accUp=(2.1+1.4*o.sk)*dt;
-      o.v+=clamp(vT-o.v, -accDn*dt, accUp);
-      if(o.v<0) o.v=0;
-      o.s+=o.v*dt;
-      if(o.s>tp){ o.s=tp; o.v=Math.min(o.v, vb); }      // sim より前に出ない
-      if(blk&&o.s>blk.s-1.9){ const back=Math.min(o.s-(blk.s-1.9), 0.06); o.s-=back; o.v=Math.min(o.v, blk.v+0.3); } // 最終安全弁：重なりそうな時だけ1ステップ最大6cmの緩やかな押し戻し（瞬間移動・凍結は作らない）。速度も前走馬に寄せておき、次ステップで目標速度と開きが出て急加速に見えるのを防ぐ
-      /* ---- 横：状態機械（free／follow＝減速してスキマ探し／change＝進路変更） ---- */
+      for(const q of horses){ if(q===o)continue; const g=q.s[i]-tp;
+        if(g>0.2&&g<aheadM&&Math.abs(LW(q.l-o.l))<1.15&&g<blkGap){ blk=q; blkGap=g; } }
+      /* ---- 横の状態機械（free／follow＝スキマ探し／change＝進路変更）。
+         縦は一切触らない：壁があっても減速せず、横の進路だけを探す ---- */
       const baseL=latAt(o.h, clamp(tp/dist,0,1));
       let tgt;
       if(o.mode==="change"){
         tgt=o.targetL;                                  // 決めた側に固定（フラつかない）
         const need=1.55-0.35*o.sk;
-        if(!freeAt(o,o.targetL,need,aheadM)) o.abortT+=dt; else o.abortT=0;
+        if(!freeAt(o,o.targetL,need,i)) o.abortT+=dt; else o.abortT=0;
         if(o.abortT>0.5){ o.mode="follow"; o.holdL=o.l; o.openT=[0,0]; tgt=o.l; } // 塞がれ続けたら静かに諦める
         if(o.mode==="change"&&Math.abs(o.targetL-o.l)<0.035){ o.mode=blk?"follow":"free"; o.holdL=o.l; o.openT=[0,0]; tgt=blk?o.l:baseL; } // 目標レーンに着いたら変更完了
         if(o.mode==="change"){ /* 進路の途中に馬がいたら割り込まず、その場で待つ */
           for(const q of horses){ if(q===o)continue;
-            if(Math.abs(q.s-o.s)<2.2 && Math.abs(LW(q.l-o.l))<1.0 && Math.sign(q.l-o.l)===Math.sign(o.targetL-o.l)){ tgt=o.l; break; } }
+            if(Math.abs(q.s[i]-tp)<2.2 && Math.abs(LW(q.l-o.l))<1.0 && Math.sign(q.l-o.l)===Math.sign(o.targetL-o.l)){ tgt=o.l; break; } }
         }
       } else if(blk){
         if(o.mode!=="follow"){ o.mode="follow"; o.holdL=o.l; o.openT=[0,0]; }
@@ -6935,7 +6913,7 @@ function buildVisPath(){
         const need=1.55-0.35*o.sk;                      // 抜くのに要る横クリアランス：技術が高いほど狭くて済む
         const cands=[blk.l-LANE, blk.l+LANE];
         for(let sd=0;sd<2;sd++){
-          if(cands[sd]>=-0.93&&cands[sd]<=0.93&&freeAt(o,clamp(cands[sd],-0.93,0.93),need,aheadM)) o.openT[sd]+=dt;
+          if(cands[sd]>=-0.93&&cands[sd]<=0.93&&freeAt(o,clamp(cands[sd],-0.93,0.93),need,i)) o.openT[sd]+=dt;
           else o.openT[sd]=Math.max(0,o.openT[sd]-2*dt);
         }
         const confirmT=1.15-0.80*o.sk;                  // 確認時間：技術が高いほど短い＝早くスキマを使える
@@ -6944,7 +6922,7 @@ function buildVisPath(){
           o.mode="change"; o.targetL=clamp(cands[best],-0.93,0.93);
           o.reactT=0.30-0.18*o.sk; o.abortT=0; tgt=o.l; // 決断から動き出しまで一呼吸（反応）
         } else {
-          /* まだ開かない：減速したまま付き、開きかけた側へわずかに寄せて構える */
+          /* まだ開かない：付きながら、開きかけた側へわずかに寄せて構える（横移動を諦めるのは最終手段） */
           const lean=(o.openT[best]>0.12)? (best===1?1:-1)*0.085*(o.openT[best]/confirmT) : 0;
           tgt=clamp(o.holdL+lean,-0.93,0.93);
         }
@@ -6954,7 +6932,7 @@ function buildVisPath(){
       /* 隣に馬がいる横移動はしない：縦に近い馬と交差する目標なら、今の進路のまま待つ */
       if(o.mode!=="change"){
         for(const q of horses){ if(q===o)continue;
-          if(Math.abs(q.s-o.s)<2.6 && Math.abs(LW(q.l-tgt))<1.05 && Math.abs(LW(q.l-tgt))<Math.abs(LW(q.l-o.l))){ tgt=o.l; break; } }
+          if(Math.abs(q.s[i]-tp)<2.6 && Math.abs(LW(q.l-tgt))<1.05 && Math.abs(LW(q.l-tgt))<Math.abs(LW(q.l-o.l))){ tgt=o.l; break; } }
       }
       if(o.reactT>0){ o.reactT-=dt; tgt=o.l; }
       /* 横の速度制御：上限・加速度つき。目標手前で減速して止まる */
@@ -6968,17 +6946,17 @@ function buildVisPath(){
       if(Math.abs(stepL)>Math.abs(distL)){ stepL=distL; o.lv=0; }
       if(Math.abs(distL)<0.003) o.lv=0;
       o.l=clamp(o.l+stepL,-0.95,0.95);
-      o.frames[i*2]=o.s/dist; o.frames[i*2+1]=o.l;
+      o.frames[i*2]=tp/dist; o.frames[i*2+1]=o.l;       // 縦は sim のまま（クランプは後段）
     }
     /* 横の重なり解消：速度をゼロ化したり瞬間に押し出したりせず、
-       1ステップ最大 0.5/秒 相当だけ少しずつ開く（主に後ろの馬が下がる） */
+       1ステップわずかずつ開く（主に後ろの馬が下がる） */
     for(let a=0;a<horses.length;a++) for(let b=a+1;b<horses.length;b++){
       const A=horses[a], B=horses[b];
-      const ds=Math.abs(A.s-B.s); if(ds>3.2) continue;
+      const ds=Math.abs(A.s[i]-B.s[i]); if(ds>3.2) continue;
       const need=0.09+0.17*(1-ds/3.2);
       const dl=B.l-A.l;
       if(Math.abs(dl)<need){
-        const behind=A.s<=B.s?A:B, ahead=behind===A?B:A;
+        const behind=A.s[i]<=B.s[i]?A:B, ahead=behind===A?B:A;
         const sgn=(behind.l-ahead.l)>=0?1:-1;
         const push=Math.min(need-Math.abs(dl), 0.35*dt);
         behind.l=clamp(behind.l+sgn*push*0.75,-0.95,0.95);
@@ -6987,29 +6965,66 @@ function buildVisPath(){
       }
     }
   }
-  /* ===== ゴール順の保証：遅れ（debt）の期限付き解消 =====
-     上の積分だけでは、包まれ・スキマ待ちで生じた遅れがゴールまでに
-     解消しきれず、画面の並び（特に先頭とライン通過順）が確定した
-     着順と逆転するケースが残る。そこで各馬について、自身のゴール
-     時刻 h._time を期限として遅れを必ず解消する：
-       ・期限の 3.5 秒前から sim 位置へ smoothstep でブレンドする
-         （重みは両端で傾きゼロ＝速度が連続し、カクつきを作らない）
-       ・期限以後は sim 位置そのものに一致させる（余走でも順序が
-         結果と逆転しない）
-     ブレンドは「sim 位置を超えない範囲での前進」だけなので、表示が
-     sim より前に出ることはない。これにより全レースで
-       表示のライン通過順 ＝ 着順／勝ち馬のゴール瞬間の表示先頭 ＝ 勝ち馬
-     が保証される（2D・3Dとも同じ visAt を描くため両方に効く） */
-  const CONV_W=3.5;
-  horses.forEach(o=>{
-    const dl=o.h._time, fr=o.frames, w0=dl-CONV_W;
-    for(let i=0;i<n;i++){
-      const t=Math.min(i*dt,tEnd), tp=progAt(o.h,t,tWin);
-      if(t>=dl){ fr[i*2]=tp; continue; }
-      if(t>w0){ const cur=fr[i*2];
-        if(cur<tp){ const q=(t-w0)/CONV_W, w=q*q*(3-2*q); fr[i*2]=cur+(tp-cur)*w; } }
+  /* --- 順序保存クランプ（縦の安全弁） ---
+     各キーフレームで sim の並び順に処理し、「前の馬の表示進行度 −
+     最小間隔」を上限にクランプする。基本は同レーン（横が近い）ペア
+     にだけ効かせ、ゴール付近（tWin の98%以降）と全馬ゴール後は
+     全ペアに効かせる。間隔はその瞬間の sim 間隔が上限なので、
+     ゴールでは自動的に着差相当になり、並びは着順そのものになる */
+  const finOrder=[...horses].sort((a,b)=>a.h._time-b.h._time);   // 着順（finishTime 順）
+  for(let i=0;i<n;i++){
+    const t=Math.min(i*dt,tEnd);
+    if(t<0.5) continue;                                 // ゲート直後は横の散らばりが支配的（クランプ不要）
+    const order= t>=tWin ? finOrder : [...horses].sort((a,b)=>(b.s[i]-a.s[i])||(a.h._time-b.h._time));
+    const done=[];
+    for(const o of order){
+      let lim=Infinity;
+      for(const q of done){
+        if(t<tWin*0.98 && Math.abs(LW(q.frames[i*2+1]-o.frames[i*2+1]))>=1.15) continue; // 横が離れていれば縦は sim のまま
+        /* 間隔は「その瞬間の sim 間隔」を上限として最小間隔まで：
+           前の馬が sim どおりに走っている限り後ろも sim どおりでよく、
+           クランプが新たな遅れを作り出すことはない。ゴール付近では
+           sim 間隔そのものが着差になるため、「着差相当まで緩める」も
+           自動で満たされる */
+        const simGap=Math.max(0.12,(progAt(q.h,t,tWin)-progAt(o.h,t,tWin))*dist);
+        const gap=Math.min(GAPMIN, simGap)/dist;
+        const v=q.frames[i*2]-gap; if(v<lim) lim=v;
+      }
+      const cur=o.s[i]/dist;
+      o.frames[i*2]= Math.max(0, Math.min(cur, lim));
+      done.push(o);
     }
-  });
+  }
+  /* --- クランプ乖離の平滑化 ---
+     終盤は位置取りの癖が消えて sim の並びが頻繁に入れ替わり、その
+     たびにクランプの効きが 1 キーフレームで ON/OFF すると、表示速度に
+     数十cm 級の段差（カクつき）が出る。クランプで生じた sim からの
+     乖離分だけを前後数フレームで均し、段差を消す。乖離は最大でも
+     数十cm のため、順序の保証はこの範囲で保たれ、通過順は下の
+     単調化が最終担保する */
+  for(const o of horses){
+    const fr=o.frames; let dev=null;
+    for(let i=0;i<n;i++){ const d=o.s[i]/dist-fr[i*2]; if(d>0.00001){ (dev||(dev=new Float32Array(n)))[i]=d; } }
+    if(!dev) continue;
+    const sm=new Float32Array(n);
+    for(let i=0;i<n;i++){ let s2=0,w2=0; for(let k=-2;k<=2;k++){ const j=Math.min(n-1,Math.max(0,i+k)), wt=3-Math.abs(k); s2+=dev[j]*wt; w2+=wt; } sm[i]=s2/w2; }
+    for(let i=0;i<n;i++) fr[i*2]=o.s[i]/dist-sm[i];
+  }
+  /* --- 通過順の単調化 ---
+     表示上のライン通過（p≧1 になる最初のキーフレーム）が着順と
+     逆転しないよう、着順に走査して後続馬の通過を前の馬より前に
+     出さない。ズレは最大でも数十cm・1フレーム未満に抑える */
+  let prevC=-1;
+  for(const o of finOrder){
+    const fr=o.frames;
+    let c=-1; for(let i=0;i<n;i++){ if(fr[i*2]>=1){ c=i; break; } }
+    if(c<0) continue;                                   // tEnd までに表示がラインへ届かない馬は対象外（クランプで後続も連動する）
+    if(prevC>=0 && c<prevC && prevC-c<=8){
+      for(let j=c;j<prevC;j++) fr[j*2]=Math.min(fr[j*2],0.99995);
+      c=prevC;
+    }
+    if(c>prevC) prevC=c;
+  }
   const map=new Map(); horses.forEach(o=>map.set(o.h,o.frames));
   raceState.vis={dt:dt, n:n, frames:map, tEnd:tEnd};
 }
