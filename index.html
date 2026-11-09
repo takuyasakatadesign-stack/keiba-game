@@ -5647,6 +5647,7 @@ function overseasReqShort(r){ return r.top? "G1勝利、または重賞2勝＋G1
 function eligibleAt(h,r,age,weeksAhead){
   const wk=weeksAhead||0;
   if(h.injured>0 && wk<h.injured) return "故障休養中";
+  if(wk===0 && h.racedWeek!=null && h.racedWeek===S.week) return "今週は出走済み";
   if(age<2) return "1歳は出走不可";
   /* 2歳戦は6月開始：1〜5月に開催されるレース（3歳・古馬戦）には、年齢条件以前に2歳馬は出走できない */
   const rMonth=(r.month!=null?r.month:null);
@@ -5662,6 +5663,10 @@ function eligibleAt(h,r,age,weeksAhead){
   if(r.cls===0 && h.races>0) return "新馬戦はデビュー馬のみ";
   if(r.cls===1 && h.wins>0) return "未勝利は未勝利馬のみ";
   if(r.cls>=2 && r.cls<=5 && hc<r.cls) return "クラスが足りない";
+  /* 格下げ出走は不可：勝ち星で上がったクラスより下の条件戦には出られない
+     （例：2勝した馬が1勝クラスに出る）。提案・登録の段階でここに落ちるので、
+     レース週になってから内部で失敗する不整合は起きない */
+  if(r.cls>=2 && r.cls<=5 && hc>r.cls) return `クラスが上のため出走不可（現在 ${CLASSES[hc]}）`;
   if(r.overseas){ if(!overseasOK(h,r)) return "実績が足りない（"+overseasReqShort(r)+"）"; }
   else if(r.minWins!=null){ if(h.wins<r.minWins) return "実績が足りない（"+r.minWins+"勝以上が必要）"; }
   else if(r.cls>=6 && hc<4 && h.wins<3) return "実績が足りない（3勝以上）";
@@ -6129,6 +6134,7 @@ function startRace(r,mine,field){
   const tWin=sorted[0]._time;
   sorted.forEach(h=>{ h._margin = h===sorted[0] ? 0 : (1-progAt(h,tWin,tWin))*r.dist/2.4; }); // 1馬身=2.4m
   raceState.sim={all, sorted, tMax:sorted[sorted.length-1]._time, tWin:sorted[0]._time};
+  raceState._runSeq=(raceState._runSeq||0)+1; // 精算キーの実行単位（同週・同名・同馬の別レースを誤って二重精算扱いしないため）
   raceState.photoFinish = sorted.length>1 && (sorted[1]._margin||0)<0.4; // ハナ差級の接戦だけ写真判定スローモーションが入る
   raceState.race=r; raceState.mine=mine||owns[0]||null; raceState.owns=owns; raceState.phase="run"; raceState.done=false; raceState.betResults=null;
   buildVisPath(); // 表示専用の進路（すり抜け防止・包まれ・技術差）を事前計算する。着順・着差は sim のまま
@@ -8395,8 +8401,12 @@ function gainGauge(h, amt, fromRace){
 function finishRace(){
   if(raceState.done)return; raceState.done=true; raceState.phase="done";
   /* 二重発生防止：同じレース（週＋レースID＋出走馬）が既に精算済みなら
-     再実行しない（レース中断→再読み込み→再観戦でも賞金・払戻は1回だけ） */
-  const raceKey=S.week+"|"+(raceState.race?raceState.race.id:"")+"|"+((raceState.owns||[]).map(h=>h.id).join(","));
+     再実行しない（レース中断→再読み込み→再観戦でも賞金・払戻は1回だけ）。
+     ただしキーは「今回の startRace 実行」単位にする：条件戦のレースIDは週内で
+     同じ値になるため、週＋ID＋馬だけをキーにすると、同週に再登録された別レース
+     （別のエントリー）の精算まで誤って飛ばしてしまう（エントリーが消費されず、
+     オート消化が成功扱いのまま無限ループした不具合の原因） */
+  const raceKey=S.week+"|"+(raceState.race?raceState.race.id:"")+"|"+((raceState.owns||[]).map(h=>h.id).join(","))+"|run"+(raceState._runSeq||0);
   if(!raceState._settleKeys) raceState._settleKeys=new Set();
   if(raceState._settleKeys.has(raceKey)){ raceState.phase="done"; return; }
   raceState._settleKeys.add(raceKey);
@@ -8414,7 +8424,7 @@ function finishRace(){
     let prizeCut=0;
     if(prz>0 && (S.sponsorCutUntil||0)>S.week){ prizeCut=Math.round(prz*0.3); log(`🤝 スポンサー契約により、${h.name}の賞金の30%（${fmt(prizeCut)}万円）をスポンサーへ支払い`); }
     S.funds+=prz-prizeCut; ledIn("prize",prz-prizeCut);
-    h.races++; if(place===1){h.wins++; h.yearWins=(h.yearWins||0)+1;}
+    h.races++; h.racedWeek=S.week; if(place===1){h.wins++; h.yearWins=(h.yearWins||0)+1;}
     h.earnings+=prz; h.yearEarnings=(h.yearEarnings||0)+prz;
     if(h.nextPlan&&h.nextPlan.includes(r.name))h.nextPlan="";
     h.fat=clamp(h.fat + ri(32,48) + (r.dist>=2400?10:0) - (traitOf(h,"recover")?10:0),0,100);
@@ -9767,15 +9777,20 @@ function tabSplitHTML(html){
    延滞警告など）が出た場合も、内容を確認してもらうため止まる */
 const AUTO={running:false, timer:null, steps:0, weeksDone:0, skip:{}, planSet:{}, bredTried:{}, label:"", stopReason:"", injured:""};
 function autoCfg(){
-  const d={weeks:4, fundsMin:-1, stopInjury:true, stopRace:true, stopSale:true, stopFacility:true, stopFinance:true};
+  const d={weeks:4, fundsMin:-1, stopInjury:true, stopSale:true, stopFacility:true, stopFinance:true};
   if(!S.autoCfg||typeof S.autoCfg!=="object") S.autoCfg={};
+  /* 出走週の扱い（raceStop）：all=すべての出走週で止まる／graded=重賞（G3以上）の週だけ止まる／
+     g1=G1の週だけ止まる／none=止まらず全レースを「結果だけ」で消化する。
+     移行は既定値の補完より前に、保存データに stopRace が明示されているかで判定する：
+     明示された旧セーブは true→all／false→none、無い場合（新規開始）は graded を既定にする。
+     新規の既定を all にすると、オートが全レース週で止まってしまい
+     「オートでレースが進まない」状態になるため、条件戦は自動消化される graded とする */
+  if(!["all","graded","g1","none"].includes(S.autoCfg.raceStop)){
+    S.autoCfg.raceStop = ("stopRace" in S.autoCfg)? (S.autoCfg.stopRace===false? "none" : "all") : "graded";
+  }
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12,24,36,48].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
-  /* 出走週の扱い（raceStop）：all=すべての出走週で止まる／graded=重賞（G3以上）の週だけ止まる／
-     g1=G1の週だけ止まる／none=止まらず全レースを「結果だけ」で消化する。
-     旧セーブの stopRace（ON=止まる／OFF=止まらない）から移行し、以後は raceStop を正とする */
-  if(!["all","graded","g1","none"].includes(S.autoCfg.raceStop)) S.autoCfg.raceStop = S.autoCfg.stopRace===false? "none" : "all";
   S.autoCfg.stopRace = S.autoCfg.raceStop!=="none";
   return S.autoCfg;
 }
@@ -9794,7 +9809,7 @@ function autoSchedule(ms){ if(AUTO.timer)clearTimeout(AUTO.timer); AUTO.timer=se
 function autoStart(){
   if(AUTO.running||S.gameover) return;
   if(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done")){ toast("レース中はオートを開始できません"); return; }
-  AUTO.running=true; AUTO.steps=0; AUTO.weeksDone=0; AUTO.skip={}; AUTO.planSet={}; AUTO.bredTried={}; AUTO._rc={}; AUTO.stopReason=""; AUTO.label="開始します"; AUTO.injured=autoInjuredKey();
+  AUTO.running=true; AUTO.steps=0; AUTO.weeksDone=0; AUTO.skip={}; AUTO.planSet={}; AUTO.bredTried={}; AUTO._rc={}; AUTO.facSkipLog={}; AUTO._digestTry={}; AUTO.digestFailReason=""; AUTO.stopReason=""; AUTO.label="開始します"; AUTO.injured=autoInjuredKey();
   pendingTrain=null; pendingAnchor=null;
   switchView("stable");
   renderAll();
@@ -9813,26 +9828,60 @@ function autoStop(reason){
    結果処理（賞金・記録・疲労・エントリー消化）は通常の finishRace が行う */
 function autoDigestRace(ne){
   const h=ne&&ne.h; if(!h||!h.entry) return false;
-  const r=S.races.find(x=>x.name===h.entry.name); if(!r) return false;
+  AUTO.digestFailReason="";
+  const r=S.races.find(x=>x.name===h.entry.name);
+  if(!r){ AUTO.digestFailReason=`今週の番組に「${h.entry.name}」が見つかりませんでした`; return false; }
   const owns=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week&&!eligible(x,r));
-  if(!owns.length) return false;
+  if(!owns.length){
+    /* 出走条件で落ちている理由を特定して返す（警告画面で止めず、理由つきでオートを止めるため） */
+    const due=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week);
+    const why=due.length? eligible(due[0],r) : "";
+    AUTO.digestFailReason=`${due.length? due[0].name+" は":""}出走条件を満たしていません${why?`（${why}）`:""}`;
+    return false;
+  }
+  /* 繰り返しガード：同じレース（同じ週・同じエントリー）の消化が2回目に
+     入ったら、前回でエントリーが消費されなかった異常とみなして即失敗にする。
+     startRace を再実行しないので、騎乗料だけが毎手引かれ続けることもない */
+  if(!AUTO._digestTry) AUTO._digestTry={};
+  const dkey=r.name+"@"+h.entry.absWeek+"@"+owns.map(x=>x.id).sort((a,b)=>a-b).join(",");
+  if(AUTO._digestTry[dkey]){ AUTO.digestFailReason=`同じレース（${r.name}）の消化が繰り返されました。前回の消化でエントリーが消費されなかったため、これ以上は進めません`; return false; }
+  AUTO._digestTry[dkey]=1;
+  /* 事前チェック：騎乗料（＋海外遠征費）が払えるか。払えない場合は startRace の
+     警告画面ではなく、理由つきの失敗としてオートを止める */
+  let totalFee=0;
+  for(const oh of owns){
+    const ej=oh.reqJockey!=null? oh.reqJockey : oh.jockey;
+    const jk=JOCKEYS[ej];
+    if(!jk){ AUTO.digestFailReason=`${oh.name} の騎手が見つかりませんでした`; return false; }
+    totalFee+=jk.fee+(r.overseas? (r.travel||0) : 0);
+  }
+  if(S.funds<totalFee){ AUTO.digestFailReason=`騎乗料${r.overseas?"と遠征費":""}が不足しています（必要 ${fmt(totalFee)}万円／現在 ${fmt(S.funds)}万円）`; return false; }
   const field=[...fixedRivalsFor(r)];
   owns.forEach(x=>{ if(!field.includes(x)) field.push(x); });
   fixGates(field);
   raceState.card=field; raceState.rivals=fixedRivalsFor(r); raceState.rivalRace=r.id;
   const prevWatch=S.watchMode;
   S.watchMode="result";
+  const before=new Map(owns.map(x=>[x.id,{races:x.races||0}]));
   let ok=false;
   try{
     startRace(r, owns[0], field);
-    ok=(raceState.phase==="done");
+    /* 成功の判定は phase だけでは行わない：精算（finishRace）が実際に行われ、
+       エントリーが消費され、出走数が増えたことを必ず確認する。
+       phase が "done" でも精算が飛ばされた場合は「成功」と扱わず失敗にする
+       （成功ログだけ出てエントリーが残り、無限に消化し続ける不具合の再発防止） */
+    ok=(raceState.phase==="done") && owns.every(x=>!x.entry && (x.races||0)>before.get(x.id).races);
     if(ok){
       const res=(raceState.result&&raceState.result.ownResults)||[];
       res.forEach(o=>log(`🤖 オート：${year()}年${month()}月第${weekInMonth()}週／${o.h.name} は ${r.name} に出走し ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
       raceState.phase="idle";
       switchView("stable");
+    } else if(raceState.phase==="done"){
+      AUTO.digestFailReason=`${r.name} の結果が精算されませんでした（エントリーが消費されませんでした）`;
+    } else {
+      AUTO.digestFailReason=`${r.name} を開始できませんでした`;
     }
-  }catch(e){ ok=false; }
+  }catch(e){ ok=false; if(!AUTO.digestFailReason) AUTO.digestFailReason=`${r.name} の消化中にエラーが発生しました`; }
   if(!ok){
     /* 消化に失敗しても詰ませない：レース状態を初期化して厩舎画面と操作バー
        （オート開始・次の週へ）を必ず戻し、手動で続けられる状態にフォールバックする。
@@ -9909,11 +9958,19 @@ function autoCardAction(c,cfg){
     return {type:"stop", reason:"出走週です。作戦を決めてレースへ進んでください"};
   }
   if(c.act==="facility"){
+    /* 停止条件ONのときだけ止まってプレイヤーの判断を待つ */
     if(cfg.stopFacility){ const rt=facRecommend()[0]; return {type:"stop", reason: rt? `施設の建設提案があります（停止条件：施設）。⭐おすすめは「${rt.f.n}」（${fmt(rt.f.cost)}万円・${rt.f.cat}効果）：${rt.reasons[0]||""}` : "施設の建設提案があります（停止条件：施設）。内容を確認してください"}; }
+    /* 停止条件OFFの場合は、止まらないだけでなく建設もしない：
+       提案を素通りして進行を続ける（建設はプレイヤーが手動で行うもの）。
+       実際に建てられたはずの提案については、見送ったことを週1回だけ
+       ログに残す（何が起きたか追えるように） */
     const f=FACILITIES.find(x=>x.id===c.fid);
-    if(!f||facLv(f.id)>0||facBuilding(f.id)>0||S.funds<f.cost||(f.id!=="base"&&farmSpaces().free<=0)) return {type:"skip"};
-    if(S.funds-f.cost<500) return {type:"skip"}; // 安全弁：建設後に500万円を割る場合は見送る（レース費用・維持費を確保）
-    return {type:"run", label:`施設「${f.n}」を建設`, run:()=>{ S.funds-=f.cost; if(!S.facilities)S.facilities={}; if(!S.building)S.building={}; S.facilities[f.id]=1; S.building[f.id]=f.weeks; log(`🏗 施設「${f.n}」の建設を開始（${f.weeks}週）`); }};
+    if(f&&facLv(f.id)===0&&facBuilding(f.id)===0&&S.funds>=f.cost&&(f.id==="base"||farmSpaces().free>0)){
+      if(!AUTO.facSkipLog) AUTO.facSkipLog={};
+      const lk=c.key+"@"+S.week;
+      if(!AUTO.facSkipLog[lk]){ AUTO.facSkipLog[lk]=1; log(`🤖 オート：施設「${f.n}」の建設提案は、停止条件（施設）がOFFのため建設せずに見送りました`); }
+    }
+    return {type:"skip"};
   }
   if(c.act==="finance"){
     if(cfg.stopFinance) return {type:"stop", reason:"資金繰りの相談（融資・スポンサー）が必要なため停止しました"};
@@ -9975,7 +10032,7 @@ function autoStepBody(){
        「結果だけ」観戦で即時消化して自動進行を続ける（作戦は現在の設定のまま） */
     AUTO.steps++;
     if(autoDigestRace(ne)){ AUTO.label=`${ne.h.name} のレースを結果だけ表示で消化しました`; renderAll(); autoSchedule(850); }
-    else autoStop("レースを消化できなかったため停止しました（出走条件・騎乗料・資金を確認してください）");
+    else autoStop(`レースを消化できなかったため停止しました${AUTO.digestFailReason?` ― ${AUTO.digestFailReason}`:"（出走条件・騎乗料・資金を確認してください）"}`);
     return;
   }
   /* 調教師の「指示変更」の提案があれば、定常指示の変更として採用する（週に1回まで） */
@@ -10040,7 +10097,7 @@ function autoStepBody(){
   const blocked=blockedEntries();
   if(blocked.length){
     if(!autoRaceStopFor(blocked[0])&&autoDigestRace(blocked[0])){ AUTO.steps++; AUTO.label="レースを結果だけ表示で消化しました"; renderAll(); autoSchedule(850); return; }
-    autoStop("出走週のため停止しました"); return;
+    autoStop(AUTO.digestFailReason? `レースを消化できなかったため停止しました ― ${AUTO.digestFailReason}` : "出走週のため停止しました"); return;
   }
   /* 年末処理を跨ぐ週送りでは必ず止まる：年末処理（引退判断・明け2歳の処遇・
      お守り交換・クラブ処理）にはプレイヤーの意思決定が含まれるため自動消化しない。
@@ -10086,7 +10143,7 @@ function showAutoSettings(){
   ${tog("stopInjury","故障が発生したら止まる")}
   ${tog("stopSale","セール開催週で止まる（OFFの場合はセールをスキップして続行）")}
   <p class="small mt">🌱 種付け（5〜6月）は停止条件の対象外です：オート中は止まらず、調教師の配合提案（相馬眼が高い調教師ほど評価の高い配合を提案）どおりに自動で種付けを登録して、そのまま進行します。</p>
-  ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は提案どおり建設します）")}
+  ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します）")}
   ${tog("stopFinance","資金繰りの相談（融資・スポンサー）で止まる（OFFの場合はスキップして続行）")}
   </div></div><div class="ov-foot"><button class="btn ghost" id="auto-set-close">閉じる</button><button class="btn gold" id="auto-set-start">この条件でオート開始</button></div>`);
   document.querySelectorAll("[data-autog]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.autog; S.autoCfg[k]=!autoCfg()[k]; saveAuto(true); showAutoSettings(); }));
