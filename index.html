@@ -10922,7 +10922,7 @@ function buildGuide(){
      出てこない状態をなくす */
   if(S.sale){
     if(!nSeason) nSeason={title:"セール開催中です。注目馬を見ましょう", sub:"開催は今週のみです"};
-    cards.push({key:"sale"+S.week, who:"秘書・佐倉 澪", face:"sec", text:"セール上場馬に関係者の評価が付いています", btn:"セールを見る", act:"view", view:"farm", anchor:"farm-sale"});
+    cards.push({key:"sale"+S.week, who:"秘書・佐倉 澪", face:"sec", text:"セール上場馬に関係者の評価が付いています", btn:"セールを見る", act:"view", view:"farm", anchor:"farm-sale", saleKind:S.sale.kind});
   }
   /* 種付け期：今季まだ種付けしていない繁殖牝馬がいる時だけ案内する（全頭種付け済みなら出さない）。
      調教師の配合提案（牝馬×種牡馬の具体案）がある場合はそちらを提案カードにし、
@@ -11233,11 +11233,34 @@ function autoCfg(){
   if(!["all","graded","g1","none"].includes(S.autoCfg.raceStop)){
     S.autoCfg.raceStop = ("stopRace" in S.autoCfg)? (S.autoCfg.stopRace===false? "none" : "all") : "graded";
   }
+  /* セールごとの停止設定（stopSaleYoung／stopSaleMare／stopSaleOverseas）：
+     旧セーブの単一設定 stopSale があれば、その値を3つすべてに引き継ぐ。
+     どちらも無い新規セーブは既定で3つとも「止まる」（従来の挙動＝セール
+     開催週で止まる、と一致させる） */
+  const saleLegacy = typeof S.autoCfg.stopSale==="boolean" ? S.autoCfg.stopSale : true;
+  ["stopSaleYoung","stopSaleMare","stopSaleOverseas"].forEach(k=>{ if(typeof S.autoCfg[k]!=="boolean") S.autoCfg[k]=saleLegacy; });
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12,24,36,48].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
   S.autoCfg.stopRace = S.autoCfg.raceStop!=="none";
+  /* 旧フィールド stopSale は「いずれかのセールで止まる」の集約として同期しておく */
+  S.autoCfg.stopSale = !!(S.autoCfg.stopSaleYoung||S.autoCfg.stopSaleMare||S.autoCfg.stopSaleOverseas);
   return S.autoCfg;
+}
+/* セールの種類と、それぞれのオート停止設定キーの対応。
+   開催週は farmWeekly の saleDef 判定（8月第1週／10月第1週／12月第3週）と一致させる */
+const SALE_STOP_DEFS=[
+  {kind:"young", key:"stopSaleYoung", name:"幼駒セール（当歳）", when:"8月第1週"},
+  {kind:"mare", key:"stopSaleMare", name:"繁殖牝馬セール", when:"10月第1週"},
+  {kind:"overseas", key:"stopSaleOverseas", name:"海外トレーニングセール", when:"12月第3週"}
+];
+function saleStopDef(kind){ return SALE_STOP_DEFS.find(x=>x.kind===kind)||null; }
+function saleDisplayName(kind){ const def=saleStopDef(kind); return def? def.name : "セール"; }
+/* そのセールの開催週にオートが止まる設定かどうか（種類不明なら安全側＝止まる） */
+function autoStopSaleFor(kind,cfg){
+  const def=saleStopDef(kind); if(!def) return true;
+  const c=cfg||autoCfg();
+  return c[def.key]!==false;
 }
 /* エントリー中のレースが、オートの停止対象かどうか（クラスで判定） */
 function autoRaceStopFor(ne){
@@ -11428,7 +11451,10 @@ function autoCardAction(c,cfg){
     return {type:"skip"};
   }
   if(c.act==="view"&&c.anchor==="farm-sale"){
-    if(cfg.stopSale) return {type:"stop", reason:"セール開催中です（停止条件：セール）。購入する馬を選んでください"};
+    /* セールごとの停止設定で判定する：そのセールが「止まる」の時だけ止めて
+       セール会場へ案内し、「止まらない」にしたセールは開催週でも通過する */
+    const kind=c.saleKind||(S.sale&&S.sale.kind)||null;
+    if(autoStopSaleFor(kind,cfg)) return {type:"stop", reason:`${saleDisplayName(kind)}が開催中です（停止条件：セール）。牧場タブのセール会場で購入する馬を選んでください（厩舎ホームの提案「セールを見る」からも移動できます）`};
     return {type:"skip"};
   }
   if(c.act==="breed"){
@@ -11592,7 +11618,10 @@ function showAutoSettings(){
   <label class="small">エントリー方針（オートが次走を登録するときの優先軸）<br><select id="auto-policy" style="width:100%">${ENTRY_POLICIES.map(p=>`<option value="${p.id}" ${entryPolicy().id===p.id?"selected":""}>${p.n}</option>`).join("")}</select></label>
   <p class="small" style="margin:4px 0 8px">${esc((ENTRY_POLICIES.find(p=>p.id===entryPolicy().id)||ENTRY_POLICIES[0]).d)}</p>
   ${tog("stopInjury","故障が発生したら止まる")}
-  ${tog("stopSale","セール開催週で止まる（OFFの場合はセールをスキップして続行）")}
+  <p class="small mt"><b>セール開催週で止まるか（セールごとに選べます）</b><br>OFFにしたセールは、開催週が来ても止まらずにそのまま通過します。</p>
+  ${tog("stopSaleYoung","8月第1週・幼駒セールで止まる")}
+  ${tog("stopSaleMare","10月第1週・繁殖牝馬セールで止まる")}
+  ${tog("stopSaleOverseas","12月第3週・海外トレーニングセールで止まる")}
   <p class="small mt">🌱 種付け（5〜6月）は停止条件の対象外です：オート中は止まらず、調教師の配合提案（相馬眼が高い調教師ほど評価の高い配合を提案）どおりに自動で種付けを登録して、そのまま進行します。</p>
   ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します）")}
   ${tog("stopFinance","資金繰りの相談（融資・スポンサー）で止まる（OFFの場合はスキップして続行）")}
