@@ -4014,7 +4014,10 @@ function ability(h,race,jock){
   if(stLen>=470) core+=(h.bst-60)*0.012; // 長い直線（東京・新潟・阪神外）では瞬発力が効く
   if(traitOf(h,"rain")&&gi>=2)core*=1.025;
   core*= 1 + (h.cond-65)/100*(traitOf(h,"stablemind")?0.16:0.35); // 調子（習得特性「精神安定」はブレを小さくする）
-  const fatPen= traitOf(h,"sequential")?0.32:0.55;
+  /* 疲労：以前は係数0.55で、調教で能力を上げた馬が抱える疲労（50〜70）だけで
+     実効能力が1〜2割落ち、常にフレッシュな相手（疲労0〜20）に一方的に負けた。
+     係数を0.34に弱め、疲労困憊（85超）では今までどおり大きく負ける余地を残す */
+  const fatPen= traitOf(h,"sequential")?0.20:0.34;
   core*= 1 - Math.max(0,h.fat-45)/100*fatPen; // 疲労（連戦巧者は軽減）
   core*= 1 + ((jock?jock.skill:80)-82)/100*0.30; // 騎手
   core*= 1 - Math.max(0,(race.weight||55)-55)*0.004;
@@ -4704,7 +4707,68 @@ function offerNorm(o){
   if(o.perShare==null) o.perShare=Math.max(1,Math.round((o.price||0)/o.shares));
   if(o.filled===true && o.filledShares==null) o.filledShares=o.shares;
   if(o.filledShares==null) o.filledShares=0;
+  if(o.raised==null) o.raised=Math.round((o.price||0)*((o.filledShares||0)/(o.shares||400)));
+  if(o.weeks==null) o.weeks=0;
   return o;
+}
+/* ============ クラブ募集への出資（週次処理） ============
+   以前は出資を進める処理そのものが存在せず、filledShares は手動の
+   「満口にする（デモ進行）」ボタンでしか増えなかったため、週を何度
+   回しても誰も出資しない状態だった。ここで週次に判定する：
+   ・馬の魅力 appeal＝現在の能力＋潜在能力への期待＋血統（父系の流行）
+     ＋評価ランク。募集価格が適正（能力平均×20万円）より割高だと下がる
+   ・需要上限 target＝魅力と名声で決まる「最終的に集まる口数」。
+     良い馬は満口（400口）に届き、弱い馬は一部までで止まる
+   ・毎週、未達分の一定割合（魅力が高いほど速い）＋ばらつきで出資が進み、
+     増えた口数×一口価格がその週のうちにクラブ資金へ入る
+   ・進展は記録（S.log）とクラブ画面の「今週の出資進展」、
+     秘書の提案カードで分かるようにする */
+function clubOfferAppeal(o){
+  offerNorm(o);
+  /* 能力スナップショットの無い旧募集は、募集価格（＝能力平均×20）から逆算する */
+  const avg=(o.avg!=null)? o.avg : Math.round((o.price||0)/20);
+  const potAvg=(o.potAvg!=null)? o.potAvg : avg;
+  let appeal=avg + Math.max(0,potAvg-avg)*0.55;
+  if(o.sire){ try{ appeal+=(lineHeatOf(o.sire)-1)*22; }catch(e){} }
+  if(o.aimLv!=null) appeal+=(o.aimLv-1)*2.5;
+  const fair=Math.max(1,avg*20);
+  appeal+=clamp((fair/(o.price||fair)-1)*14,-9,5);
+  return {avg, potAvg, appeal};
+}
+function clubOfferTarget(o){
+  const ap=clubOfferAppeal(o);
+  const demand=clamp(0.16+(ap.appeal-50)*0.023+(S.fame||0)*0.0028, 0.12, 1);
+  return {appeal:ap.appeal, avg:ap.avg, potAvg:ap.potAvg, target:Math.max(1,Math.round((o.shares||400)*demand))};
+}
+function clubAppealLabel(appeal){ return appeal>=84?"大人気":appeal>=72?"人気":appeal>=60?"堅調":appeal>=52?"静か":"不人気"; }
+function clubWeekly(){
+  const c=S.club; if(!c||!Array.isArray(c.offers)||!c.offers.length) return;
+  c.recent=[];
+  const lines=[]; let totalAmt=0;
+  c.offers.forEach(o=>{
+    offerNorm(o);
+    o.lastGain=0; o.lastAmount=0;
+    if(o.filled||(o.filledShares||0)>=(o.shares||400)) return;
+    const t=clubOfferTarget(o);
+    o.targetShares=t.target;
+    const gap=t.target-(o.filledShares||0);
+    if(gap<=0) return;
+    o.weeks=(o.weeks||0)+1;
+    const rate=clamp(0.16+Math.max(0,t.appeal-58)*0.007, 0.16, 0.46);
+    let gain=Math.max(1,Math.round(gap*rate*rnd(0.7,1.3)));
+    gain=Math.min(gain, gap, (o.shares||400)-(o.filledShares||0));
+    if(gain<=0) return;
+    o.filledShares+=gain;
+    const amount=gain*(o.perShare||1);
+    o.raised=(o.raised||0)+amount;
+    o.lastGain=gain; o.lastAmount=amount;
+    c.funds=(c.funds||0)+amount;
+    totalAmt+=amount;
+    c.recent.push({name:o.name, gain, amount, filled:o.filledShares, shares:o.shares});
+    if(o.filledShares>=(o.shares||400)){ o.filled=true; log(`🏇🎉 クラブ募集馬「${o.name}」が満口になりました（全${o.shares}口／集まった出資 ${fmt(o.raised||0)}万円はクラブ資金に積み上がっています）`); }
+    else lines.push(`「${o.name}」+${gain}口（累計 ${o.filledShares}/${o.shares}口・${Math.round(o.filledShares/o.shares*100)}%）`);
+  });
+  if(lines.length) log(`🏇 クラブ出資の進展：${lines.join("／")} ― クラブ資金 +${fmt(totalAmt)}万円（現在 ${fmt(c.funds||0)}万円）`);
 }
 let selFac=null, selJockey=null, selCourseAna="東京";
 /* ============ 馬詳細（新レイアウト） ============ */
@@ -4893,7 +4957,10 @@ function renderStable(){
   S.horses.forEach((h,i)=>{h.owner=true; h.cardNo=i+1;});
   if(detailOpen){ UI.stable="detail"; detailTab="detail"; detailOpen=false; }
   const perH=window.innerWidth<720?3:6;
-  let horsesInner= allEntries().length? `<div class="panel" style="padding:8px 10px">${entriesHTML()}</div>` : "";
+  /* 厩舎ホームの出走予定はアコーディオン（初期は閉じて見出し＋件数だけ）。
+     開閉状態は ACC（セッション内のUI状態）に保持され、オート中の頻繁な
+     再描画やタブ切替でも勝手に開いた状態へは戻らない */
+  let horsesInner= allEntries().length? accHTML("homeEntries", `🏁 出走予定（${allEntries().length}件${nearestEntry()&&nearestEntry().left<=0?"／今週出走あり":""}）`, entriesHTML()) : "";
   if(S.weekReport&&S.weekReport.length){ horsesInner+=`<div class="panel" style="background:var(--panel2)"><b>🗓 今週の調教（定常指示による自動実行）</b><div class="wklist">${S.weekReport.slice(0,4).map(x=>`<div class="wkrow">${esc(x)}</div>`).join("")}</div></div>`; }
   /* 多頭管理：検索・並び替え・絞り込み（頭数が増えても目的の馬にすぐ届く）。
      一覧の絞り込み計算は1回の描画で1回だけ行う（従来は表示頭数の表示と
@@ -5856,7 +5923,7 @@ function showYearEnd(data){
   box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetire, ()=>showYearEnd()); }));
   box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; undoPush(`年末処理：入厩の前（${y.name}）`); const nm=($("#ye-name-"+y.id)||{}).value; if(nm)y.name=nm.trim().replace(/[<>&"]/g,"")||y.name; dedupeWorldNames(); y.age=2; y.known=100; S.horses.push(y); S.youngStock=S.youngStock.filter(x=>x!==y); log(`🐴 ${y.name} が入厩（明け2歳）`); b.parentElement.innerHTML=`<b>${esc(y.name)}</b> 入厩しました`; renderAll(); }));
   box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; undoPush(`年末処理：幼駒売却の前（${y.name}）`); const price=Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12*lineHeatOf(y.sire)); S.funds+=price; ledIn("sell",price); S.youngStock=S.youngStock.filter(x=>x!==y); const buyer=sellHorseToRival(y, price); log(`幼駒 ${y.name} を ${fmt(price)}万円で売却${buyer?`（${buyer}へ）`:""}`); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; renderAll(); }));
-  box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; undoPush(`年末処理：クラブ募集の前（${y.name}）`); S.club.offers=S.club.offers||[]; S.club.offers.push({name:y.name, price:Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*20), filled:false}); S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} をクラブ募集馬に回した`); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; renderAll(); }));
+  box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; undoPush(`年末処理：クラブ募集の前（${y.name}）`); S.club.offers=S.club.offers||[]; const avg5=(y.spd+y.sta+y.pow+y.bst+y.gut)/5; const price=Math.round(avg5*20); let alv=1; try{ alv=aimLevel(y); }catch(e){} S.club.offers.push({name:y.name, sire:y.sire||"", sex:y.sex||"", avg:Math.round(avg5*10)/10, potAvg:y.pot? Math.round(((y.pot.spd+y.pot.sta+y.pot.pow+y.pot.bst+y.pot.gut)/5)*10)/10 : Math.round(avg5*10)/10, aimLv:alv, price, shares:400, perShare:Math.max(1,Math.round(price/400)), filledShares:0, filled:false, raised:0, weeks:0, createdWeek:S.week}); S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} をクラブ募集馬に回した（募集総額 ${fmt(price)}万円・全400口／週が進むと出資が集まります）`); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; renderAll(); }));
   const cm=$("#ye-charm-mare"); if(cm) cm.addEventListener("click",()=>{ if((S.charms.green||0)<3)return; undoPush("年末処理：特別な繁殖牝馬を迎える前"); S.charms.green-=3; const m=newHorse({base:74, age:5, sex:"牝"}); m.famousDam=true; S.mares.push(m); log(`🧧 お守りと引き換えに特別な繁殖牝馬「${m.name}」が来た（名牝系）`); cm.disabled=true; renderAll(); });
   const yc=$("#ye-club"); if(yc) yc.addEventListener("click",()=>{ undoPush("年末処理：クラブ設立の前"); S.club=buildClub(); log("🏇 クラブを設立した"); yc.outerHTML=`<span class="small">設立済み</span>`; renderAll(); });
 }
@@ -6057,6 +6124,8 @@ function nextWeekBody(){
   JOCKEYS.forEach(j=>{ const st=(S.jockStats||{})[j.id]; const last=st?st.last:-99; if(S.week-last>16 && friendshipOf(j.id)>5) addFriendship(j.id,-1); });
   /* 受胎判定（月末）・誕生（翌年4月）・幼駒育成 */
   farmWeekly();
+  /* クラブ募集への出資：週が進むたびに判定し、出資口数とクラブ資金を進める */
+  try{ clubWeekly(); }catch(e){ try{ log("⚠ クラブ出資の処理でエラーが発生しました："+((e&&e.message)||e)); }catch(e2){} }
   if(S.week%48===0){ // 年明け加齢＆成長・衰え
     S.horses.forEach(h=>{
       h.age++;
@@ -6427,12 +6496,18 @@ function makeRivals(r){
       }
     }catch(e){}
   }
-  /* 年数が進むほど相手も強くなる（中盤以降も勝ち続けにくくする）。1年目は従来どおり */
-  const yrB = r.cls>=2 ? Math.min(5, Math.max(0, year()-1)) : 0;
-  const baseByCls=[52,54,60,65,72,78,84,88,93][r.cls]+yrB;
+  /* 年数が進むほど相手も強くなる（中盤以降も勝ち続けにくくする）。1年目は従来どおり。
+     以前は重賞の基礎値が高すぎ（G1で93＋年数最大+5）、表示上Sランク（90以上）の
+     馬でも相手の平均・最強格に届かず「Sなのに勝てない」状態だった。Sが本当に
+     トップ水準になるよう重賞の基礎値を下げ、年数ボーナスも最大+3に抑える */
+  const yrB = r.cls>=2 ? Math.min(3, Math.max(0, year()-1)) : 0;
+  const baseByCls=[52,54,60,65,72,77,82,85,90][r.cls]+yrB;
   for(let i=out.length;i<n;i++){
-    const ace = r.cls>=3 && Math.random()<0.12 ? ri(4,7) : 0; // たまに格上の強豪が混ざる
+    const ace = r.cls>=3 && Math.random()<0.10 ? ri(3,6) : 0; // たまに格上の強豪が混ざる
     const h=newHorse({base:baseByCls+gauss()*7+ace, age:r.age||(r.ageMin?ri(r.ageMin,r.ageMin+2):pick([3,3,4,4,5,6]))});
+    /* 相手も使い込まれれば疲労・調子の波がある（自厩舎馬だけが疲労で割り引かれる非対称の解消） */
+    h.fat= Math.random()<0.3? ri(40,62) : ri(5,30);
+    h.cond= ri(50,82);
     if(r.sex==="牝")h.sex="牝"; if(r.sex==="牡騸"&&h.sex==="牝")h.sex="牡";
     h.name=genUniqueName(out); /* 相手馬も固有名：この出馬表の中で重複させない */
     if(r.cls===0){h.races=0; h.wins=0;}
@@ -10117,18 +10192,20 @@ function clubPanelHTML(){
   const cEval=(c.prize||0)>=20000?"S":(c.prize||0)>=10000?"A":(c.prize||0)>=4000?"B":(c.prize||0)>0?"C":"D";
   const offers=c.offers||[];
   const filledN=offers.filter(o=>(o.shares-o.filledShares)<=0).length;
-  const raised=offers.reduce((a,o)=>a+Math.round((o.price||0)*((o.filledShares||0)/(o.shares||400))),0);
+  const raised=offers.reduce((a,o)=>a+(o.raised||0),0);
   const popular=[...offers].filter(o=>(o.shares-o.filledShares)>0).sort((a,b)=>(a.shares-a.filledShares)-(b.shares-b.filledShares)).slice(0,3);
+  const recent=c.recent||[];
   return `<div class="panel">
   <div class="ye-name" style="font-size:19px">${esc(c.name)}</div>
-  <div class="small">代表：${esc(c.owner)}／クラブ評価 <b class="rankmark rank${cEval}">${cEval}</b>（累計クラブ賞金で変動）／会員 ${c.members.length}名</div>
+  <div class="small">代表：${esc(c.owner)}／クラブ評価 <b class="rankmark rank${cEval}">${cEval}</b>（累計クラブ賞金で変動）／会員 ${c.members.length}名／名声 ${S.fame||0}（名声が高いほど出資が集まります）</div>
   <div class="mt" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div class="ticket" style="margin:0"><b>クラブ資金</b><div style="font-size:19px;font-weight:800">${fmt(c.funds||0)}万円</div><div class="small">レースのクラブ賞金が積み上がります</div></div>
+    <div class="ticket" style="margin:0"><b>クラブ資金</b><div style="font-size:19px;font-weight:800">${fmt(c.funds||0)}万円</div><div class="small">レースのクラブ賞金と、募集への出資が積み上がります</div></div>
     <div class="ticket" style="margin:0"><b>累計クラブ賞金</b><div style="font-size:19px;font-weight:800">${fmt(c.prize||0)}万円</div><div class="small">自厩舎馬が5着以内に入ると着順賞金が計上されます</div></div>
     <div class="ticket" style="margin:0"><b>募集馬（クラブ所有馬）</b><div style="font-size:19px;font-weight:800">${offers.length}頭（満口 ${filledN}頭）</div><div class="small">年末処理で自家生産馬を回します</div></div>
-    <div class="ticket" style="margin:0"><b>出資の集まり具合</b><div style="font-size:19px;font-weight:800">約${fmt(raised)}万円</div><div class="small">満口になると募集額が自分の資金に入ります</div></div>
+    <div class="ticket" style="margin:0"><b>出資の集まり具合</b><div style="font-size:19px;font-weight:800">約${fmt(raised)}万円</div><div class="small">出資が集まるたびに、その分がクラブ資金へ入ります</div></div>
   </div>
-  <div class="mt"><b>募集馬の出資状況</b>${offers.length? offers.map((o,i)=>{ const rem=o.shares-o.filledShares; const pct=Math.round((o.filledShares||0)/(o.shares||400)*100); return `<div class="ticket"><b>${esc(o.name)}</b> <span class="small">募集総額 ${fmt(o.price)}万円／一口 ${fmt(o.perShare)}万円／出資 ${o.filledShares||0}/${o.shares}口（${pct}%）・残り <b>${rem}口</b>${rem===0?"・満口":""}</span> <button class="btn sm" data-club-fill="${i}" ${rem===0?"disabled":""}>満口にする（デモ進行）</button></div>`; }).join("") : `<div class="small">募集馬はいません。年末処理（明け2歳の処遇）で自家生産馬をクラブ募集へ回せます。</div>`}</div>
+  ${recent.length?`<div class="mt" style="background:var(--panel2);border-radius:10px;padding:8px 10px"><b>📈 今週の出資進展</b><div class="small">${recent.map(r=>`「${esc(r.name)}」に <b>+${r.gain}口</b>（+${fmt(r.amount)}万円／累計 ${r.filled}/${r.shares}口）`).join("<br>")}</div></div>`:""}
+  <div class="mt"><b>募集馬の出資状況</b>${offers.length? offers.map((o,i)=>{ const rem=o.shares-o.filledShares; const pct=Math.round((o.filledShares||0)/(o.shares||400)*100); const t=clubOfferTarget(o); const full=rem===0; return `<div class="ticket"><div class="flex" style="justify-content:space-between;gap:6px;flex-wrap:wrap"><b>${esc(o.name)}</b><span class="aptchip ${t.appeal>=72?"strong":""}">${clubAppealLabel(t.appeal)}</span>${full?`<span class="aptchip strong">満口</span>`:`<span class="small">見込み：${t.target>=o.shares?"満口まで集まる見込み":`約${t.target}口まで集まる見込み`}</span>`}</div><div class="recbar" style="margin:6px 0 4px"><i style="width:${pct}%;background:var(--gold)"></i></div><span class="small">募集総額 ${fmt(o.price)}万円／一口 ${fmt(o.perShare)}万円／出資 <b>${o.filledShares||0}/${o.shares}口（${pct}%）</b>・残り <b>${rem}口</b>／集まった出資 ${fmt(o.raised||0)}万円${o.sire?`／父 ${esc(o.sire)}`:""}${o.avg!=null?`／能力平均 ${o.avg}`:""}${(o.lastGain||0)>0?`／<b>今週 +${o.lastGain}口</b>`:""}${!full&&(o.weeks||0)>0&&!(o.lastGain>0)?`／今週の新規出資なし（需要の上限に近づいています）`:""}</span></div>`; }).join("") : `<div class="small">募集馬はいません。年末処理（明け2歳の処遇）で自家生産馬をクラブ募集へ回せます。</div>`}</div><div class="small">出資は週が進むたびに判定されます。能力・潜在能力・血統が良く、募集価格が適正で、名声が高いほど速く・多く集まります。</div>
   <div class="mt"><b>人気募集馬</b><div class="small">${popular.length? popular.map((o,i)=>`${i+1}. ${esc(o.name)}（残り${o.shares-o.filledShares}口）`).join("／") : "募集中の馬はいません"}</div></div>
   <div class="mt"><b>知人（会員）</b><div class="small">${c.members.map(x=>esc(x)).join("、")}</div></div>
   <div class="mt"><b>馬主リーディング（クラブ別賞金）</b><div class="small">${[[c.owner+"（自分のクラブ）",(c.prize||0)],["青葉クラブ",12400],["星野クラブ",9800],["南関クラブ",7600]].sort((a,b)=>b[1]-a[1]).map((x,i)=>`${i+1}位 ${esc(x[0])} ${fmt(x[1])}万円`).join("<br>")}</div></div>
@@ -10276,7 +10353,7 @@ function renderFarm(){
  const bo=$("#btn-overseas"); if(bo) bo.addEventListener("click",()=>{ S.funds-=20000; S.overseasFarm={region:"欧州"}; log("🌍 海外牧場（欧州）を開設した"); renderAll(); });
  const bc=$("#btn-clubfarm"); if(bc) bc.addEventListener("click",()=>{ S.funds-=10000; S.clubFarm=true; log("🏇 クラブ牧場を開設した"); renderAll(); });
  const bcl=$("#btn-club"); if(bcl) bcl.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); renderAll(); });
- el.querySelectorAll("[data-club-fill]").forEach(b=>b.addEventListener("click",()=>{ const o=S.club.offers[+b.dataset.clubFill]; if(!o)return; offerNorm(o); if(o.filledShares>=o.shares)return; o.filledShares=o.shares; o.filled=true; S.funds+=o.price; ledIn("sell",o.price); log(`クラブ募集馬「${o.name}」が満口（全${o.shares}口）。募集額 ${fmt(o.price)}万円 が入りました`); renderAll(); }));
+ /* 出資は週次処理（clubWeekly）で自動で進むため、手動の満口ボタンは廃止した */
 }
 
 /* セールを終了する：購入済みの馬は既に自厩舎（繁殖牝馬／幼駒）へ移っていて
@@ -10739,6 +10816,11 @@ function buildGuide(){
     const belowStd=S.horses.filter(h=>(h.age||0)>=4&&aimLevel(h)<rst).sort((a,b)=>aimLevel(a)-aimLevel(b))[0];
     if(belowStd) cards.push({key:"stdretire"+belowStd.id, who:"秘書・佐倉 澪", face:"sec", text:`${belowStd.name}（${belowStd.age}歳・${belowStd.races}戦${belowStd.wins}勝）は引退基準（${AIM_LEVELS[rst]}以上）未満です（評価：${aimLabel(belowStd)}）。引退を検討してください`, btn:"厩舎で確認する", act:"view", view:"stable"});
   }
+  /* クラブ出資の進展：今週出資が集まった募集があれば、秘書から知らせる */
+  if(S.club&&(S.club.recent||[]).length){
+    const rc=S.club.recent; const tot=rc.reduce((a,r)=>a+r.gain,0), amt=rc.reduce((a,r)=>a+r.amount,0);
+    cards.push({key:"clubprog"+S.week, who:"秘書・佐倉 澪", face:"sec", text:`クラブ募集に今週 ${tot}口の出資が集まりました（${rc.map(r=>`「${r.name}」+${r.gain}口`).join("、")}／クラブ資金 +${fmt(amt)}万円）`, btn:"クラブの出資状況を見る", act:"club"});
+  }
   const smp=(()=>{ try{ return surplusMare(); }catch(e){ return null; } })();
   if(smp){
     cards.push({key:"maresell"+smp.m.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`繁殖牝馬 ${smp.m.name} の売却を提案します。${smp.rs[0]}（見積 ${fmt(mareSellPrice(smp.m))}万円）`, btn:"繁殖牝馬の売却へ", act:"view", view:"breed", anchor:"breed-mares"});
@@ -10774,7 +10856,7 @@ function guideHTML(){
   const stepsHTML=st.steps.map((s,i)=>`<span class="${s.done?"done":i===st.cur?"cur":s.na?"na":""}">${s.done?"✓ ":(i+1)+". "}${s.n}${s.na?"（今週なし）":""}</span>`).join("");
   return `<div class="guidebox"><div class="g-next">次にやること</div><div class="g-title">${g.next.title}</div><div class="small">${g.next.sub}</div>
   <details class="gfold"><summary>週の進み具合を見る</summary><div class="gsteps">${stepsHTML}</div></details>
-  ${entriesHTML()}
+  ${allEntries().length? accHTML("homeEntries", `🏁 出走予定（${allEntries().length}件）`, entriesHTML()) : ""}
   ${g.cards.length?`<div class="gcards">${g.cards.map(c=>`<div class="gcard">${guideFaceHTML(c.face)}<div style="flex:1;min-width:0"><div class="gwho">${esc(c.who)} の提案</div><div class="gtext">${esc(c.text)}</div><div class="gbtns"><button class="btn sm" data-guide="${c.key}" ${c.dis?"disabled":""}>${esc(c.btn)}</button></div></div><button class="gx" data-gdismiss="${c.key}" title="この提案を消す（今週は再表示しません）">✕</button></div>`).join("")}</div>`:`<p class="small" style="margin:8px 0 0">提案はすべて完了しました。画面下部の「次の週へ」ボタンから進めます。</p>`}
   </div>`;
 }
@@ -10843,6 +10925,7 @@ function gotoGuideCard(c){
     const bb2=$("#btn-breed2"); if(bb2) guideFocusEl(bb2);
   }
   else if(c.act==="facility"){ selFac=c.fid; pendingAnchor={view:"farm", id:"farm-fac-detail"}; switchView("farm"); }
+  else if(c.act==="club"){ UI.farm="club"; switchView("farm"); }
   else if(c.act==="finance"){ showFinance(); }
   else if(c.act==="view"){ if(c.rid){ betState.raceId=c.rid; betState.field=null; } if(c.anchor) pendingAnchor={view:c.view, id:c.anchor}; switchView(c.view); }
 }
