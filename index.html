@@ -1994,7 +1994,7 @@ function gauss(){return (Math.random()+Math.random()+Math.random())/1.5-1;} // -
 /* ============ サウンド（Web Audioで生成する自作音源のみ・外部ファイルなし） ============
    軽量設計：常駐ノードは BGMスケジューラ（250ms間隔の先行予約）と歓声ノイズ1本だけ。
    AudioContextはユーザーの最初のタップ以降に生成・再開する（自動再生制限対応） */
-const AU={ctx:null,master:null,bgmGain:null,seGain:null,crowdGain:null,crowdSrc:null,mode:null,timer:0,step:0,nextT:0,hoofM:-99,crowdLvl:-1};
+const AU={ctx:null,master:null,bgmGain:null,seGain:null,crowdGain:null,crowdSrc:null,mode:null,timer:0,step:0,nextT:0,hoofM:-99,crowdLvl:-1,_crowdTimer:0,_unlocked:false};
 function sndCfg(){ if(typeof S==="undefined") return {on:true,bgm:0.6,se:0.9}; if(!S.sound) S.sound={on:true,bgm:0.6,se:0.9}; return S.sound; }
 function auApply(){
   if(!AU.ctx)return; const c=sndCfg();
@@ -2003,11 +2003,22 @@ function auApply(){
   if(AU.seGain)AU.seGain.gain.setTargetAtTime(0.9*c.se, AU.ctx.currentTime, 0.1);
 }
 function auInit(){
-  if(AU.ctx){ if(AU.ctx.state==="suspended")AU.ctx.resume(); return AU.ctx; }
+  if(AU.ctx){ if(AU.ctx.state==="suspended"||AU.ctx.state==="interrupted")AU.ctx.resume(); return AU.ctx; }
   const Ctor=window.AudioContext||window.webkitAudioContext; if(!Ctor)return null;
   const ctx=new Ctor(); AU.ctx=ctx;
-  AU.master=ctx.createGain(); AU.master.connect(ctx.destination);
-  AU.bgmGain=ctx.createGain(); AU.bgmGain.connect(AU.master);
+  /* 出力段：マスター→コンプレッサー→出力。音が潰れず、全体がまとまって聞こえる */
+  const comp=ctx.createDynamicsCompressor();
+  comp.threshold.value=-16; comp.knee.value=22; comp.ratio.value=5; comp.attack.value=0.004; comp.release.value=0.18;
+  comp.connect(ctx.destination);
+  AU.master=ctx.createGain(); AU.master.connect(comp);
+  /* BGMバス：ローパスで耳当たりを柔らかくし、短いディレイの残響で広がりを付ける */
+  AU.bgmGain=ctx.createGain();
+  const bgmLP=ctx.createBiquadFilter(); bgmLP.type="lowpass"; bgmLP.frequency.value=5600;
+  AU.bgmGain.connect(bgmLP); bgmLP.connect(AU.master);
+  const dly=ctx.createDelay(1); dly.delayTime.value=0.27;
+  const fb=ctx.createGain(); fb.gain.value=0.22;
+  const wet=ctx.createGain(); wet.gain.value=0.16;
+  bgmLP.connect(dly); dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(AU.master);
   AU.seGain=ctx.createGain(); AU.seGain.connect(AU.master);
   /* 歓声：ホワイトノイズ→バンドパスで「群衆のざわめき」に整形し、ゲインで盛り上がりを制御 */
   const len=2*ctx.sampleRate, buf=ctx.createBuffer(1,len,ctx.sampleRate), d=buf.getChannelData(0);
@@ -2015,16 +2026,47 @@ function auInit(){
   const src=ctx.createBufferSource(); src.buffer=buf; src.loop=true;
   const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=620; bp.Q.value=0.45;
   const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2400;
+  /* 第2層：少し高い帯域で「声」の粒立ちを足す */
+  const src2=ctx.createBufferSource(); src2.buffer=buf; src2.loop=true; src2.playbackRate.value=1.31;
+  const bp2=ctx.createBiquadFilter(); bp2.type="bandpass"; bp2.frequency.value=1450; bp2.Q.value=0.7;
+  const g2=ctx.createGain(); g2.gain.value=0.34;
+  /* LFO：バンドパスの中心をゆっくり揺らし、群衆のざわめきにうねりを作る */
+  const lfo=ctx.createOscillator(); lfo.frequency.value=0.07;
+  const lfoG=ctx.createGain(); lfoG.gain.value=150;
+  lfo.connect(lfoG); lfoG.connect(bp.frequency); lfo.start();
   AU.crowdGain=ctx.createGain(); AU.crowdGain.gain.value=0;
   src.connect(bp); bp.connect(lp); lp.connect(AU.crowdGain); AU.crowdGain.connect(AU.seGain);
-  src.start(); AU.crowdSrc=src;
+  src2.connect(bp2); bp2.connect(g2); g2.connect(AU.crowdGain);
+  src.start(); AU.crowdSrc=src; src2.start();
+  /* iOS Safari の解放用：生成直後に無音バッファを1回鳴らす（ユーザー操作内で呼ばれた時に効く） */
+  try{ const ub=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*0.03),ctx.sampleRate); const us=ctx.createBufferSource(); us.buffer=ub; us.connect(ctx.destination); us.start(0); }catch(e){}
   auApply();
   return ctx;
 }
+/* ユーザー操作のたびに呼ぶ解放処理：iOS Safari は操作の同期処理の中で
+   生成・resume しないと音が出ない（suspended／interrupted の両方に対応）。
+   画面復帰時にも resume を試みる */
+function auUnlock(){
+  const ctx=auInit(); if(!ctx)return;
+  if(ctx.state==="suspended"||ctx.state==="interrupted"){ const p=ctx.resume(); if(p&&p.catch)p.catch(()=>{}); }
+  AU._unlocked=true;
+  if(typeof raceState!=="undefined"&&raceState.phase!=="run"&&!AU.mode) auSetMode("home");
+}
 function auSetCrowd(lvl,sec){
   if(!AU.ctx||!AU.crowdGain)return; lvl=clamp(lvl,0,1);
+  if(lvl>0.02&&AU._crowdTimer){ clearTimeout(AU._crowdTimer); AU._crowdTimer=0; } // 新たに歓声を上げるなら停止予約を取り消す
   if(Math.abs(lvl-AU.crowdLvl)<0.03&&sec===undefined)return; AU.crowdLvl=lvl;
   AU.crowdGain.gain.setTargetAtTime(lvl*0.5, AU.ctx.currentTime, sec||0.4);
+}
+/* レース中サウンドの確実な停止：歓声を予約ごと取り消して即座に 0 へ落とす。
+   レース終了画面を離れる経路（帰るボタン／画面切替の安全網）から呼ぶ */
+function auStopCrowd(){
+  if(AU._crowdTimer){ clearTimeout(AU._crowdTimer); AU._crowdTimer=0; }
+  if(!AU.ctx||!AU.crowdGain)return;
+  const t=AU.ctx.currentTime;
+  AU.crowdGain.gain.cancelScheduledValues(t);
+  AU.crowdGain.gain.setTargetAtTime(0, t, 0.1);
+  AU.crowdLvl=0;
 }
 /* ---- BGM：コードパッド＋柔らかい主旋律の生成ループ ---- */
 const AU_HOME=[[261.6,329.6,392.0],[220.0,261.6,329.6],[174.6,220.0,261.6],[196.0,246.9,293.7]];
@@ -2046,12 +2088,16 @@ function auSchedule(){
     const chords=race?AU_RACE:AU_HOME, bar=race?2.0:3.2;
     const ch=chords[AU.step%chords.length];
     ch.forEach(f=>{ auNote(f,t,bar*0.98,"triangle",race?0.16:0.13); auNote(f*1.005,t,bar*0.98,"sine",0.07); });
-    if(race){ // 緊張感のある低音パルス
-      for(let b=0;b<4;b++) auNote(ch[0]/2,t+b*bar/4,0.16,"square",0.05);
+    auNote(ch[0]/2,t,bar*0.92,"sine",race?0.11:0.095); // ベース：コードのルートを低音で支える
+    if(race){ // 緊張感のある低音パルス＋駆け上がるアルペジオ
+      for(let b=0;b<4;b++) auNote(ch[0]/2,t+b*bar/4,0.16,"square",b%2?0.035:0.05);
       auNote(AU_PENTA[(AU.step*2)%AU_PENTA.length]/2,t+bar*0.5,0.3,"triangle",0.06);
-    } else { // 穏やかな主旋律（2小節に1回程度）
+      auNote(AU_PENTA[(AU.step*2+2)%AU_PENTA.length]/2,t+bar*0.75,0.26,"triangle",0.05);
+    } else { // 穏やかな主旋律（2小節に1回程度）＋控えめな分散和音
       if(AU.step%2===0) auNote(AU_PENTA[(AU.step*3)%AU_PENTA.length],t+bar*0.25,0.9,"sine",0.075);
       if(AU.step%4===2) auNote(AU_PENTA[(AU.step+1)%AU_PENTA.length],t+bar*0.6,0.7,"sine",0.06);
+      auNote(ch[1]*2,t+bar*0.5,0.5,"sine",0.028);
+      auNote(ch[2]*2,t+bar*0.78,0.45,"sine",0.024);
     }
     AU.nextT=t+bar; AU.step++;
   }
@@ -2070,6 +2116,10 @@ function auFanfare(){ // G1導入：金管風ファンファーレ（生成音�
     o.type="sawtooth"; o.frequency.value=f; fl.type="lowpass"; fl.frequency.value=2100;
     g.gain.setValueAtTime(0.0001,t+dt); g.gain.exponentialRampToValueAtTime(0.11,t+dt+0.04); g.gain.exponentialRampToValueAtTime(0.0001,t+dt+0.34);
     o.connect(fl); fl.connect(g); g.connect(AU.seGain); o.start(t+dt); o.stop(t+dt+0.4);
+    const o2=ctx.createOscillator(), g2=ctx.createGain(), fl2=ctx.createBiquadFilter();
+    o2.type="sawtooth"; o2.frequency.value=f*1.5; fl2.type="lowpass"; fl2.frequency.value=1600;
+    g2.gain.setValueAtTime(0.0001,t+dt); g2.gain.exponentialRampToValueAtTime(0.045,t+dt+0.04); g2.gain.exponentialRampToValueAtTime(0.0001,t+dt+0.32);
+    o2.connect(fl2); fl2.connect(g2); g2.connect(AU.seGain); o2.start(t+dt); o2.stop(t+dt+0.38);
   });
 }
 function auTone(freq,dur,type,vol,when){
@@ -2095,11 +2145,11 @@ function auHoof(dirt){ // 蹄音：短いノイズ＋低い打音。芝は柔ら
   const ctx=AU.ctx, t=ctx.currentTime, dur=0.07;
   const buf=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*dur),ctx.sampleRate), d=buf.getChannelData(0);
   for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.6);
-  const s=ctx.createBufferSource(); s.buffer=buf;
-  const f=ctx.createBiquadFilter(); f.type=dirt?"bandpass":"lowpass"; f.frequency.value=dirt?950:420; f.Q.value=dirt?0.9:0.4;
-  const g=ctx.createGain(); g.gain.value=dirt?0.20:0.15;
+  const s=ctx.createBufferSource(); s.buffer=buf; s.playbackRate.value=0.92+Math.random()*0.16;
+  const f=ctx.createBiquadFilter(); f.type=dirt?"bandpass":"lowpass"; f.frequency.value=(dirt?950:420)*(0.9+Math.random()*0.2); f.Q.value=dirt?0.9:0.4;
+  const g=ctx.createGain(); g.gain.value=(dirt?0.20:0.15)*(0.85+Math.random()*0.3);
   s.connect(f); f.connect(g); g.connect(AU.seGain); s.start(t);
-  auTone(dirt?95:82,0.06,"sine",0.10);
+  auTone((dirt?95:82)*(0.94+Math.random()*0.12),0.06,"sine",0.10);
 }
 
 /* ============ 定数データ ============ */
@@ -3557,6 +3607,41 @@ function legendAboveBelow(earn){
   return {below, above, isTop: earn>(sorted[0]?sorted[0].earn:0)};
 }
 
+/* ============ 自厩舎の殿堂入り（歴代名馬ランキングに自厩舎馬も並べる） ============
+   基準は歴代名馬の最低ラインに合わせる：獲得賞金が殿堂の最下位以上／
+   レーティングが殿堂の最低値以上／G1を2勝以上、のいずれかに達した
+   自厩舎馬は「殿堂入り」として、歴代名馬タブや牧場の殿堂でも
+   実在の歴代名馬と並んで表示される。引退して繁殖入りした馬
+   （繁殖牝馬・種牡馬）も対象に含め、売却などで手元を離れた後も
+   残るよう、達した時点の記録を S.hallOfFame に写して残す */
+function hallThresholds(){
+  return { earn:Math.min(...LEGENDS.map(L=>L.earn)), rating:Math.min(...LEGENDS.map(L=>L.rating)) };
+}
+function hallQualifies(h){
+  if(!h||!(h.races>0)) return false;
+  const th=hallThresholds();
+  return (h.earnings||0)>=th.earn || ratingOf(h)>=th.rating || g1WinEst(h)>=2;
+}
+function ownHorsePool(){
+  /* 現役（S.horses）＋繁殖牝馬（現役時の記録のまま）＋種牡馬（own に現役時の記録） */
+  const out=[];
+  (S.horses||[]).forEach(h=>out.push(h));
+  (S.mares||[]).forEach(h=>{ if(h&&h.races!=null) out.push(h); });
+  (S.stallions||[]).forEach(s=>{ if(s&&s.own) out.push(s.own); });
+  return out;
+}
+function refreshHallOfFame(){
+  if(!Array.isArray(S.hallOfFame)) S.hallOfFame=[];
+  ownHorsePool().forEach(h=>{
+    if(h.id==null||!hallQualifies(h)) return;
+    const rec={id:h.id, name:h.name, sex:h.sex, age:h.age, races:h.races||0, wins:h.wins||0,
+      earnings:h.earnings||0, rating:ratingOf(h), gWins:h.gWins||0, g1w:g1WinEst(h)};
+    const ix=S.hallOfFame.findIndex(x=>x.id===h.id);
+    if(ix>=0) S.hallOfFame[ix]=rec; else S.hallOfFame.push(rec);
+  });
+  return S.hallOfFame;
+}
+
 /* ============ ゲーム状態 ============ */
 const S={
   funds:8000, week:0, silk:0, horses:[], selected:null,
@@ -3567,7 +3652,7 @@ const S={
   autosaveFreq:"week", pendingYearEnd:null, autoCfg:null, trainerId:"jp122", omakase:false,
   friendship:{0:35,1:20,2:25,3:15,4:10,5:15}, jockStats:{}, weekReport:[], watchMode:"full", betPct:0,
   facilities:{}, building:{}, mgrPost:null, fame:0,
-  pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0,
+  pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0, hallOfFame:[],
   club:null, sale:null, saleWeekKey:"", clubOffers:[], ended:false, springFlags:{}, overseasFarm:null, clubFarm:false,
   worldHorses: defaultWorld(),
 };
@@ -4416,7 +4501,9 @@ const TRAINER={name:"手塚貴久", policy:"バランス", desc:"美浦所属・
    RAW形式：[id, 氏名, 補助（日本=フリガナ／海外=拠点）, 所属（日本のみ）,
    デビュー年（日本のみ）, 能力5文字（調教/相馬眼/閃き/体調/体重）,
    距離4文字（短/マ/中/長）, 特性, 地域（jp/eu/us）, 年代適性4文字（海外のみ）]
-   雇用費・維持費は能力合計から算出（高い調教師ほど高い）。
+   雇用費・維持費は能力合計の三次式で算出：優秀な調教師ほど
+   大胆に高く（最上位は維持費が週200万円超・雇用費は1億円級）、
+   平凡な調教師は安く、メリハリのある金額差にする。
    初期調教師は手塚貴久（jp122・雇用費/維持費ゼロ） */
 const TRAINER_RAW=[["jp2","池江泰寿","イケエヤストシ","栗東","2004","BCSBS","CASA",["3歳戦","古馬戦","クラシック","芝","輸送競馬","叩き一変","スパルタ","気合鼓舞"],"jp",""],["jp6","羽月友彦","ハツキトモヒコ","栗東","2007","DBEDD","DDDD",[],"jp",""],["jp8","杉浦宏昭","スギウラヒロアキ","美浦","1996","DCDCC","CCDD",[],"jp",""],["jp10","清水久詞","シミズヒサシ","栗東","2009","CSDCB","CDCA",["海外遠征","スパルタ","気合鼓舞"],"jp",""],["jp13","斎藤誠","サイトウマコト","美浦","2006","CDCCD","CCCD",["外国産馬"],"jp",""],["jp14","村山明","ムラヤマアキラ","栗東","2008","CCECC","CCCC",["交流重賞","外国産馬","気合鼓舞"],"jp",""],["jp15","音無秀孝","オトナシヒデタカ","栗東","1995","ASAAS","SSAS",["3歳戦","古馬戦","牝馬","大レース","交流重賞","ローカル","芝","輸送競馬","スパルタ","外国産馬"],"jp",""],["jp17","萩原清","ハギワラキヨシ","美浦","1997","ADBBB","CABD",["3歳戦","交流重賞","海外遠征","ダート","軽め調教"],"jp",""],["jp18","宮徹","ミヤトオル","栗東","1997","CBCCC","ACCD",[],"jp",""],["jp24","笹田和秀","ササダカズヒデ","栗東","2008","DDECC","DDCD",[],"jp",""],["jp30","大久保龍志","オオクボリュウジ","栗東","2003","CCBCB","CBCA",["ダート","気性難"],"jp",""],["jp34","竹内正洋","タケウチマサヒロ","美浦","2015","EEEEE","DDDD",[],"jp",""],["jp35","尾形和幸","オガタカズユキ","美浦","2013","EDEDE","DDDD",[],"jp",""],["jp36","杉山晴紀","スギヤマハルキ","栗東","2017","CCCDC","CCCC",["気合鼓舞"],"jp",""],["jp38","吉岡辰弥","ヨシオカタツヤ","栗東","2020","EDDED","DDDD",[],"jp",""],["jp39","鮫島一歩","サメシマイッポ","栗東","2000","CAEDC","BCBC",["ローカル","輸送競馬","スパルタ"],"jp",""],["jp43","木村哲也","キムラテツヤ","美浦","2012","CBBBB","DCBD",["芝","休み明け","本命"],"jp",""],["jp46","小島茂之","コジマシゲユキ","美浦","2003","CCCDC","DDBD",[],"jp",""],["jp52","平田修","ヒラタオサム","栗東","2006","CDCDC","DCDD",["気性難"],"jp",""],["jp54","野中賢二","ノナカケンジ","栗東","2008","CCDDC","DCDC",[],"jp",""],["jp59","上原博之","ウエハラヒロユキ","美浦","1994","DDDDC","DCCD",[],"jp",""],["jp61","牧浦充徳","マキウラミツノリ","栗東","2009","DDEEE","CDDD",[],"jp",""],["jp65","戸田博文","トダヒロフミ","美浦","2002","CCCSB","DCBB",[],"jp",""],["jp72","奥村武","オクムラタケシ","美浦","2014","EDCED","DDDD",[],"jp",""],["jp73","高野友和","タカノトモカズ","栗東","2011","CEDBB","DCCC",["牝馬","スパルタ"],"jp",""],["jp79","飯田雄三","イイダユウゾウ","栗東","2001","DDCCE","CDDD",[],"jp",""],["jp80","友道康夫","トモミチヤスオ","栗東","2003","BCASB","DBSS",["2歳戦","クラシック","海外遠征","芝","輸送競馬","叩き一変","軽め調教","気合鼓舞"],"jp",""],["jp86","牧光二","マキコウジ","美浦","2009","DEDDE","CDDD",[],"jp",""],["jp87","大竹正博","オオタケマサヒロ","美浦","2008","CDDBC","DDCC",[],"jp",""],["jp89","清水英克","シミズヒデカツ","美浦","2006","DCCDD","CDDD",[],"jp",""],["jp95","加藤征弘","カトウユキヒロ","美浦","2002","BEDBC","CBCD",["海外遠征","ダート","気性難"],"jp",""],["jp96","佐々木晶三","ササキショウゾウ","栗東","1994","ABDBB","BBAD",["ローカル","叩き一変","軽め調教","外国産馬","気合鼓舞"],"jp",""],["jp97","高橋義忠","タカハシヨシタダ","栗東","2011","DCBCC","BDDD",[],"jp",""],["jp98","吉村圭司","ヨシムラケイジ","栗東","2012","DDEDD","DDCD",[],"jp",""],["jp99","菊沢隆徳","キクザワタカノリ","美浦","2011","DDCCD","DCDD",[],"jp",""],["jp105","鈴木孝志","スズキタカシ","栗東","2010","DEEEE","CDDD",[],"jp",""],["jp107","辻哲英","ツジテツヒデ","美浦","2021","EEEEE","DDDD",[],"jp",""],["jp110","今野貞一","コンノテイイチ","栗東","2012","DEEEE","DDDC",[],"jp",""],["jp111","蛯名利弘","エビナトシヒロ","美浦","2012","EEEEE","DDDD",[],"jp",""],["jp114","小林真也","コバヤシシンヤ","栗東","2021","EEEEE","DDDD",[],"jp",""],["jp122","手塚貴久","テヅカタカヒサ","美浦","1999","CBBBB","BBBA",["2歳戦","牝馬","休み明け","本命","外国産馬"],"jp",""],["jp123","田島俊明","タジマトシアキ","美浦","2009","EEEEE","DDDD",[],"jp",""],["jp128","奥村豊","オクムラユタカ","栗東","2015","EEEDD","DDDC",[],"jp",""],["jp130","西園正都","ニシゾノマサト","栗東","1998","BAACB","ABCD",["ローカル","ダート","輸送競馬","外国産馬"],"jp",""],["jp131","林徹","ハヤシトオル","美浦","2018","EDEED","DDDD",[],"jp",""],["jp136","橋田満","ハシダミツル","栗東","1985","BBABA","BBAA",["大レース","輸送競馬","休み明け","気合鼓舞"],"jp",""],["jp140","鹿戸雄一","シカトユウイチ","美浦","2008","CCCCB","DCBD",["気合鼓舞"],"jp",""],["jp142","栗田徹","クリタトオル","美浦","2011","CDBDC","DDCB",[],"jp",""],["jp149","小野次郎","オノジロウ","美浦","2013","EDEEE","DDDD",[],"jp",""],["jp151","金成貴史","カナリタカシ","美浦","2012","EEEEE","DDDD",[],"jp",""],["jp152","青木孝文","アオキタカフミ","美浦","2017","EEEEE","DDDD",[],"jp",""],["jp153","渡辺薫彦","ワタナベクニヒコ","栗東","2016","EDDED","DDCD",[],"jp",""],["jp155","古賀慎明","コガマサアキ","美浦","2007","DDDDD","DCCD",[],"jp",""],["jp160","須貝尚介","スガイナオスケ","栗東","2009","ABSAB","CBBA",["大レース","海外遠征","芝","休み明け","気性難","気合鼓舞"],"jp",""],["jp161","新開幸一","シンカイコウイチ","美浦","2011","EEEEE","DDDD",[],"jp",""],["jp166","土田稔","ツチダミノル","美浦","1993","DDEDE","CCDD",["本命"],"jp",""],["jp169","角田晃一","ツノダコウイチ","栗東","2011","DCEDC","CDDD",[],"jp",""],["jp172","堀宣行","ホリノリユキ","美浦","2003","BBSSA","BASS",["古馬戦","大レース","海外遠征","芝","休み明け","軽め調教","本命","外国産馬"],"jp",""],["jp173","中内田充正","ナカウチダミツマサ","栗東","2014","BBBCB","CBCD",["2歳戦","芝","本命"],"jp",""],["jp174","武藤善則","ムトウヨシノリ","美浦","2007","DDEDE","CDDD",[],"jp",""],["jp176","高橋亮","タカハシリョウ","栗東","2013","EDEDE","DDDD",[],"jp",""],["jp188","稲垣幸雄","イナガキユキオ","美浦","2019","EEEEE","DDDD",[],"jp",""],["jp191","鈴木慎太郎","スズキシンタロウ","美浦","2021","EEEEE","DDDD",[],"jp",""],["jp195","嘉藤貴行","カトウタカユキ","美浦","2022","EEEEE","DDDD",[],"jp",""],["jp196","庄野靖志","ショウノヤスシ","栗東","2007","DCBDC","DDCC",["本命"],"jp",""],["jp198","昆貢","コンミツグ","栗東","2000","CSECC","BCCB",["交流重賞"],"jp",""],["jp199","村田一誠","ムラタイッセイ","美浦","2022","EEEEE","DDDD",[],"jp",""],["jp200","尾関知人","オゼキトモヒト","美浦","2009","CCCDC","BDCC",["海外遠征"],"jp",""],["jp201","奥平雅士","オクヒラマサシ","美浦","2005","DEECD","CCDD",[],"jp",""],["jp209","池添学","イケゾエマナブ","栗東","2015","CDDBD","DDDD",["本命"],"jp",""],["jp210","池添兼雄","イケゾエカネオ","栗東","1999","DCCDD","DDDD",[],"jp",""],["jp212","加藤和宏","カトウカズヒロ","美浦","2006","EDEDE","DDDD",["海外遠征"],"jp",""],["jp215","中竹和也","ナカタケカズヤ","栗東","1999","BCCCC","BCCC",["2歳戦","ダート","輸送競馬"],"jp",""],["jp216","梅田智之","ウメダトモユキ","栗東","2007","DDCDD","CCDC",["海外遠征"],"jp",""],["jp217","斉藤崇史","サイトウタカシ","栗東","2017","BDCBC","DCBD",["牝馬","芝","休み明け","気合鼓舞"],"jp",""],["jp220","和田勇介","ワダユウスケ","美浦","2018","EDDEE","DDDD",[],"jp",""],["jp221","五十嵐忠男","イガラシタダオ","栗東","1994","CCCDD","DCCD",["牝馬"],"jp",""],["jp223","藤原英昭","フジワラヒデアキ","栗東","2002","BABAS","ASAC",["3歳戦","古馬戦","牝馬","大レース","交流重賞","ローカル","ダート","輸送競馬","外国産馬","気合鼓舞"],"jp",""],["jp225","池上昌和","イケガミマサカズ","美浦","2016","EEEEE","DDDD",[],"jp",""],["jp226","松永昌博","マツナガマサヒロ","栗東","2006","DDCCD","CCDD",["外国産馬"],"jp",""],["jp231","小栗実","オグリミノル","栗東","2022","EEEEE","DDDD",[],"jp",""],["jp234","和田正一郎","ワダショウイチロウ","美浦","2010","EDCED","DDDD",[],"jp",""],["jp239","和田雄二","ワダユウジ","美浦","2013","EDEEE","DDDD",[],"jp",""],["jp240","相沢郁","アイザワイクオ","美浦","1998","CACCC","CCBD",["ダート"],"jp",""],["jp241","粕谷昌央","カスヤマサオ","美浦","2008","EEEEE","DDDD",[],"jp",""],["jp249","矢作芳人","ヤハギヨシト","栗東","2006","SBAAA","CAAB",["2歳戦","クラシック","交流重賞","ローカル","海外遠征","芝","輸送競馬","スパルタ","外国産馬","気合鼓舞"],"jp",""],["jp250","宮田敬介","ミヤタケイスケ","美浦","2020","EEEEE","DDDD",[],"jp",""],["jp252","藤岡健一","フジオカケンイチ","栗東","2002","BCCCC","ACCD",["ローカル","芝","輸送競馬","本命"],"jp",""],["jp256","根本康広","ネモトヤスヒロ","美浦","1998","EEEEE","DDDD",[],"jp",""],["jp259","勢司和浩","セイシカズヒロ","美浦","2000","DDDDD","DCCD",[],"jp",""],["jp262","森秀行","モリヒデユキ","栗東","1993","AACBB","ABBB",["古馬戦","牝馬","交流重賞","ローカル","海外遠征","輸送競馬","叩き一変","スパルタ","本命","外国産馬"],"jp",""],["jp264","西村真幸","ニシムラマサユキ","栗東","2015","DDCCD","DDDC",[],"jp",""],["jp269","小笠倫弘","オガサミチヒロ","美浦","2007","DDEDD","DDDD",[],"jp",""],["jp273","田中剛","タナカツヨシ","美浦","2011","EEEDD","DDCD",[],"jp",""],["jp278","藤沢則雄","フジサワノリオ","栗東","1999","CCCCD","CDDD",[],"jp",""],["jp281","小西一男","コニシカズオ","美浦","1991","CCCCD","CCCD",[],"jp",""],["jp287","国枝栄","クニエダサカエ","美浦","1990","SBBAA","SSAB",["2歳戦","3歳戦","牝馬","大レース","ローカル","海外遠征","芝","叩き一変","外国産馬","気合鼓舞"],"jp",""],["jp288","伊藤圭三","イトウケイゾウ","美浦","1998","CCECD","BCDD",["交流重賞","ダート"],"jp",""],["jp290","田村康仁","タムラヤスヒト","美浦","1998","CCCBC","CBCB",["ダート"],"jp",""],["jp293","河内洋","カワチヒロシ","栗東","2005","CCECD","CCCD",[],"jp",""],["jp294","松永幹夫","マツナガミキオ","栗東","2007","CDCBC","DBCD",["交流重賞","叩き一変","気性難"],"jp",""],["jp295","坂口智康","サカグチトモヤス","栗東","2019","EEEEE","DDDD",[],"jp",""],["jp296","安田翔伍","ヤスダショウゴ","栗東","2019","EDCDD","DDDD",[],"jp",""],["jp302","中野栄治","ナカノエイジ","美浦","1996","DCCED","BDDD",[],"jp",""],["jp305","橋口慎介","ハシグチシンスケ","栗東","2016","EEEDE","CDDD",[],"jp",""],["jp308","中舘英二","ナカダテエイジ","美浦","2016","DDDED","DDDD",[],"jp",""],["jp311","本田優","ホンダマサル","栗東","2008","CBCCD","CCCD",[],"jp",""],["jp312","加用正","カヨウタダシ","栗東","1994","BCCCC","BCDD",["交流重賞","ローカル","ダート"],"jp",""],["jp314","宮本博","ミヤモトヒロシ","栗東","2004","CCDCD","CCCD",[],"jp",""],["eu1","アップルビー チャーリー","英国","","","AAAAA","BAAS",["大レース","海外遠征","芝","ダート","本命"],"eu","SSAS"],["eu2","ジャービス マイケル","英国","","","AAAAA","BBAC",["芝"],"eu","ASSA"],["eu3","ファーブル アンドレ","仏国","","","AASSA","BASA",["クラシック","芝","輸送競馬","休み明け","スパルタ","軽め調教"],"eu","SAAS"],["eu4","オックス ジョン","愛国","","","SSAAA","CASA",["クラシック","海外遠征","芝","外国産馬"],"eu","AAAA"],["eu5","メニケッティ リッカルド","仏国","","","AAAAA","CABC",["芝","本命"],"eu","SSAA"],["eu6","トレゴニング マーカス","英国","","","AAAAA","CBBD",["芝","輸送競馬","休み明け","本命","外国産馬"],"eu","AASS"],["eu7","ルルーシュ エリー","仏国","","","AAAAA","DASB",["大レース","芝","叩き一変","本命","外国産馬"],"eu","ASAA"],["eu8","ライオンズ ジャー","愛国","","","AAAAA","BBBC",["大レース","気性難","本命","外国産馬"],"eu","SAAS"],["eu9","プレスコット マーク","愛国","","","AAAAA","BABC",["芝","気性難","外国産馬"],"eu","AAAS"],["eu10","ヒルズ バリー","英国","","","AAAAA","AABB",["大レース","芝","気性難","外国産馬"],"eu","SAAA"],["eu11","ジョンストン マーク","英国","","","AAAAA","ABBA",["大レース","芝","輸送競馬","休み明け","本命","外国産馬"],"eu","AASS"],["eu12","スタウト マイケル","英国","","","ASAAS","ABSB",["クラシック","海外遠征","芝","叩き一変"],"eu","SAAA"],["eu13","ハリントン ジェシカ","愛国","","","AAAAA","BBBB",["本命","外国産馬"],"eu","SSSA"],["eu14","ボルジャー ジム","愛国","","","AAAAA","BBBB",["芝","気性難","本命"],"eu","SSSS"],["eu15","プレンダガスト ケヴィン","愛国","","","AAAAA","CAAC",["大レース","芝"],"eu","SASS"],["eu16","シュッツ ブルーノ","仏国","","","AAAAA","DBSB",["クラシック","芝","気性難","本命","外国産馬"],"eu","AAAS"],["eu17","ブータン フランソワ","仏国","","","AAAAA","ASAB",["大レース","芝","叩き一変","気性難","本命","外国産馬"],"eu","SAAA"],["eu18","ゴスデン ジョン","英国","","","AAAAA","BAAS",["クラシック","芝","叩き一変","軽め調教","本命","外国産馬"],"eu","SAAA"],["eu19","スタック トミー","愛国","","","AAAAA","CBBB",["芝","外国産馬"],"eu","SSSS"],["eu20","ヘッド クリスティアーヌ","仏国","","","SAAAS","SAAC",["芝","叩き一変","スパルタ","気性難","本命","外国産馬"],"eu","ASSA"],["eu21","ウェルド ダーモット","愛国","","","AAAAA","AAAS",["クラシック","海外遠征","芝","輸送競馬","休み明け","叩き一変","本命"],"eu","AAAA"],["eu22","ドゥーメン フランソワ","仏国","","","AAAAA","CBBB",["芝","軽め調教"],"eu","AASA"],["eu23","シャノン マイケル","英国","","","AAAAA","ABBD",["芝","軽め調教"],"eu","SASS"],["eu24","ダンロップ ジョン","英国","","","AAAAA","AABS",["クラシック","芝","輸送競馬","休み明け","軽め調教","外国産馬"],"eu","AAAA"],["eu25","ハーウッド ガイ","英国","","","SAAAA","BAAA",["大レース","海外遠征","ダート","叩き一変","スパルタ","本命"],"eu","SAAA"],["eu26","ビンスルール サイード","英国","","","AAAAA","ABBA",["大レース","海外遠征","芝","ダート","輸送競馬","休み明け","本命","外国産馬"],"eu","SSAA"],["eu27","デュプレ アラン","仏国","","","AAAAA","CASA",["クラシック","海外遠征","芝","叩き一変","本命","外国産馬"],"eu","AASA"],["eu28","ハモンド ジョン","仏国","","","AAAAA","BAAS",["クラシック","海外遠征","芝","気性難","本命","外国産馬"],"eu","SASA"],["eu29","マリンズ ウィリアム","英国","","","AAAAA","BSBB",["大レース","芝","軽め調教","気性難","外国産馬"],"eu","SASA"],["eu30","コレ ロベール","仏国","","","AAAAA","SBAB",["大レース","海外遠征","芝","輸送競馬","気性難","外国産馬"],"eu","SSSA"],["eu31","オブライエン エイダン","愛国","","","AASSA","AASA",["クラシック","海外遠征","芝","本命","外国産馬"],"eu","AAAA"],["eu32","ラフォンパリアス カルロス","仏国","","","AAAAA","DBAC",["芝","輸送競馬","軽め調教"],"eu","SASA"],["eu33","セシル ヘンリー","英国","","","SAAAA","CASA",["クラシック","海外遠征","芝","休み明け","スパルタ","本命","外国産馬"],"eu","SAAS"],["eu34","ルジェ ジャンクロード","仏国","","","AAAAA","BAAS",["クラシック","芝","休み明け","軽め調教","気性難","本命"],"eu","SASA"],["us1","マゴーイ クロード","米国","","","AAAAA","BABD",["クラシック","ダート","スパルタ","気性難","本命"],"us","AAAA"],["us2","ステュート メルヴィン","米国","","","AAAAA","SABD",["大レース","ダート","輸送競馬","スパルタ","本命","外国産馬"],"us","SSAA"],["us3","アスムッセン スティーヴン","米国","","","SASAA","BAAA",["大レース","海外遠征","ダート","叩き一変","スパルタ","本命"],"us","SAAA"],["us4","ビアンコーヌ パトリック","米国","","","AAAAA","CBAD",["ダート","スパルタ","外国産馬"],"us","SAAA"],["us5","ルーカス ウェイン","米国","","","ASAAS","BASD",["クラシック","芝","ダート","輸送競馬","本命","外国産馬"],"us","AASA"],["us6","ジトー ニコラス","米国","","","AAAAA","CBAD",["クラシック","ダート","軽め調教","本命","外国産馬"],"us","AASA"],["us7","ドライスデール ニール","米国","","","AAAAA","BSAD",["クラシック","ダート","叩き一変","気性難","本命"],"us","SASS"],["us8","マンデラ リチャード","米国","","","AAAAA","BAAD",["大レース","芝","ダート","軽め調教","本命","外国産馬"],"us","ASAA"],["us9","ハーティー イーオイン","米国","","","AAAAA","BBBD",["海外遠征","ダート","輸送競馬","外国産馬"],"us","SSSS"],["us10","ウィッテンガム チャールズ","米国","","","AASAA","CBAD",["クラシック","芝","ダート","叩き一変","スパルタ","気性難","本命","外国産馬"],"us","SASS"],["us11","モット ウィリアム","米国","","","AAAAA","CAAD",["大レース","芝","ダート","軽め調教","本命","外国産馬"],"us","SAAA"],["us12","ハワード ニール","米国","","","AAAAA","BBBD",["大レース","芝","ダート","気性難","本命","外国産馬"],"us","SAAA"],["us13","サハディ ジェニン","米国","","","AASSA","BBAD",["大レース","芝","ダート","輸送競馬","休み明け","軽め調教","気性難","外国産馬"],"us","SSAS"],["us14","アトフィールド ロジャー","米国","","","AAAAA","BAAA",["クラシック","海外遠征","芝","ダート","輸送競馬","外国産馬"],"us","AASA"],["us15","ダトロー リチャード","米国","","","AAAAA","BBBD",["ダート","軽め調教"],"us","SSAS"],["us16","ヘッドリー ブルース","米国","","","AAAAA","SACD",["大レース","ダート","休み明け"],"us","SSAS"],["us17","ウォード ジョン","米国","","","AAAAA","CBAD",["ダート","休み明け","スパルタ"],"us","SASS"],["us18","サーヴィス ジェイソン","米国","","","AAAAA","CABD",["ダート","スパルタ","本命"],"us","SSSS"],["us19","シェパード ジョナサン","米国","","","AAAAA","BBCC",["ダート","軽め調教"],"us","SSSA"],["us20","バファート ボブ","米国","","","SSAAA","ABSD",["クラシック","海外遠征","芝","ダート","輸送競馬","本命","外国産馬"],"us","AASS"],["us21","ブラウン チャド","米国","","","AAAAA","BAAA",["大レース","芝","ダート","スパルタ","本命"],"us","ASAA"],["us22","チャップマン ジェームズ","米国","","","AAAAA","CBCD",["ダート","気性難"],"us","SASA"],["us23","ホレンドーファー ジェリー","米国","","","SASAA","BAAA",["大レース","海外遠征","ダート","叩き一変","スパルタ","本命"],"us","SAAA"],["us24","ヘニグ マーク","米国","","","AAAAA","CABD",["芝","ダート","叩き一変","スパルタ"],"us","SSAS"],["us25","クレメント クリストフ","米国","","","AAAAA","CBSD",["大レース","芝","ダート","休み明け","軽め調教","本命","外国産馬"],"us","ASAA"],["us26","マクラクリン キーラン","米国","","","AAAAA","CASD",["大レース","芝","ダート","休み明け","軽め調教","気性難","本命"],"us","SSAA"],["us27","フランケル ロバート","米国","","","SAASA","CASD",["大レース","海外遠征","芝","ダート","休み明け","気性難","本命","外国産馬"],"us","SSAA"],["us28","ジョリー リロイ","米国","","","AAAAA","BABD",["クラシック","ダート","叩き一変","気性難","本命","外国産馬"],"us","AASA"],["us29","リトヴォ キャサリン","米国","","","AAAAA","ABCD",["クラシック","芝","ダート"],"us","SASA"],["us30","ウォルデン エリオット","米国","","","AAAAA","BABD",["大レース","輸送競馬","休み明け","外国産馬"],"us","AASS"],["us31","アレクサンダー フランク","米国","","","AAAAA","SBCD",["大レース","輸送競馬","気性難"],"us","SSAA"],["us32","ライス リンダ","米国","","","AAAAA","BAAA",["芝","ダート","輸送競馬","軽め調教","気性難"],"us","ASSA"],["us33","プレッチャー トッド","米国","","","AAAAA","CSAD",["クラシック","芝","ダート","輸送競馬","気性難","本命","外国産馬"],"us","ASAA"],["us34","スティーブンス ウッディ","米国","","","AAAAA","BAAB",["大レース","海外遠征","輸送競馬","休み明け","本命","外国産馬"],"us","SSAA"]];
 const TRAINER_DEFAULT_ID="jp122";
@@ -4438,7 +4525,11 @@ const TRAINER_ROSTER=TRAINER_RAW.map(a=>{ const d={id:a[0], name:a[1], kana:a[2]
 function trainerCost(d){
   if(d.id===TRAINER_DEFAULT_ID) return {hire:0, upkeep:0};
   const total=["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0);
-  return {hire:Math.round(total*total*6/50)*50, upkeep:Math.max(2,Math.round(total*total/8))};
+  /* 三次式でメリハリ：能力合計 total（0〜25）に対し、維持費は total^3/40
+     （合計22→週266万円／合計15→週84万円／合計10→週25万円／合計5→週3万円）、
+     雇用費は total^3×0.9（合計22→約9,600万円／合計10→900万円／合計5→約100万円） */
+  const cube=total*total*total;
+  return {hire:Math.round(cube*0.9/50)*50, upkeep:Math.max(1,Math.round(cube/40))};
 }
 const TRAINER_TRAIT_FX={"スパルタ":1,"軽め調教":1,"気性難":1};
 function trainerSuggest(h){
@@ -4735,11 +4826,10 @@ function showYearEnd(data){
   const box=$("#overlay-box"); box.classList.add("wide");
   /* 引退済みの馬は勧告リストから落とす（引退後に年末処理へ戻ってきた再表示用） */
   const retireAlive=(D.retire||[]).filter(h=>S.horses.some(x=>x.id===h.id));
-  const yePages=Math.max(1,Math.ceil(retireAlive.length/3),Math.ceil(((S.youngStock||[]).filter(y=>y.age>=2)).length/2)); yePage=clamp(yePage,0,yePages-1);
   const yeArt=(h)=>`<img style="filter:${COAT_STAND_FILTER[clamp(h.coat||0,0,6)]}" src="${standSrc(h)}" alt="">`;
-  const retireList=retireAlive.length?retireAlive.slice(yePage*3,yePage*3+3).map(h=>`<div class="ye-card"><div class="ye-thumb">${yeArt(h)}</div><div class="ye-main"><div class="ye-cname">${esc(h.name)}</div><div class="ye-chips"><span class="ye-chip">${h.age}歳</span><span class="ye-chip">${h.races}戦${h.wins}勝</span></div><div class="small">${h.age>=7?"高齢のため、繁殖入り・引退の検討を":"戦績と年齢から引退検討対象"}</div><div class="ye-acts"><button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div></div></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
+  const retireList=retireAlive.length?retireAlive.map(h=>`<div class="ye-card"><div class="ye-thumb">${yeArt(h)}</div><div class="ye-main"><div class="ye-cname">${esc(h.name)}</div><div class="ye-chips"><span class="ye-chip">${h.age}歳</span><span class="ye-chip">${h.races}戦${h.wins}勝</span></div><div class="small">${h.age>=7?"高齢のため、繁殖入り・引退の検討を":"戦績と年齢から引退検討対象"}</div><div class="ye-acts"><button class="btn ghost sm" data-ye-retire="${h.id}">引退させる</button></div></div></div>`).join(""):`<p class="small">引退勧告対象はいません。</p>`;
   /* 明け2歳の幼駒の処遇（入厩／売却／クラブ募集）と牧場長コメント */
-  const young2=(S.youngStock||[]).filter(y=>y.age>=2).slice(yePage*2,yePage*2+2);
+  const young2=(S.youngStock||[]).filter(y=>y.age>=2);
   const youngHTML= young2.length? `<h3 class="ye-sec">明け2歳の処遇</h3>`+young2.map(y=>{ const mgrC=`牧場長：${(y.spd+y.bst)>=150?"脚の速さは一級品。":(y.sta>=75?"スタミナ豊富で距離が持つ。":"バランス型で堅実。")}判明度${y.known||0}%`; return `<div class="ye-card"><div class="ye-thumb">${yeArt(y)}</div><div class="ye-main"><div class="ye-cname">${esc(y.name)} <span class="small">父 ${esc(y.sire)}</span></div><div class="small">${mgrC}</div><div class="ye-acts"><input type="text" id="ye-name-${y.id}" value="${esc(y.name)}" maxlength="12" aria-label="馬名"> <button class="btn sm" data-ye-in="${y.id}">入厩させる</button> <button class="btn ghost sm" data-ye-sell="${y.id}">売却（${fmt(Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12))}万円）</button> <button class="btn ghost sm" data-ye-club="${y.id}" ${S.club?"":"disabled"}>クラブ募集へ</button></div></div></div>`; }).join("") : "";
   /* 年間表彰とお守り */
   let awardHTML="";
@@ -4773,7 +4863,6 @@ function showYearEnd(data){
   <h3 class="ye-sec">お守り・クラブ</h3>
   ${charmHTML}
   <h3 class="ye-sec">引退勧告</h3>${retireList}
-  ${yePages>1?`<div class="pager"><button class="btn ghost sm" data-ye-pg="-1" ${yePage<=0?"disabled":""}>← 前</button><span>${yePage+1} / ${yePages}（引退勧告・幼駒の処遇つづき）</span><button class="btn ghost sm" data-ye-pg="1" ${yePage>=yePages-1?"disabled":""}>次 →</button></div>`:""}
   <div style="text-align:center;margin-top:12px"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none';document.getElementById('overlay-box').classList.remove('wide')">新年を始める</button></div>`);
   box.querySelectorAll("[data-ye-pg]").forEach(b=>b.addEventListener("click",()=>{ yePage+=+b.dataset.yePg; showYearEnd(); }));
   box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetire, ()=>showYearEnd()); }));
@@ -5023,7 +5112,6 @@ function showFinance(){ showDistress(true); } // 資金がマイナスになる�
 let dsPage=0;
 function showDistress(force){
   if(S.gameover || (S.funds>=0 && !force)) return;
-  const dsPages=Math.max(1,Math.ceil(S.horses.length/2)); dsPage=clamp(dsPage,0,dsPages-1);
   const cap=loanCapacity();
   /* 借入金額は固定ではない：資金が潤沢でも残り枠まで借りられるよう、金額を選べる形にする。
      既定値は、資金が厳しい時は「1200万円まで立て直す額」、余裕がある時は1000万円 */
@@ -5035,7 +5123,7 @@ function showDistress(force){
     ? `<div class="ticket"><b>🤝 スポンサー支援</b><div class="mt"><button class="btn" id="ds-sponsor">${fmt(sponsorGrant())}万円 の支援を受ける</button></div><span class="small">条件つき：今後12週間、レースで得た賞金の30%をスポンサーへ。利用できるのは48週に1回まで。</span></div>`
     : `<div class="ticket"><b>🤝 スポンサー支援</b><br><span class="small">次に利用できるのは約 ${Math.max(1,Math.ceil(((S.sponsorReadyWeek||0)-S.week)/4))} か月後です。</span></div>`;
   const sellHtml= S.horses.length
-    ? S.horses.slice(dsPage*2, dsPage*2+2).map(h=>`<div class="ticket"><b>${esc(h.name)}</b> <span class="small">${h.age}歳／${h.wins}勝／獲得賞金 ${fmt(h.earnings||0)}万円${h.entry?"／エントリー中（売却すると取消）":""}</span><div class="mt"><button class="btn sm red" data-ds-sell="${h.id}">緊急売却（${fmt(horseSellPrice(h))}万円）</button></div></div>`).join("") + (dsPages>1?`<div class="pager"><button class="btn ghost sm" data-ds-pg="-1" ${dsPage<=0?"disabled":""}>← 前</button><span>${dsPage+1} / ${dsPages}</span><button class="btn ghost sm" data-ds-pg="1" ${dsPage>=dsPages-1?"disabled":""}>次 →</button></div>`:"")
+    ? S.horses.map(h=>`<div class="ticket"><b>${esc(h.name)}</b> <span class="small">${h.age}歳／${h.wins}勝／獲得賞金 ${fmt(h.earnings||0)}万円${h.entry?"／エントリー中（売却すると取消）":""}</span><div class="mt"><button class="btn sm red" data-ds-sell="${h.id}">緊急売却（${fmt(horseSellPrice(h))}万円）</button></div></div>`).join("")
     : `<p class="small">売却できる所有馬がいません。</p>`;
   showOverlay(`<h2>${S.funds<0?"資金が底をつきました":"資金繰りの相談"}</h2>
    <p><img src="assets/secretary-worried.webp" alt="秘書・佐倉澪" style="width:58px;height:58px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:8px"><b>秘書・佐倉 澪</b><br>${S.funds<0?`資金が <b style="color:#ff4b4b">${fmt(S.funds)}万円</b> になってしまいました…。でも、まだ立て直す方法があります。どれで凌ぎましょうか。`:`資金は <b>${fmt(S.funds)}万円</b> です。お金があっても、融資は限度額の範囲でいつでも借りられますし、スポンサー支援も依頼できます。大きな出費の前に備えておきますか。`}</p>
@@ -5391,14 +5479,13 @@ function drawCard(r){
   const formDisp=h=> h.races===0? "初出走" : (h.form&&h.form.length? h.form.join("・") : "―");
   const rentai=h=> h.races>0? Math.round((h.top2||0)/h.races*100)+"%" : "―";
   const wtDisp=h=>{ ensurePublicRecord(h); if(!h.wPrev) return h.weight+"kg"; const d=h.weight-h.wPrev; return `${h.weight}kg（${d>=0?"+":""}${d}）`; };
-  const perC=7, cpPages=Math.max(1,Math.ceil(order.length/perC)); let cpP=PG.cardtable||0; if(cpP>=cpPages)cpP=cpPages-1; if(cpP<0)cpP=0; PG.cardtable=cpP;
-  const pageOrder=order.slice(cpP*perC, cpP*perC+perC);
+  const pageOrder=order; /* 全頭をスクロールで表示（ページ送りなし） */
   t.innerHTML=`<tr><th>馬名</th><th class="num">人気</th><th class="r">オッズ</th><th>騎手</th><th>近走</th></tr>`+
    pageOrder.map(h=>`<tr class="crow-main ${h===mine?"mine":""}" data-crow="${h._gate}"><td><b>${h._gate}番</b> ${esc(h.name)}${h===mine?"（自厩舎）":""}</td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._odds}</td><td>${riderName(h)}</td><td>${formDisp(h)}</td></tr>`+
    `<tr class="crow-detail" data-crowd="${h._gate}" hidden><td colspan="5"><div class="small" style="line-height:1.7">${h.sex}${h.age}歳／馬体重 ${wtDisp(h)}／連対率 ${rentai(h)}／${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}${h.restW!=null&&h.restW>=10?`／休養${h.restW}週明け`:""}${h.real?`<br>実在馬：${h.realNote||""}`:""}<br>脚質・位置取り：<span data-crowtac="${h.id}">${h.style}・${h===mine?tacOf(h).n+"／"+tac2Of(h).n:tacOf(h).n}</span>${posBarHTML(h,h===mine)}</div>${h===mine&&!eligible(h,r)?`<div class="mt"><button type="button" class="btn gold sm" data-goto-settings="1">作戦・騎手・単勝は「作戦・単勝」タブで設定する</button></div>`:""}</td></tr>`).join("");
   t.querySelectorAll("tr.crow-main").forEach(rw=>rw.addEventListener("click",()=>{ const d=t.querySelector(`tr.crow-detail[data-crowd="${rw.dataset.crow}"]`); if(d)d.hidden=!d.hidden; }));
   t.querySelectorAll("[data-goto-settings]").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); UI.race="settings"; renderAll(); window.scrollTo(0,0); }));
-  const cpEl=$("#card-pager"); if(cpEl){ cpEl.innerHTML= cpPages>1? `<button type="button" class="btn ghost sm" data-pg="cardtable:-1" ${cpP<=0?"disabled":""}>← 前へ</button><span class="small">${cpP+1} / ${cpPages} ページ</span><button type="button" class="btn ghost sm" data-pg="cardtable:1" ${cpP>=cpPages-1?"disabled":""}>次へ →</button>` : ""; }
+  const cpEl=$("#card-pager"); if(cpEl){ cpEl.innerHTML=""; }
   const fb=$("#formation-box");
   if(fb){
     const grp=(h2)=>{ const pp=tacOf(h2).pos; return pp>=0.8?"先頭":pp>=0.48?"先団":pp>=0.24?"中団":"後方"; };
@@ -5692,25 +5779,31 @@ function latAt(h,u){ // 横位置：スタートの散らばり→道中の基�
 }
 /* ============ 見た目の進路（表示専用レイヤー） ============
    シミュレーション（progAt／着順・着差）は一切変えない。その上で、
-   レース開始時に「表示用の進路」を全馬ぶん事前計算してキーフレーム化する：
-   ・同じ進路帯で前の馬に追いついたら、その馬の直後までしか進まない
-     （馬をすり抜けて追い越すことは起きない）
-   ・抜くには横に空いた進路が必要。両側がふさがれていれば「包まれた」
-     状態になり、後ろに付き続ける（前が壁で進路がない再現）
-   ・包みから抜ける速さは技術で差をつける：騎手の技術（skill）が
-     高いほど先読みが早く・狭い隙間を使え・横移動が速く・遅れの
-     取り戻しも速い。馬の賢さ（反応）と瞬発力も後押しする
-   ・表示位置は本来の progAt を決して上回らない（ sim より前に出ない）。
-     ゴール付近では遅れの取り戻しを強め、画面の並びが着順・着差と
-     食い違わないようにする。横位置は毎ステップ重なり解消を行い、
-     馬同士が重なって描かれることも防ぐ
-   ・横移動（避ける動作）は実馬の挙動に寄せる：進路変更の目標が生じて
-     から実際に寄せ始めるまで反応遅れ（技術・反応で 0.25〜0.7 秒）が
-     あり、横速度には上限（約 0.9〜1.5m/秒）と加速度を持たせて、
-     なだらかに寄せてなだらかに止まる。1 馬身ぶんの横移動に
-     1〜1.5 秒かかる計算で、一瞬でレーンが切り替わる瞬間移動はしない。
-     横の押し分けも 1 ステップの移動量を小さく抑え、押し出しで
-     馬が飛ぶように動くこともない */
+   レース開始時に「表示用の進路」を全馬ぶん事前計算してキーフレーム化する。
+   追い越しの作り方は実馬そのもの：
+   ・前が壁なら、まず減速して前の馬の直後につけ、そのまま付きながら
+     左右のスキマが「開き続ける」のを待つ（スキマ探し）。一瞬空いた
+     だけでは動かず、技術に応じた確認時間（上手い騎手・反応の良い馬で
+     約0.35秒／下手で約1.1秒）ずっと空いていた側にだけ進路を取る。
+     両側とも開かなければ、減速したまま包まれ続けて抜けない。
+     開きかけた側へは、待つ間わずかに寄せて構える。
+   ・進路変更は一度決めた側に固定する（左右へのフラつき・目標の
+     行き来をしない）。途中で塞がれた場合だけ静かに諦めて元の
+     進路に戻る。
+   ・縦も横も「速度」を持って積分する：縦は加速度・減速度に上限を
+     持たせ、前走馬との間隔に応じた追従制御でなめらかに減速して
+     直後で落ち着き、空けば少しずつ加速して遅れを取り戻す（壁への
+     急停止や、空いた瞬間の急加速はしない）。横も速度・加速度に
+     上限を持ち、ブレーキ距離で寄せて止まる。
+   ・計算刻みは 0.05 秒と細かくし、補間は隣接4点の Catmull-Rom
+     （区間両端の範囲にクランプ）で速度が連続する。キーフレーム
+     境界ごとに速度がゼロへ戻る補間は使わない＝カクつかない。
+   ・表示位置は本来の progAt を決して上回らない（sim より前に
+     出ない）。馬同士の押し分けも速度ゼロ化や瞬間移動はせず、
+     1ステップわずかずつ開く。
+   ・抜けやすさの技術差：騎手の技術が高いほど先読みが遠く・狭い
+     隙間を使え・スキマの確認が早く・立て直しの加速も速い。
+     馬の賢さ（反応）と瞬発力も後押しする */
 function pathSkillOf(h){
   const jk=jockOf(h);
   const jk01=clamp(((jk?jk.skill:82)-78)/20,0,1);      // 騎手の技術 78→0 / 98→1
@@ -5723,90 +5816,128 @@ function pathSkillOf(h){
 function buildVisPath(){
   const sim=raceState.sim, r=raceState.race;
   if(!sim||!r){ raceState.vis=null; return; }
-  const dist=r.dist, dt=0.15, tEnd=raceEndT(), tWin=sim.tWin;
+  const dist=r.dist, dt=0.05, tEnd=raceEndT(), tWin=sim.tWin;
   const n=Math.max(2,Math.ceil(tEnd/dt)+1);
-  const GAP=(2.9*0.92)/dist;                            // 前の馬との最小間隔（prog単位：約1馬身）
+  const GAPMIN=2.55;                                    // 前走馬との最小間隔(m)：これ以上は絶対に詰めない
+  const GAPDES=3.15;                                    // 追従時の目標間隔(m)：ここで速度が釣り合う
   const LW=v=>v*4.6;                                    // 横位置（正規化）→メートル換算（3Dの広がりと一致）
-  const horses=sim.all.map(h=>({h, sk:pathSkillOf(h), p:progAt(h,0,tWin), l:latAt(h,progAt(h,0,tWin)), tp:0, lv:0, ptl:null, wait:0, frames:new Float32Array(n*2)}));
+  const LANE=0.30;                                      // 進路変更1回ぶんの横移動量（正規化：約1.4m）
+  const simV=(h,t)=>{ const e=0.06, t0=Math.max(0,t-e); return Math.max(0,(progAt(h,t+e,tWin)-progAt(h,t0,tWin))/((t+e)-t0))*dist; }; // sim 本来の速度(m/秒)
+  const horses=sim.all.map(h=>{
+    const p0=progAt(h,0,tWin);
+    return {h, sk:pathSkillOf(h), s:p0*dist, v:simV(h,0), l:latAt(h,p0), lv:0,
+      mode:"free", holdL:latAt(h,p0), openT:[0,0], targetL:latAt(h,p0), reactT:0, abortT:0,
+      frames:new Float32Array(n*2)};
+  });
+  const freeAt=(o,cand,need,aheadM)=>{                  // その横位置に、本当にスキマがあるか
+    if(cand<-0.93||cand>0.93) return false;
+    for(const q of horses){ if(q===o)continue; const dp=q.s-o.s;
+      if(dp>-3.2&&dp<aheadM&&Math.abs(LW(q.l-cand))<need) return false; }
+    return true;
+  };
   for(let i=0;i<n;i++){
     const t=Math.min(i*dt,tEnd);
-    horses.forEach(o=>{ o.tp=progAt(o.h,t,tWin); });
+    if(i===0){ horses.forEach(o=>{ o.frames[0]=o.s/dist; o.frames[1]=o.l; }); continue; } // 初回は初期状態そのもの（時刻ずれを作らない）
     /* 先行している馬から順に確定させ、後ろの馬は確定済みの前の馬に合わせる */
-    const order=[...horses].sort((a,b)=>b.p-a.p);
-    order.forEach(o=>{
-      const aheadM=3.2+4.2*o.sk;                        // 先読み距離：技術が高いほど手前から進路を探す
-      const findBlock=(latC,tolM)=>{ let best=null;
-        for(const q of horses){ if(q===o)continue; const dp=(q.p-o.p)*dist;
-          if(dp>0.4&&dp<aheadM&&Math.abs(LW(q.l-latC))<tolM){ if(!best||dp<best.dp) best={q,dp}; } }
-        return best; };
-      const blk=findBlock(o.l, 1.30-0.30*o.sk);
-      /* 縦の前進：本来の progAt が上限。遅れ（借り）があり進路が空けば、
-         技術に応じて速く取り戻す。終盤は着順と食い違わないよう収束を強める */
-      const prevT=Math.max(0,t-dt);
-      const baseStep=Math.max(0,progAt(o.h,t,tWin)-progAt(o.h,prevT,tWin));
-      const debt=Math.max(0,o.tp-o.p);
-      let rec=1;
-      if(debt>0.0005&&!blk){
-        rec=1.25+1.15*o.sk;
-        if(t>tWin*0.86) rec+= (t/tWin-0.86)/0.14*1.8;
+    const order=[...horses].sort((a,b)=>b.s-a.s);
+    for(const o of order){
+      const tp=progAt(o.h,t,tWin)*dist;
+      const vb=simV(o.h,t);
+      const aheadM=6.5+5.0*o.sk;                        // 先読み距離：技術が高いほど遠くから壁とスキマを読む
+      /* 前の壁：自分の進路帯で最も近い馬 */
+      let blk=null, blkGap=Infinity;
+      for(const q of horses){ if(q===o)continue; const g=q.s-o.s;
+        if(g>0.2&&g<aheadM&&Math.abs(LW(q.l-o.l))<1.15&&g<blkGap){ blk=q; blkGap=g; } }
+      /* ---- 縦：速度で積分する。壁があれば間隔に応じた追従制御で減速 ---- */
+      let vT=vb;
+      const debt=tp-o.s;
+      if(debt>0.25){                                    // 遅れの取り戻しは速度の上乗せで少しずつ（空いた瞬間に跳ねない）
+        let cap=vb*0.16;
+        if(t>tWin*0.82) cap=vb*(0.16+0.20*(t/tWin-0.82)/0.18); // 終盤は強めて着順・着差と合わせる
+        vT+=Math.min(debt*0.45, cap)*clamp(debt/1.2,0,1); // 借りが尽きる手前で上乗せを絞り、速度が段差なく本来の速度へ戻る（カクつき防止）
       }
-      let np=Math.min(o.tp, o.p+baseStep*rec);
-      if(blk) np=Math.min(np, blk.q.p-GAP);             // 前が壁：直後で止まる（すり抜けない）
-      if(np<o.p) np=o.p;
-      /* 横の目標：通常は基本コース。塞がれている時は空いた側へ。
-         両側とも空いていなければ今の進路のまま＝包まれた状態を保つ */
-      let tl=latAt(o.h,o.tp);
+      let accDn=3.4;                                    // 減速（ブレーキ）の上限。加速は技術で差がつく
       if(blk){
-        const need=1.55-0.35*o.sk;                      // 抜くのに要る横クリアランス：技術が高いほど狭くて済む
-        const freeAt=cand=>{ if(cand<-0.93||cand>0.93) return false;
-          for(const q of horses){ if(q===o)continue; const dp=(q.p-o.p)*dist;
-            if(dp>-2.2&&dp<aheadM&&Math.abs(LW(q.l-cand))<need) return false; }
-          return true; };
-        const c1=clamp(blk.q.l-0.30,-0.93,0.93), c2=clamp(blk.q.l+0.30,-0.93,0.93);
-        const f1=freeAt(c1), f2=freeAt(c2);
-        if(f1&&(!f2||Math.abs(c1-o.l)<=Math.abs(c2-o.l))) tl=c1;
-        else if(f2) tl=c2;
-        else tl=o.l;                                    // 包まれた：進路なし
+        vT=Math.min(vT, Math.max(0, blk.v+(blkGap-GAPDES)*0.85)); // 目標間隔より狭いほど強く減速し、直後で落ち着く
+        if(blkGap<GAPMIN){ vT=Math.min(vT, blk.v*Math.max(0,blkGap/GAPMIN)); accDn=6.0; } // 詰まり切ったら強めのブレーキ（それでも速度は連続に落とす：速度の段差＝カクつきを作らない）
       }
-      /* 横移動の実馬モデル：
-         ・反応遅れ：進路変更の目標が新たに生じたら、技術・反応に応じた
-           時間（0.25〜0.7秒）だけ待ってから寄せ始める（即座に反応しない）
-         ・加減速：横速度に上限（約0.9〜1.5m/秒）と加速度を持たせ、
-           目標手前で減速して止まる。1馬身ぶん（0.30）の横移動に
-           1〜1.5秒かかる＝実際の進路変更の所要時間に近い */
-      if(o.ptl===null||Math.abs(tl-o.ptl)>0.06){ o.ptl=tl; o.wait=0.70-0.45*o.sk; }
-      if(o.wait>0) o.wait-=dt;
-      const tgt=(o.wait>0)? o.l : tl;
-      const vmax=0.20+0.13*o.sk;                        // 横速度の上限（正規化/秒）
-      const acc=0.55+0.45*o.sk;                         // 横加速度（正規化/秒²）：技術が高いほど俊敏
+      const accUp=(2.1+1.4*o.sk)*dt;
+      o.v+=clamp(vT-o.v, -accDn*dt, accUp);
+      if(o.v<0) o.v=0;
+      o.s+=o.v*dt;
+      if(o.s>tp){ o.s=tp; o.v=Math.min(o.v, vb); }      // sim より前に出ない
+      if(blk&&o.s>blk.s-1.9){ const back=Math.min(o.s-(blk.s-1.9), 0.06); o.s-=back; } // 最終安全弁：重なりそうな時だけ1ステップ最大6cmの緩やかな押し戻し（瞬間移動・凍結・速度の段差は作らない）
+      /* ---- 横：状態機械（free／follow＝減速してスキマ探し／change＝進路変更） ---- */
+      const baseL=latAt(o.h, clamp(tp/dist,0,1));
+      let tgt;
+      if(o.mode==="change"){
+        tgt=o.targetL;                                  // 決めた側に固定（フラつかない）
+        const need=1.55-0.35*o.sk;
+        if(!freeAt(o,o.targetL,need,aheadM)) o.abortT+=dt; else o.abortT=0;
+        if(o.abortT>0.5){ o.mode="follow"; o.holdL=o.l; o.openT=[0,0]; tgt=o.l; } // 塞がれ続けたら静かに諦める
+        if(o.mode==="change"&&Math.abs(o.targetL-o.l)<0.035){ o.mode=blk?"follow":"free"; o.holdL=o.l; o.openT=[0,0]; tgt=blk?o.l:baseL; } // 目標レーンに着いたら変更完了
+        if(o.mode==="change"){ /* 進路の途中に馬がいたら割り込まず、その場で待つ */
+          for(const q of horses){ if(q===o)continue;
+            if(Math.abs(q.s-o.s)<2.2 && Math.abs(LW(q.l-o.l))<1.0 && Math.sign(q.l-o.l)===Math.sign(o.targetL-o.l)){ tgt=o.l; break; } }
+        }
+      } else if(blk){
+        if(o.mode!=="follow"){ o.mode="follow"; o.holdL=o.l; o.openT=[0,0]; }
+        /* スキマ探し：左右それぞれ「開き続けている時間」を数え、
+           確認時間を超えた側にだけ動く。一瞬の空きでは動かない */
+        const need=1.55-0.35*o.sk;                      // 抜くのに要る横クリアランス：技術が高いほど狭くて済む
+        const cands=[blk.l-LANE, blk.l+LANE];
+        for(let sd=0;sd<2;sd++){
+          if(cands[sd]>=-0.93&&cands[sd]<=0.93&&freeAt(o,clamp(cands[sd],-0.93,0.93),need,aheadM)) o.openT[sd]+=dt;
+          else o.openT[sd]=Math.max(0,o.openT[sd]-2*dt);
+        }
+        const confirmT=1.15-0.80*o.sk;                  // 確認時間：技術が高いほど短い＝早くスキマを使える
+        const best=o.openT[1]>o.openT[0]?1:0;
+        if(o.openT[best]>=confirmT){
+          o.mode="change"; o.targetL=clamp(cands[best],-0.93,0.93);
+          o.reactT=0.30-0.18*o.sk; o.abortT=0; tgt=o.l; // 決断から動き出しまで一呼吸（反応）
+        } else {
+          /* まだ開かない：減速したまま付き、開きかけた側へわずかに寄せて構える */
+          const lean=(o.openT[best]>0.12)? (best===1?1:-1)*0.085*(o.openT[best]/confirmT) : 0;
+          tgt=clamp(o.holdL+lean,-0.93,0.93);
+        }
+      } else {
+        o.mode="free"; o.openT=[0,0]; tgt=baseL;
+      }
+      /* 隣に馬がいる横移動はしない：縦に近い馬と交差する目標なら、今の進路のまま待つ */
+      if(o.mode!=="change"){
+        for(const q of horses){ if(q===o)continue;
+          if(Math.abs(q.s-o.s)<2.6 && Math.abs(LW(q.l-tgt))<1.05 && Math.abs(LW(q.l-tgt))<Math.abs(LW(q.l-o.l))){ tgt=o.l; break; } }
+      }
+      if(o.reactT>0){ o.reactT-=dt; tgt=o.l; }
+      /* 横の速度制御：上限・加速度つき。目標手前で減速して止まる */
+      const vmax=0.15+0.09*o.sk;                        // 横速度の上限（正規化/秒：約0.7〜1.1m/秒＝無理のない寄せ）
+      const acc=0.32+0.28*o.sk;                         // 横加速度（正規化/秒²）
       const distL=tgt-o.l;
       const brakeV=Math.sqrt(2*acc*Math.abs(distL));    // 目標でちょうど止まれる速度
       const desV=clamp(Math.sign(distL)*Math.min(vmax,brakeV),-vmax,vmax);
       o.lv+=clamp(desV-o.lv,-acc*dt,acc*dt);
       let stepL=o.lv*dt;
-      if(Math.abs(stepL)>Math.abs(distL)){ stepL=distL; o.lv=0; } // 目標を通り過ぎない：行き過ぎて小刻みに揺れる動きを防ぐ
-      if(Math.abs(distL)<0.004) o.lv=0;
+      if(Math.abs(stepL)>Math.abs(distL)){ stepL=distL; o.lv=0; }
+      if(Math.abs(distL)<0.003) o.lv=0;
       o.l=clamp(o.l+stepL,-0.95,0.95);
-      o.p=np;
-    });
-    /* 横の重なり解消：縦に近い馬同士は横間隔を確保する（主に後ろの馬を押し分ける） */
-    for(let it=0;it<2;it++){
-      for(let a=0;a<horses.length;a++) for(let b=a+1;b<horses.length;b++){
-        const A=horses[a], B=horses[b];
-        const dp=Math.abs(A.p-B.p)*dist; if(dp>3.4) continue;
-        const need=(0.30*(1-dp/3.4)+0.10);
-        const dl=B.l-A.l;
-        if(Math.abs(dl)<need){
-          const behind=A.p<=B.p?A:B, ahead=behind===A?B:A;
-          const sgn=(behind.l-ahead.l)>=0?1:-1;
-          const push=Math.min(need-Math.abs(dl), 0.05); // 押し分けも1ステップ最大0.05（約23cm）まで：何ステップもかけて少しずつ開く
-          behind.l=clamp(behind.l+sgn*push*0.8,-0.95,0.95);
-          ahead.l=clamp(ahead.l-sgn*push*0.2,-0.95,0.95);
-          behind.lv=0; ahead.lv=0;                      // 押し分けられたら横速度はリセットし、勢い余って行き過ぎない
-        }
+      o.frames[i*2]=o.s/dist; o.frames[i*2+1]=o.l;
+    }
+    /* 横の重なり解消：速度をゼロ化したり瞬間に押し出したりせず、
+       1ステップ最大 0.5/秒 相当だけ少しずつ開く（主に後ろの馬が下がる） */
+    for(let a=0;a<horses.length;a++) for(let b=a+1;b<horses.length;b++){
+      const A=horses[a], B=horses[b];
+      const ds=Math.abs(A.s-B.s); if(ds>3.2) continue;
+      const need=0.09+0.17*(1-ds/3.2);
+      const dl=B.l-A.l;
+      if(Math.abs(dl)<need){
+        const behind=A.s<=B.s?A:B, ahead=behind===A?B:A;
+        const sgn=(behind.l-ahead.l)>=0?1:-1;
+        const push=Math.min(need-Math.abs(dl), 0.35*dt);
+        behind.l=clamp(behind.l+sgn*push*0.75,-0.95,0.95);
+        ahead.l=clamp(ahead.l-sgn*push*0.25,-0.95,0.95);
+        behind.frames[i*2+1]=behind.l; ahead.frames[i*2+1]=ahead.l;
       }
     }
-    horses.forEach(o=>{ o.frames[i*2]=o.p; o.frames[i*2+1]=o.l; });
   }
   const map=new Map(); horses.forEach(o=>map.set(o.h,o.frames));
   raceState.vis={dt:dt, n:n, frames:map, tEnd:tEnd};
@@ -5814,10 +5945,20 @@ function buildVisPath(){
 /* 表示用の位置（prog／横位置）を時刻から引く。無い場合は null（従来計算にフォールバック） */
 function visAt(h,t){
   const v=raceState.vis; if(!v||!v.frames.has(h)) return null;
-  const fr=v.frames.get(h);
-  const f=clamp(t/v.dt,0,v.n-1), i=Math.floor(f), u=f-i, i2=Math.min(i+1,v.n-1);
-  const us=u*u*(3-2*u); // 横位置はスムーズステップで補間：キーフレーム境界で横速度が段差にならず、寄せ始め・止まり際がなめらかになる
-  return {p:fr[i*2]+(fr[i2*2]-fr[i*2])*u, l:fr[i*2+1]+(fr[i2*2+1]-fr[i*2+1])*us};
+  const fr=v.frames.get(h), n=v.n;
+  const f=clamp(t/v.dt,0,n-1), i=Math.min(Math.floor(f),n-2), u=f-i;
+  const i0=i-1, i3=i+2;
+  /* 端点は複製すると接線が半分になって速度段差が出るため、鏡像で外挿する */
+  const P=(idx,k)=>{ if(idx<0) return 2*fr[k]-fr[2+k]; if(idx>n-1) return 2*fr[(n-1)*2+k]-fr[(n-2)*2+k]; return fr[idx*2+k]; };
+  /* Catmull-Rom補間（隣接4点）：キーフレーム境界でも速度が連続し、
+     境界ごとに速度がゼロへ戻る脈動（カクつき）が出ない。
+     区間両端の値の範囲にクランプし、行き過ぎも防ぐ */
+  const cr=(p0,p1,p2,p3)=>{
+    const val=0.5*((2*p1)+(-p0+p2)*u+(2*p0-5*p1+4*p2-p3)*u*u+(-p0+3*p1-3*p2+p3)*u*u*u);
+    return clamp(val, Math.min(p1,p2), Math.max(p1,p2));
+  };
+  return { p:cr(P(i0,0), P(i,0), P(i+1,0), P(i3,0)),
+           l:cr(P(i0,1), P(i,1), P(i+1,1), P(i3,1)) };
 }
 /* ============ 中継カメラ（テレビ中継風） ============
    カメラ経路は再生前に全区間ぶん事前計算し、中央移動平均で平滑化して焼き込む。
@@ -7719,7 +7860,8 @@ function finishRace(){
     auSetCrowd(ownResults.some(o=>o.place===1)?1.0:0.8,0.25);
     if(ownResults.some(o=>o.place===1)) auWinJingle();
     if(betPayed>0) setTimeout(()=>auBetWin(),450);
-    setTimeout(()=>{ if(raceState.phase==="done"){ auSetCrowd(0.05,1.6); auSetMode("home"); } },2800);
+    if(AU._crowdTimer) clearTimeout(AU._crowdTimer);
+    AU._crowdTimer=setTimeout(()=>{ AU._crowdTimer=0; if(raceState.phase!=="run"){ auStopCrowd(); auSetMode("home"); } },2800); // ゴール歓声は約3秒で完全に止める（残響として残さない）
   }
   renderRaceScreen($("#v-race"));
   wirePanels($("#v-race"));
@@ -7790,7 +7932,7 @@ function renderRaceScreen(el){
     `)}
     <div class="panel mt" style="text-align:center;flex:none"><p class="small" style="margin:0 0 8px">週を進める操作は、帰った先の厩舎画面でできます。</p><button class="btn gold" id="btn-home" style="min-height:52px; font-size:16px; padding:10px 34px">🏠 帰る</button></div>`;
     const cv=$("#racecv"); if(cv){ drawRace(raceEndT()); }
-    $("#btn-home").addEventListener("click",()=>{raceState.phase="idle"; switchView("stable");});
+    $("#btn-home").addEventListener("click",()=>{ auStopCrowd(); auSetMode("home"); raceState.phase="idle"; switchView("stable"); });
   }
 }
 
@@ -8165,11 +8307,13 @@ function renderFarm(){
  ${S.ended?`<p class="mt"><b>🌈 国内G1全制覇を達成済み</b>（プレイ継続中）</p>`:""}
  <div class="mt small">名声 ${S.fame||0}／G1通算 ${S.g1Wins||0}勝</div></div>`;
  /* 歴代名馬の殿堂（実名・実績） */
- { const topLegends=[...LEGENDS].sort((a,b)=>b.earn-a.earn).slice(0,8);
+ { refreshHallOfFame();
+   const hallOwn=(S.hallOfFame||[]).map(rec=>({n:rec.name,sex:rec.sex,earn:rec.earnings,races:rec.races,wins:rec.wins,g1w:rec.g1w,own:true}));
+   const topLegends=LEGENDS.map(L=>({n:L.n,sex:L.sex,born:L.born,coat:L.coat,earn:L.earn,races:L.races,wins:L.wins,g1:L.g1,sire:L.sire,rider:L.rider})).concat(hallOwn).sort((a,b)=>b.earn-a.earn).slice(0,8);
    const myTop=[...S.horses].sort((a,b)=>(b.earnings||0)-(a.earnings||0))[0];
    const ab=myTop? legendAboveBelow(myTop.earnings||0) : null;
    html+=`<div class="panel">
-   <div class="hallgrid">${topLegends.map((L,i)=>`<div class="hallcard"><b>${i+1}. ${L.n}</b> <span class="small">${L.sex}・${L.born}年生・${L.coat}</span><br><span class="small">${L.races}戦${L.wins}勝／獲得賞金 ${fmt(L.earn)}万円<br>主な勝鞍：${L.g1}<br>父 ${L.sire}／主戦 ${L.rider}</span></div>`).join("")}</div>
+   <div class="hallgrid">${topLegends.map((L,i)=> L.own? `<div class="hallcard" style="outline:2px solid #c9a227"><b>${i+1}. ${esc(L.n)}</b> <span class="small">（自厩舎・殿堂入り）</span><br><span class="small">${L.races}戦${L.wins}勝／獲得賞金 ${fmt(L.earn)}万円<br>G1 ${L.g1w||0}勝 ― 実績が基準に達し、歴代名馬と並びました</span></div>` : `<div class="hallcard"><b>${i+1}. ${L.n}</b> <span class="small">${L.sex}・${L.born}年生・${L.coat}</span><br><span class="small">${L.races}戦${L.wins}勝／獲得賞金 ${fmt(L.earn)}万円<br>主な勝鞍：${L.g1}<br>父 ${L.sire}／主戦 ${L.rider}</span></div>`).join("")}</div>
    ${myTop?`<p class="small mt">自厩舎の最高賞金馬 <b>${myTop.name}</b>（通算 ${fmt(myTop.earnings||0)}万円）${ab&&ab.isTop?"は、歴代名馬の最高額を超えています！":ab&&ab.below?`は <b>${ab.below.n}</b>（${fmt(ab.below.earn)}万円）を超えました。次は <b>${ab.above?ab.above.n:"―"}</b>${ab.above?`（${fmt(ab.above.earn)}万円）`:""}が目標です。`:`は歴代名馬の殿堂入り（最下位 ${fmt([...LEGENDS].sort((a,b)=>a.earn-b.earn)[0].earn)}万円〜）を目指すところです。`}</p>`:`<p class="small mt">自厩舎馬が賞金を重ねると、ここで歴代名馬との比較が出ます。</p>`}
    <div class="flex mt"><button class="btn sm" data-goto-rank="1">名馬ランキングで全馬と比べる</button></div></div>`;
  }
@@ -8247,11 +8391,16 @@ function saleBuy(i, instant){
 let rankFilter="all", rankOpen=null;
 function renderRank(){
   const el=$("#v-rank"); if(!el)return;
-  const mine=S.horses.map(h=>{ensureFullHorse(h); return {name:h.name,sex:h.sex,age:h.age,wins:h.wins,races:h.races,earnings:h.earnings,rating:ratingOf(h),mine:true,id:h.id};});
+  refreshHallOfFame();
+  const hallIds=new Set((S.hallOfFame||[]).map(x=>x.id));
+  const seenIds=new Set();
+  const poolHorses=ownHorsePool().filter(h=>{ if(h.id==null) return true; if(seenIds.has(h.id)) return false; seenIds.add(h.id); return true; });
+  const mine=poolHorses.map(h=>{ensureFullHorse(h); return {name:h.name,sex:h.sex,age:h.age,wins:h.wins,races:h.races,earnings:h.earnings,rating:ratingOf(h),mine:true,hall:hallIds.has(h.id),id:h.id};});
+  (S.hallOfFame||[]).forEach(rec=>{ if(!poolHorses.some(h=>h.id===rec.id)) mine.push({name:rec.name,sex:rec.sex,age:rec.age,wins:rec.wins,races:rec.races,earnings:rec.earnings,rating:rec.rating,mine:true,hall:true,gone:true,id:rec.id}); });
   const world=(S.worldHorses&&S.worldHorses.length?S.worldHorses:defaultWorld()).map(w=>({...w, rating:(w.rating!=null? w.rating : Math.round((w.spd+w.sta+w.bst)/3 + w.wins*2)), mine:false}));
   let pool=[...mine,...world];
-  if(rankFilter==="legend") pool=pool.filter(x=>x.legend);
-  if(rankFilter==="current") pool=pool.filter(x=>x.current||x.mine);
+  if(rankFilter==="legend") pool=pool.filter(x=>x.legend||x.hall);
+  if(rankFilter==="current") pool=pool.filter(x=>x.current||(x.mine&&!x.gone));
   if(rankFilter==="mine") pool=pool.filter(x=>x.mine);
   const byEarn=[...pool].sort((a,b)=>b.earnings-a.earnings||b.rating-a.rating);
   const byRating=[...pool].sort((a,b)=>b.rating-a.rating||b.earnings-a.earnings);
@@ -8264,7 +8413,7 @@ function renderRank(){
   };
   const rowMain=(h,i,mode)=>{
     const sub= h.legend? `${h.sex}・${h.born}年生` : h.current? `${h.sex}${h.age}歳・現役` : `${h.sex}${h.age}歳`;
-    return `<tr class="${h.mine?"rank-me":""} ${h.legend?"legendrow":""}" ${h.legend?`data-leg="${esc(h.name)}"`:""}><td class="num">${i+1}</td><td>${esc(h.name)}${h.mine?"（自厩舎）":""}${mode==="earn"?passBadge(h):""}${h.legend?` <span class="small">▾</span>`:""}</td><td>${sub}</td><td class="num">${h.races}戦${h.wins}勝</td>${mode==="earn"?`<td class="r">${fmt(h.earnings)}万円</td><td class="num">${h.rating}</td>`:`<td class="num">${h.rating}</td><td class="r">${fmt(h.earnings)}万円</td>`}</tr>`;
+    return `<tr class="${h.mine?"rank-me":""} ${h.legend?"legendrow":""}" ${h.legend?`data-leg="${esc(h.name)}"`:""}><td class="num">${i+1}</td><td>${esc(h.name)}${h.mine?"（自厩舎）":""}${h.hall?` <span class="passbadge">殿堂入り</span>`:""}${mode==="earn"?passBadge(h):""}${h.legend?` <span class="small">▾</span>`:""}</td><td>${sub}</td><td class="num">${h.races}戦${h.wins}勝</td>${mode==="earn"?`<td class="r">${fmt(h.earnings)}万円</td><td class="num">${h.rating}</td>`:`<td class="num">${h.rating}</td><td class="r">${fmt(h.earnings)}万円</td>`}</tr>`;
   };
   const detailRow=(h)=>{
     if(!h.legend||rankOpen!==h.name) return "";
@@ -8273,7 +8422,7 @@ function renderRank(){
   const table=(list,mode,cols,key)=>{ const rows=list.map((h,i)=>rowMain(h,i,mode)+detailRow(h)); return `<div class="panel" style="padding:6px 10px"><table><tr><th class="num">順位</th><th>馬名</th><th>性・生年</th><th class="num">戦績</th>${cols}</tr>${pageSlice(key,rows,10).join("")||`<tr><td colspan="6" class="small">該当する馬がいません。</td></tr>`}</table></div>`+pagerHTML(key,rows.length,10); };
   el.innerHTML=subnavHTML("rank",[["earn","賞金順"],["rating","レーティング順"]])
   + `<div class="ranktabs">${[["all","すべて"],["legend","歴代名馬"],["current","現役実在馬"],["mine","自厩舎"]].map(([k,n])=>`<button data-rf="${k}" class="${rankFilter===k?"on":""}">${n}</button>`).join("")}</div>`
-  + panelHTML("rank","earn",`<h2 class="sec">獲得賞金順 <span class="tag">実額・生年併記</span></h2><p class="small">歴代名馬は行を押すと血統・主戦・主な勝鞍が見られます。自厩舎馬が歴代名馬の賞金を抜くと「○○超え」の印が付きます。</p>${table(byEarn,"earn",`<th class="r">獲得賞金</th><th class="num">レーティング</th>`,"rankEarn")}`)
+  + panelHTML("rank","earn",`<h2 class="sec">獲得賞金順 <span class="tag">実額・生年併記</span></h2><p class="small">歴代名馬は行を押すと血統・主戦・主な勝鞍が見られます。自厩舎馬が歴代名馬の賞金を抜くと「○○超え」の印が付きます。自厩舎馬は、獲得賞金 ${fmt(hallThresholds().earn)}万円以上／レーティング ${hallThresholds().rating}以上／G1 2勝以上のいずれかに達すると「殿堂入り」し、歴代名馬タブにも実在馬と並んで表示されます（引退・繁殖入りした後も残ります）。</p>${table(byEarn,"earn",`<th class="r">獲得賞金</th><th class="num">レーティング</th>`,"rankEarn")}`)
   + panelHTML("rank","rating",`<h2 class="sec">レーティング順 <span class="tag">歴代名馬は当ゲーム換算</span></h2><p class="small">自厩舎馬のレーティングは、通算勝率とG1・重賞での勝利／好走を中心に算出します。出走数や勝利数の多さだけでは上がりません。</p>${table(byRating,"rating",`<th class="num">レーティング</th><th class="r">獲得賞金</th>`,"rankRate")}<p class="small mt">出典：戦績・獲得賞金・主な勝鞍・血統は JRA公式（競馬の殿堂／競走馬情報）、netkeiba、JBIS の公開情報に基づく実データ。獲得賞金は海外・地方分を含む生涯総額の実額で、時代により賞金水準が異なるため生年を併記しています（換算調整はしていません）。歴代名馬のレーティングと脚質・距離帯は当ゲーム内の換算・解釈です。</p>`);
   el.querySelectorAll("[data-rf]").forEach(b=>b.addEventListener("click",()=>{ rankFilter=b.dataset.rf; renderAll(); }));
   el.querySelectorAll("[data-leg]").forEach(r=>r.addEventListener("click",()=>{ rankOpen= rankOpen===r.dataset.leg? null : r.dataset.leg; renderAll(); }));
@@ -8668,7 +8817,7 @@ function renderActionBar(){
   bar.classList.remove("solo");
   if(typeof raceState!=="undefined"&&raceState.phase==="done"){
     bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">レース終了</span>結果を確認したら、厩舎へ帰りましょう</div><button class="ab-btn btn gold" id="ab-exec">🏠 帰る</button>`;
-    const hb=$("#ab-exec"); if(hb) hb.addEventListener("click",()=>{ raceState.phase="idle"; switchView("stable"); });
+    const hb=$("#ab-exec"); if(hb) hb.addEventListener("click",()=>{ auStopCrowd(); auSetMode("home"); raceState.phase="idle"; switchView("stable"); });
     return;
   }
   /* 提案の調教に着地している間は、下部バーがそのまま「実行ボタン」になる。
@@ -8707,14 +8856,16 @@ function renderActionBar(){
 }
 
 
-/* ============ 固定レイアウト共通（サブタブ／ページ送り） ============
-   スクロールを廃止し、画面内の情報はサブタブ切替とページ送りで分割する */
+/* ============ レイアウト共通（サブタブ） ============
+   一覧はページ送りで分割せず、全件をそのまま並べてスクロールで
+   見せる（サブタブ切替は維持）。pagerHTML／pageSlice は互換のため
+   残すが、pagerHTML は何も出さず pageSlice は全件を返す */
 const UI={stable:"horses", train:"plan", race:"list", bet:"races", breed:"breed", jockey:"list", farm:"top", rank:"earn", racedone:"result", sdetail:"0"};
 const PG={};
 function subnavHTML(view, items){ return `<div class="subnav" role="tablist">${items.map(([k,n])=>`<button type="button" data-subnav="${view}:${k}" class="${UI[view]===k?"on":""}">${n}</button>`).join("")}</div>`; }
 function panelHTML(view, key, inner){ return `<div class="subpanel ${UI[view]===key?"on":""}" data-panel="${view}:${key}">${inner}</div>`; }
-function pagerHTML(key, total, per){ const pages=Math.max(1,Math.ceil(total/per)); let p=PG[key]||0; if(p>=pages)p=pages-1; if(p<0)p=0; PG[key]=p; if(pages<=1)return ""; return `<div class="pager"><button type="button" class="btn ghost sm" data-pg="${key}:-1" ${p<=0?"disabled":""}>← 前へ</button><span class="small">${p+1} / ${pages} ページ</span><button type="button" class="btn ghost sm" data-pg="${key}:1" ${p>=pages-1?"disabled":""}>次へ →</button></div>`; }
-function pageSlice(key, arr, per){ const pages=Math.max(1,Math.ceil(arr.length/per)); let p=PG[key]||0; if(p>=pages)p=pages-1; if(p<0)p=0; PG[key]=p; return arr.slice(p*per, p*per+per); }
+function pagerHTML(key, total, per){ return ""; } /* ページ送りは廃止：一覧は全件スクロール表示 */
+function pageSlice(key, arr, per){ return arr.slice(); }
 const panelOpen=(view,key)=>`<section class="subpanel ${UI[view]===key?"on":""}" data-panel="${view}:${key}">`;
 const panelClose=()=>`</section>`;
 function wirePanels(root){
@@ -8755,7 +8906,7 @@ function autoCfg(){
   const d={weeks:4, fundsMin:-1, stopInjury:true, stopRace:true, stopSale:true, stopFacility:true, stopFinance:true};
   if(!S.autoCfg||typeof S.autoCfg!=="object") S.autoCfg={};
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
-  if(![1,2,4,8,12].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
+  if(![1,2,4,8,12,24,36,48].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
   /* 出走週の扱い（raceStop）：all=すべての出走週で止まる／graded=重賞（G3以上）の週だけ止まる／
      g1=G1の週だけ止まる／none=止まらず全レースを「結果だけ」で消化する。
@@ -9008,7 +9159,7 @@ function showAutoSettings(){
   const cfg=autoCfg();
   const tog=(key,label)=>`<div class="ticket"><b>${label}</b><div class="mt"><button class="btn sm ${cfg[key]?"gold":"ghost"}" data-autog="${key}">${cfg[key]?"ON（止まる）":"OFF（止まらない）"}</button></div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
-  <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
+  <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
   <label class="small">資金の下限（下回ったら停止）<br><select id="auto-funds" style="width:100%">${[[-1,"なし"],[0,"0万円"],[500,"500万円"],[1000,"1000万円"],[2000,"2000万円"]].map(([v,l])=>`<option value="${v}" ${cfg.fundsMin===v?"selected":""}>${l}</option>`).join("")}</select></label>
   <p class="small mt">調教は馬ごとの定常指示に設定され、週送りのたびに自動で実行されます（毎回選びません）。資金がマイナスになった場合と、確認画面（年末・資金不足など）が出た場合は、条件に関係なく必ず止まります。止まらない設定にしたレースは「結果だけ」観戦で自動消化されます（作戦・騎手は現在の設定のまま）。</p>
   <label class="small">出走週の扱い（どのレースで止まるか）<br><select id="auto-racestop" style="width:100%">
@@ -9053,20 +9204,18 @@ function showTrainers(){
   const overseasOK=!!(S.overseasFarm||S.clubFarm);
   const tot=d=>["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0);
   const list=TRAINER_ROSTER.filter(d=>d.region===TRUI.region).slice().sort((a,b)=>tot(b)-tot(a));
-  const per=5, pages=Math.max(1,Math.ceil(list.length/per));
-  if(TRUI.page>=pages)TRUI.page=pages-1; if(TRUI.page<0)TRUI.page=0;
-  const items=list.slice(TRUI.page*per, TRUI.page*per+per);
+  const items=list; /* 全員をスクロールで表示（ページ送りなし） */
   const rankRow=(obj,labels)=>labels.map(([k,n])=>`${n} <b class="rankmark rank${obj[k]}">${obj[k]}</b>`).join("／");
   const locked=TRUI.region!=="jp"&&!overseasOK;
   showOverlay(`<h2>調教師の雇用</h2><div class="ov-body"><div style="text-align:left">
-  <div class="flex">${[["jp","日本"],["eu","欧州"],["us","米国"]].map(([k,n])=>`<button class="btn sm ${TRUI.region===k?"gold":"ghost"}" data-trregion="${k}">${n}</button>`).join("")}<span class="small">現在：<b>${esc(cur.name)}</b>／能力が高いほど雇用費・維持費が高い</span></div>
+  <div class="flex">${[["jp","日本"],["eu","欧州"],["us","米国"]].map(([k,n])=>`<button class="btn sm ${TRUI.region===k?"gold":"ghost"}" data-trregion="${k}">${n}</button>`).join("")}<span class="small">現在：<b>${esc(cur.name)}</b>／能力が高いほど雇用費・維持費は大きく跳ね上がります</span></div>
   ${locked?`<p class="small mt">欧州・米国の調教師は、海外牧場（またはクラブ牧場）を開設すると雇えるようになります。</p>`:""}
   ${items.map(d=>{ const cost=trainerCost(d); const isCur=d.id===cur.id; const dis=locked||(!isCur&&S.funds<cost.hire);
     return `<div class="ticket"><b>${esc(d.name)}</b> <span class="small">${d.region==="jp"?`${esc(d.kana)}／${esc(d.base)}所属・${esc(d.debut)}年デビュー`:`${esc(d.kana)}拠点`}／方針：${esc(d.policy)}</span><br>
     <span class="small">能力：${rankRow(d.ranks,[["train","調教"],["eye","相馬眼"],["idea","閃き"],["cond","体調"],["weight","体重"]])}／距離：${rankRow(d.dist,[["sprint","短"],["mile","マ"],["middle","中"],["long","長"]])}${d.ageApt?`／年代：2歳${d.ageApt[0]}・3歳${d.ageApt[1]}・古馬${d.ageApt[2]}・牝馬${d.ageApt[3]}`:""}</span><br>
     <span class="small">特性：${d.traits.length? d.traits.map(t=>`<span class="trait plus">${esc(t)}</span>`).join(" ") : "なし"}／雇用費 ${fmt(cost.hire)}万円・維持費 ${fmt(cost.upkeep)}万円/週</span>
     <div class="mt">${isCur?`<button class="btn sm" disabled>雇用中</button>`:`<button class="btn gold sm" data-hire="${d.id}" ${dis?"disabled":""}>この調教師を雇う（${fmt(cost.hire)}万円）</button>${locked?` <span class="small">海外牧場が必要</span>`:(S.funds<cost.hire?` <span class="small">資金不足</span>`:"")}`}</div></div>`; }).join("")}
-  <div class="flex mt"><button class="btn ghost sm" data-trpage="-1" ${TRUI.page<=0?"disabled":""}>← 前へ</button><span class="small">${TRUI.page+1} / ${pages} ページ（${list.length}名）</span><button class="btn ghost sm" data-trpage="1" ${TRUI.page>=pages-1?"disabled":""}>次へ →</button></div>
+  <div class="small mt">全${list.length}名を表示しています</div>
   </div></div><div class="ov-foot"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
   document.querySelectorAll("[data-hire]").forEach(b=>b.addEventListener("click",()=>hireTrainer(b.dataset.hire)));
   document.querySelectorAll("[data-trregion]").forEach(b=>b.addEventListener("click",()=>{ TRUI.region=b.dataset.trregion; TRUI.page=0; showTrainers(); }));
@@ -9131,6 +9280,7 @@ function switchView(v){
   $("#main").scrollTop=0;
   window.scrollTo(0,0); /* 通常フロー化に伴い、画面切替時はページ先頭へ戻す */
   if(v!=="race"&&raceState.phase!=="run"){ raceState.phase = raceState.phase==="done"?"done":"idle"; if(v!=="race"){raceState.phase="idle";} }
+  if(v!=="race"&&raceState.phase!=="run"&&typeof AU!=="undefined"&&AU.ctx&&(AU.mode==="race"||AU.crowdLvl>0)){ auStopCrowd(); auSetMode("home"); } /* 安全網：歓声・レースBGMの止め忘れを画面切替で必ず止める */
   renderAll();
   applyPendingAnchor(v);
 }
@@ -9162,8 +9312,11 @@ if(dockBtn) dockBtn.addEventListener("click",()=>{ const app=$("#app"); const mi
 if(dockBtn&&window.innerWidth<=640){ const app=$("#app"); if(app&&!app.classList.contains("dock-min")){ app.classList.add("dock-min"); dockBtn.textContent="△ 下のバーを出す"; dockBtn.setAttribute("aria-expanded","false"); } }
 $("#btn-save").addEventListener("click",()=>showSavePanel());
 const setBtn=$("#btn-settings"); if(setBtn)setBtn.addEventListener("click",()=>showSettings());
-/* サウンド開始はユーザーのタップ以降（自動再生制限対応）：最初のタップでAudioContextを作り、ホームBGMを開始する */
-document.addEventListener("pointerdown",()=>{ if(auInit()&&raceState.phase!=="run") auSetMode("home"); });
+/* サウンド開始はユーザーの操作以降（自動再生制限・iOS Safari対応）：
+   pointerdown／touchend／click のいずれでも、操作の同期処理の中で
+   AudioContextを生成・resumeする。画面復帰時も resume を試みる */
+["pointerdown","touchend","click"].forEach(ev=>document.addEventListener(ev,auUnlock,{passive:true}));
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) auUnlock(); });
 document.addEventListener("click",e=>{ if(e.target.closest("button")) auClick(); });
 window.addEventListener("resize",()=>{ if(raceState.phase==="run"&&raceState.simT!==undefined) drawRace(raceState.simT); });
 log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月開始なので、デビューは6月の新馬戦から。それまでは調教で仕上げよう");
