@@ -1203,11 +1203,19 @@ img.faceimg{ object-position:center 20%; }
      常時固定される（390pxのスマホでも常に見えて押せる）。
    ============================================================ */
 #overlay{ padding:10px; padding-bottom:calc(10px + env(safe-area-inset-bottom,0px)); }
-#overlay .box{ max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px - env(safe-area-inset-bottom,0px)); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#overlay .box{ max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px - env(safe-area-inset-bottom,0px)); overflow-y:auto; overscroll-behavior:contain; }
 #overlay .box.wide{ max-height:calc(100vh - 20px); max-height:calc(100dvh - 20px - env(safe-area-inset-bottom,0px)); }
 #overlay .box:has(> .ov-body){ display:flex; flex-direction:column; overflow:hidden; }
 #overlay .box > h2{ flex:none; }
-#overlay .box > .ov-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+#overlay .box > .ov-body{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+/* モーダル表示中は背後のアプリを描画しない（iPad Safari のフォーカス時クラッシュ対策）。
+   重いページ（大きなDOM・画像・常時アニメーション）の上にモーダルを重ねた状態で
+   入力欄にフォーカスすると、キーボード表示に伴う再レイアウト／再合成の負荷で
+   WebKit プロセスが終了し、Safari ごとホーム画面に落ちることがある。
+   モーダル表示中は背後を不可視にして合成レイヤーとアニメーションを止め、
+   アカウント入力のような軽い操作はモーダルだけで完結する状態にする */
+body.ov-open #app{ visibility:hidden; }
+body.ov-open #app *{ animation-play-state:paused !important; }
 #overlay .box > .ov-foot{ flex:none; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; padding-top:12px; margin-top:12px; border-top:1.5px solid var(--line); background:inherit; }
 #overlay .box > .ov-foot .btn{ min-height:52px; flex:1 1 auto; max-width:440px; font-size:15.5px; }
 @media (max-width:640px){ #overlay .box{ padding:16px; } }
@@ -1954,7 +1962,6 @@ html,body{ height:auto; overflow:visible; }
 <img src="assets/portrait-jockey.webp" alt=""><img src="assets/portrait-trainer.webp" alt="">
 <img src="assets/scene-farm.webp" alt=""><img src="assets/scene-racecourse.webp" alt="">
 <img src="assets/secretary-normal.webp" alt=""><img src="assets/secretary-smile.webp" alt=""><img src="assets/secretary-worried.webp" alt="">
-<link rel="prefetch" href="assets/horse-bay.glb"><link rel="prefetch" href="assets/horse-darkbay.glb"><link rel="prefetch" href="assets/horse-chestnut.glb"><link rel="prefetch" href="assets/horse-grey.glb"><link rel="prefetch" href="assets/horse-gallop.glb">
 </div>
 <script>
 "use strict";
@@ -6436,7 +6443,7 @@ function tickRaceBody(now){
   raceState.simT=Math.min((raceState.simT||0)+dt*(raceState.rate||1)*dtMul, simEnd);
   if(raceState.watch==="digest"&&raceState.sim){ const tw=raceState.sim.tWin, jt=finalStraightT(); if(raceState.simT>tw*0.30&&raceState.simT<jt) raceState.simT=jt; }
   raceState.elapsed=raceState.simT;
-  try{ drawRace(raceState.simT); }catch(e){ /* 描画側の例外でレース進行（rAF連鎖）を止めない */ }
+  try{ if(!document.body.classList.contains("ov-open")) drawRace(raceState.simT); }catch(e){ /* 描画側の例外でレース進行（rAF連鎖）を止めない。モーダル表示中は背後の描画を止める（負荷軽減） */ }
   updateCommentary(raceState.simT);
   syncStraightBtn();
   /* サウンド同期：発馬音／蹄音（先頭馬の走行距離＝ストライド周期）／歓声の盛り上がり */
@@ -10559,6 +10566,24 @@ window.addEventListener("resize",()=>{ if(raceState.phase==="run"&&raceState.sim
 log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月開始なので、デビューは6月の新馬戦から。それまでは調教で仕上げよう");
 /* 起動：セーブがあれば「つづきから／はじめから」を選ぶ */
 (function boot(){
+  /* モーダルの開閉を監視し、表示中は body.ov-open を付ける（CSS 側で背後の
+     アプリ全体を不可視にし、合成・アニメーションを止める）。閉じ方は
+     呼び出し側ごとに異なる（style.display の直接変更）ため、属性監視で
+     すべての経路を一括して拾う */
+  try{
+    const ovEl=$("#overlay");
+    const syncOv=()=>{ const open=!!ovEl&&ovEl.style.display!=="none"&&ovEl.style.display!==""; document.body.classList.toggle("ov-open", open); };
+    new MutationObserver(syncOv).observe(ovEl,{attributes:true,attributeFilter:["style"]});
+    syncOv();
+  }catch(e){}
+  /* 3Dモデル（GLB）の先読みは、起動直後の混雑を避けてアイドル時に回す。
+     モーダル表示中・入力中は行わない（iPad のメモリ圧迫を避ける） */
+  try{
+    const glbs=["assets/horse-bay.glb","assets/horse-darkbay.glb","assets/horse-chestnut.glb","assets/horse-grey.glb","assets/horse-gallop.glb"];
+    const prefetch=()=>{ if(document.body.classList.contains("ov-open")||acctInputFocused()){ setTimeout(prefetch,4000); return; }
+      glbs.forEach(href=>{ const l=document.createElement("link"); l.rel="prefetch"; l.href=href; document.head.appendChild(l); }); };
+    setTimeout(prefetch, 6000);
+  }catch(e){}
   let has=null, bak=null; try{ has=localStorage.getItem(SAVE_KEY+"auto"); bak=localStorage.getItem(SAVE_KEY+"auto_bak"); }catch(e){}
   const dMain=parseSaveChecked(has), dBak=parseSaveChecked(bak);
   if(dMain||dBak){
