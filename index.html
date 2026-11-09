@@ -1120,6 +1120,15 @@ img.faceimg{ object-position:center 20%; }
 #actionbar:has(> .ab-wide){ padding:10px; }
 .hrow img{ width:88px; height:64px; border-radius:10px; object-fit:cover; object-position:center 38%; border:2.5px solid #f2c41c; }
 .hr-stat .seg{ white-space:nowrap; }
+/* 所有馬一覧：2段組グリッドではなく、1段の横長カードリストにする。
+   アイコンは小さめにし、名前・賞金・戦績を横一列の流れで見せる */
+.hlist{ display:block; }
+.hlist .hrow{ margin-bottom:8px; }
+.hlist .hrow img{ width:60px; height:46px; border-radius:8px; }
+/* レース予定アコーディオン：見出しだけを残して畳める */
+.acc-head{ display:flex; width:100%; align-items:center; justify-content:space-between; gap:8px; background:none; border:none; font:inherit; font-weight:900; font-size:15.5px; color:inherit; padding:12px 13px; cursor:pointer; text-align:left; min-height:48px; }
+.acc-arw{ font-size:12.5px; font-weight:800; color:var(--ink2); white-space:nowrap; }
+.acc-body{ padding:0 10px 10px; }
 .detail-art{ aspect-ratio:2.05/1; background:linear-gradient(180deg,#cfe4f7 0%,#dcefd2 78%,#cfe3bd 100%); }
 .detail-art img.hart{ object-fit:contain; object-position:center 50%; }
 .hcard .art img.hart{ object-fit:contain; object-position:center 50%; }
@@ -3845,23 +3854,90 @@ function ratingOf(h){
   return Math.round(ab+wrPts+g1Pts+gPts+g1FormPts+earnPts);
 }
 /* ============ 狙えるレベル評価と、引退・繁殖入りの基準 ============
-   各馬について「どのレベルを狙えるか」を能力（若馬は潜在能力も）と
-   戦績（レーティング・重賞勝利）から 0〜3 で評価する。プレイヤーは
-   設定画面（厩舎の決まりごと）で引退基準・繁殖入り基準をこのレベルで
-   決められ、基準未満の馬は年末の引退勧告と提案で「基準未満」と分かり、
-   引退した牝馬は基準未満なら繁殖入りせず売却に回る。基準はセーブに保存 */
+   各馬について「どのレベルを狙えるか」を 0〜3 で評価する。旧評価は
+   「能力平均84以上＝G1級」の単一基準で、潜在能力のない馬は調教で
+   天上99まで底上げできてしまうため、調教を重ねた所有馬がほぼ全頭
+   G1級になり、相手のG3・G2出走馬も大半がG1級になっていた（実測：
+   2年調教した市場馬は100%がG1級、G3出走馬は63%がG1級）。
+   見直し後は次の4要素で判定する：
+   (1) 到達見込みスコア aimPeakScore：現在の能力に、潜在能力までの
+       伸びしろを「年齢と成長型のピークから見た到達可能性」で割り引いて
+       加え、芝・ダート適性の合致と距離適性の幅で補正したもの。
+   (2) 実績：G1勝利・重賞勝利・レーティングは従来どおり効くが、
+   (3) 実績キャップ：出走を重ねても勝ち切れていない馬（未勝利のまま
+       多走／1勝止まりで多走）は、能力が高くても格上げしない
+       （戦って出た結果を優先）。
+   (4) 潜在能力のない馬がG1級になるには、実績か、伸びしろ抜きの
+       現在能力そのものがG1出走馬の水準（92.5）に達していることを
+       要求する（到達見込みだけでG1級にはしない）。
+   プレイヤーは設定画面（厩舎の決まりごと）で引退基準・繁殖入り基準を
+   このレベルで決められ、基準未満の馬は年末の引退勧告と提案で
+   「基準未満」と分かり、引退した牝馬は基準未満なら繁殖入りせず
+   売却に回る。基準はセーブに保存。評価は都度計算なので、既存セーブの
+   馬にも読み込み直後から新しい基準がそのまま適用される */
 const AIM_LEVELS=["厳しい","条件戦でやれる","重賞を狙える","G1を狙える"];
+function aimCoreAvg(src){ return (((src&&src.spd)||0)+((src&&src.sta)||0)+((src&&src.pow)||0)+((src&&src.bst)||0)+((src&&src.gut)||0))/5; }
+function aimScoreParts(h){
+  ensureFullHorse(h);
+  const ab=aimCoreAvg(h);
+  let peak;
+  if(h.pot){
+    const potAb=aimCoreAvg(h.pot);
+    if(potAb>ab){
+      /* 潜在能力まであとどれだけ届くか：ピークを過ぎた馬ほど届かない */
+      const peakAge={"早熟":3,"早め":4,"遅め":5,"晩成":5,"覚醒":5}[h.growth]||4;
+      let reach= h.age<=2?0.85 : h.age===3?0.75 : h.age===4?0.55 : h.age===5?0.32 : h.age===6?0.18 : 0.08;
+      if(h.growth==="早熟"&&h.age>=peakAge) reach=Math.min(reach,0.55);
+      if(h.age<peakAge&&(h.growth==="晩成"||h.growth==="遅め")) reach=Math.min(0.9,reach+0.05);
+      peak=ab+(potAb-ab)*reach;
+    } else peak=ab;
+  } else {
+    /* 潜在能力の裏付けがない馬の伸びしろは控えめに見積もる
+       （調教は特定の能力を伸ばすもので、全能力の平均が天井まで
+       均等に上がるわけではない、という実態に合わせた見積もり） */
+    const head= h.age<=2?5 : h.age===3?4 : h.age===4?2.5 : h.age===5?1.2 : 0;
+    peak=ab+head;
+  }
+  /* 芝・ダート適性の合致：主戦場にできる馬場があるか */
+  const bestSurf=Math.max(rankVal(h.turf||"B"), rankVal(h.dirt||"C"));
+  const aptMod= bestSurf>=4?1.5 : bestSurf===3?0 : -3.5;
+  /* 距離適性の幅：極端に狭いと狙えるレースが限られる */
+  const width=(h.dmax||2200)-(h.dmin||1600);
+  const distMod= width>=900?0.5 : width<=400?-1 : 0;
+  return { peak: peak+aptMod+distMod, now: ab+aptMod+distMod };
+}
+function aimPeakScore(h){ return aimScoreParts(h).peak; }
 function aimLevel(h){
   if(!h) return 0;
-  const ab=((h.spd||0)+(h.sta||0)+(h.pow||0)+(h.bst||0)+(h.gut||0))/5;
-  const potAb=h.pot? ((h.pot.spd||0)+(h.pot.sta||0)+(h.pot.pow||0)+(h.pot.bst||0)+(h.pot.gut||0))/5 : ab;
-  const base=Math.max(ab, potAb*0.92); /* 若馬は潜在能力も加味（まだ伸びる分は割り引く） */
+  ensureFullHorse(h);
+  const parts=aimScoreParts(h), score=parts.peak;
+  const races=h.races||0, wins=h.wins||0, gw=h.gWins||0, g1w=g1WinEst(h);
+  const r= races>=3? ratingOf(h) : null;
   let lv=0;
-  if(base>=84||g1WinEst(h)>=1) lv=3;
-  else if(base>=75||(h.gWins||0)>=1) lv=2;
-  else if(base>=61) lv=1;
-  if((h.races||0)>=3){ const r=ratingOf(h); /* 実績のある馬はレーティングでも底上げ */
-    if(r>=102) lv=Math.max(lv,3); else if(r>=90) lv=Math.max(lv,2); else if(r>=72) lv=Math.max(lv,1); }
+  /* 実績ベース */
+  if(g1w>=1||(r!=null&&r>=103)) lv=3;
+  else if(gw>=1||(r!=null&&r>=91)) lv=2;
+  else if(wins>=1||(r!=null&&r>=72)) lv=1;
+  /* 素質・到達見込みベース */
+  if(h.pot){
+    if(score>=90.5) lv=Math.max(lv,3);
+    else if(score>=80) lv=Math.max(lv,2);
+    else if(score>=66.5) lv=Math.max(lv,1);
+  } else {
+    /* 実績も潜在能力の裏付けもない馬がG1級になるには、伸びしろ込みの
+       見込みではなく、現在の能力そのものがG1出走馬の水準（92.5）に
+       達していることを要求する。重賞・条件戦は到達見込みで判定する */
+    if(parts.now>=92.5) lv=Math.max(lv,3);
+    else if(score>=81) lv=Math.max(lv,2);
+    else if(score>=67) lv=Math.max(lv,1);
+  }
+  /* 実績キャップ：戦って勝ち切れていない馬は格上げしない。
+     レーティング連動にすると、相手馬の生成戦績（薄い記録）まで
+     一律に切り下げてしまうため、勝ち星と出走数で判定する */
+  if(g1w===0&&gw===0&&(h.g1t||0)===0&&(h.gT||0)<2){
+    if(wins===0&&(races>=10||(races>=6&&(h.age||0)>=4))) lv=Math.min(lv,1); /* 未勝利のままキャリアを重ねた馬 */
+    else if(races>=8&&wins<=1) lv=Math.min(lv,2); /* 1勝止まりで多走：条件戦を勝ち上がれていない */
+  }
   return lv;
 }
 function aimLabel(h){ return AIM_LEVELS[aimLevel(h)]||AIM_LEVELS[0]; }
@@ -4830,7 +4906,7 @@ function renderStable(){
     <label class="small">状態 <select id="own-st"><option value="all" ${ownFilter.st==="all"?"selected":""}>すべて</option><option value="entry" ${ownFilter.st==="entry"?"selected":""}>エントリー中</option><option value="inj" ${ownFilter.st==="inj"?"selected":""}>故障中</option><option value="fit" ${ownFilter.st==="fit"?"selected":""}>好調（調子75+）</option></select></label>
     <span class="small">${ownListCache.length}頭を表示</span></div></div>`;
   horsesInner+= S.horses.length? ownCtl+(()=>{ const list=ownListCache; const active=ownFilter.q||ownFilter.cls!=="all"||ownFilter.st!=="all"||ownFilter.sort!=="earn";
-    return list.length? `<div class="hgrid">${(active? list : pageSlice("stableHorses", list, perH)).map(h=>horseMini(h)).join("")}</div>`+(active?"":pagerHTML("stableHorses", list.length, perH)) : `<p class="small">条件に合う馬がいません。</p>`; })() : `<p class="small">所有馬がいません。「市場」タブから購入してください。</p>`;
+    return list.length? `<div class="hlist">${(active? list : pageSlice("stableHorses", list, perH)).map(h=>horseMini(h)).join("")}</div>`+(active?"":pagerHTML("stableHorses", list.length, perH)) : `<p class="small">条件に合う馬がいません。</p>`; })() : `<p class="small">所有馬がいません。「市場」タブから購入してください。</p>`;
   const h=selHorse();
   let detailInner=`<p class="small">所有馬がいません。</p>`;
   if(h){ ensureFullHorse(h); const sugs=h.entry?null:suggestNextRaces(h);
@@ -5238,6 +5314,7 @@ function evalBreed(s,m){
 }
 function breedEvalHTML(s,m){
   const ev=evalBreed(s,m); if(!ev)return `<p class="small">繁殖牝馬を選ぶと配合評価が表示されます。</p>`;
+  const gp=pairG1Prob(s,m);
   const th=ev.theory; const P=pedigreeOf(s.name,m);
   const dangerStars="★".repeat(Math.min(5,Math.ceil(th.danger/2)))+"☆".repeat(Math.max(0,5-Math.ceil(th.danger/2)));
   const pedRow=(a,label)=> a? `<td><b style="${th.inbred&&th.inbred.names.includes(a.name)?"color:#ff4b4b":""}">${esc(a.name)}</b>${a.damSire?'<span class="mk hot">母</span>':""}${th.inbred&&th.inbred.full.includes(a.name)?'<span class="mk hot">全</span>':""}<span class="mk">${a.parent}</span>${a.grade?`<span class="mk hot">${a.grade}種牡馬</span>`:""}<span class="mk">${a.type==="SP"?"SP":a.type==="ST"?"ST":"中間"}</span><span class="mk">${lineOf(a.name).pop}</span>${(a.factors||[]).map(f=>`<span class="mk">${ABNAME[f]}</span>`).join("")}</td>`:`<td>―</td>`;
@@ -5260,11 +5337,13 @@ function breedEvalHTML(s,m){
    <div class="parentcard"><div class="small">父（種牡馬）</div><div class="pc-name">${esc(s.name)}</div>
     <div class="small">系統：${sL.parent}／${sL.type==="SP"?"SP系統":sL.type==="ST"?"ST系統":"中間"}${sL.grade?`／${sL.grade}種牡馬`:""}／${sL.pop}</div>
     <div class="small">因子：${(sL.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ")||"なし"}</div>
-    <div class="small">素質点 <b style="font-size:16px">${sirePts}</b>／種付料 ${s.fee?fmt(s.fee)+"万円":"自家（無料）"}</div></div>
+    <div class="small">素質点 <b style="font-size:16px">${sirePts}</b>／種付料 ${s.fee?fmt(s.fee)+"万円":"自家（無料）"}</div>
+    <div class="small">この配合でG1級の子が出る確率 <b style="font-size:16px">${g1ProbTxt(gp)}</b></div></div>
    <div class="parentcard"><div class="small">母（繁殖牝馬）</div><div class="pc-name">${esc(m.name)}</div>
     <div class="small">母父系統：${dL.parent}／${dL.type==="SP"?"SP系統":dL.type==="ST"?"ST系統":"中間"}／牝系：${m.famousDam?"名牝系":(m.damLine==="主流"?"主流牝系":"一般牝系")}</div>
     <div class="small">因子：${(dL.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ")||"なし"}／戦績 ${m.races}戦${m.wins}勝</div>
-    <div class="small">素質点 <b style="font-size:16px">${damPts}</b>／芝${m.turf} ダ${m.dirt}／距離 ${m.dmin}〜${m.dmax}m</div></div>
+    <div class="small">素質点 <b style="font-size:16px">${damPts}</b>／芝${m.turf} ダ${m.dirt}／距離 ${m.dmin}〜${m.dmax}m</div>
+    <div class="small">この配合でG1級の子が出る確率 <b style="font-size:16px">${g1ProbTxt(gp)}</b></div></div>
   </div>
   <div class="evalgrid">
    <div class="evalbox"><div class="el">総合評価（産駒期待値）</div><div class="ev">${ev.rank} <span style="font-size:14px">${ev.total}</span></div><div class="small">期待 速${ev.expect.spd} ス${ev.expect.sta} パ${ev.expect.pow} 瞬${ev.expect.bst} 根${ev.expect.gut}</div></div>
@@ -5287,6 +5366,135 @@ function breedEvalHTML(s,m){
   <p class="small">血統表：赤字はインブリード対象の先祖、「全」は全きょうだい、「母」は母系。系統マーク（親系統／SP・ST／格付け／流行／能力因子）つき。</p></div></details>`;
 }
 
+/* ============ G1級の子が出る確率（繁殖の実計算サンプリング） ============
+   見た目だけの数値ではなく、実際の誕生計算（makeFoalFromTheory）の
+   遺伝式をそのまま使って産駒を多数回サンプリングし、新評価
+   （aimLevel）で G1級（lv3）に届く産駒の割合を確率とする。
+   遺伝式の内訳：能力は「62＋（父母平均−62）×0.88＋揺らぎ」で父母平均へ
+   回帰し、潜在能力 pot は父母の高い方を基準に生成され、爆発力は
+   種付け時の基礎値を押し上げ、父系因子・サブパラ・補正が加算され、
+   成長型は72%の確率で父母から受け継ぐ。父の能力は配合評価
+   （evalBreed）と同じ sireStats 換算で与える（自家種牡馬では実際の
+   誕生計算と一致する）。理論（爆発力・危険度・補正）は evalBreed の
+   実評価から取るので、相性の良い配合ほど確率が上がる。
+   表示用の基準相手は固定の標準プールとする：種牡馬の確率は「標準的な
+   繁殖牝馬プール（下記 stdMarePool の6頭）との産駒」、繁殖牝馬の確率は
+   「標準的な種牡馬プール（stdSirePool の6頭）との産駒」を全頭との配合の
+   平均で算出する。自厩舎の現在の繁殖牝馬・種牡馬の顔ぶれには依存しない
+   （顔ぶれで表示確率が変わると比較・売却判断の基準にならないため）。
+   配合画面の候補ごとの確率（pairG1Prob）は実際の相手との計算のまま。
+   結果はメモ化し、能力が変わるまで再計算しない */
+const G1P_SAMPLES=128;
+const _g1pCache={};
+function theoryForPair(s,m){
+  const ev=evalBreed(s,m); if(!ev||!ev.theory) return {burst:0,danger:0,mods:{},sub:{},theories:[],sireFactors:[]};
+  const th=ev.theory; let fac=[]; try{ fac=(pedigreeOf(s.name,m).sire.factors||[]); }catch(e){}
+  return {burst:th.burst, danger:th.danger, mods:th.mods, sub:th.sub, theories:th.theories, sireFactors:fac};
+}
+function sampleFoalForProb(sireRec, mare, theory){
+  const ss=sireStats(sireRec);
+  const sireLike={spd:ss.spd, sta:ss.sta, pow:ss.pow, bst:ss.bst, gut:ss.gut, flx:ss.flx, men:(sireRec.own&&sireRec.own.men)||66, smt:ss.smt, hlt:ss.hlt, growth:(sireRec.own&&sireRec.own.growth)||null};
+  const base=55+Math.min(7,(theory&&theory.burst)||0)+ri(-5,4);
+  /* 産駒オブジェクトは newHorse の分布（成長型・距離適性の抽選）を
+     再現して直接組み立てる。多数回サンプリングでも重くならないよう、
+     名前生成や作戦適性などの無関係な初期化は持たせない（評価に必要な
+     項目は aimLevel 側の ensureFullHorse が補完する）。能力の遺伝式
+     そのものは makeFoalFromTheory と同一 */
+  const f={ name:"", sex:"牡", age:0, sire:sireRec.name, dam:mare?mare.name:"",
+    growth:pick(["早熟","早め","早め","遅め","晩成","覚醒"]),
+    turf:pick(["S","A","A","B","B","C"]), dirt:pick(["A","B","B","C","C","S"]), heavy:pick(["S","A","B","B","C","C"]),
+    dmin:pick([1000,1200,1400,1600]), cond:65, fat:15, races:0, wins:0, earnings:0, gWins:0,
+    spd:0, sta:0, pow:0, bst:0, gut:0, flx:0, men:0, smt:0, hlt:0 };
+  f.dmax=f.dmin+pick([400,600,800,1000,1400]);
+  f.bestDist=Math.round((f.dmin+f.dmax)/2/100)*100;
+  ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ f[k]=clamp(Math.round(base+gauss()*13),20,99); });
+  if(mare){
+    ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ const sv=sireLike[k]!=null?sireLike[k]:(mare[k]+8); f[k]=clamp(Math.round(62+((sv+mare[k])/2-62)*0.88+gauss()*5),25,95); });
+    f.turf=mare.turf; f.dirt=mare.dirt; f.heavy=mare.heavy;
+  }
+  ((theory&&theory.sireFactors)||[]).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+ri(2,4),20,99); });
+  Object.keys((theory&&theory.sub)||{}).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+((theory.sub||{})[k]||0),20,99); });
+  Object.keys((theory&&theory.mods)||{}).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+((theory.mods||{})[k]||0)*2,20,99); });
+  if(theory&&theory.danger>=4){ f.hlt=clamp(f.hlt-ri(4,10),20,99); if(Math.random()<0.35&&!(f.flags&&f.flags.length))f.flags=["leganx"]; }
+  if(mare){
+    const srcG=[sireLike.growth, mare.growth].filter(Boolean);
+    if(srcG.length&&Math.random()<0.72) f.growth=pick(srcG);
+    f.pot={};
+    ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{
+      const pv=Math.max(sireLike[k]||0, mare[k]||0, f[k]);
+      f.pot[k]=clamp(Math.round(Math.max(f[k]+ri(1,7), Math.min(99, pv+ri(-3,6)))),25,99);
+    });
+  }
+  return f;
+}
+function pairG1Prob(s,m){
+  if(!s||!m) return null;
+  const ss=sireStats(s);
+  const key=["pair", s.name, Math.round(ss.spd+ss.sta+ss.pow+ss.bst+ss.gut), m.id||m.name, Math.round((m.spd||0)+(m.sta||0)+(m.pow||0)+(m.bst||0)+(m.gut||0)), m.growth||""].join("|");
+  if(_g1pCache[key]!=null) return _g1pCache[key];
+  const th=theoryForPair(s,m);
+  let hit=0;
+  for(let i=0;i<G1P_SAMPLES;i++){ if(aimLevel(sampleFoalForProb(s,m,th))>=3) hit++; }
+  const p=hit/G1P_SAMPLES;
+  _g1pCache[key]=p;
+  return p;
+}
+/* 基準相手プール：能力プロファイル・適性を固定した代表6頭ずつ。
+   [速,ス,パ,瞬,根,柔,気,賢,健] は平均およそ60（標準的な繁殖馬の水準）で、
+   バランス型／スピード型／スタミナ型／パワー型／やや劣る型／やや優れる型の
+   顔ぶれにする。名前・父系も固定し、表示確率はセッションや自厩舎の
+   顔ぶれに左右されず、馬同士で比較できる値になる */
+const STD_POOL_PROFILES=[
+ {ab:[62,60,60,62,60,60,60,60,62], growth:"早め", turf:"A", dirt:"B", dmin:1400},
+ {ab:[68,54,60,66,56,62,58,60,60], growth:"早熟", turf:"A", dirt:"C", dmin:1200},
+ {ab:[56,68,60,56,64,58,60,60,62], growth:"遅め", turf:"B", dirt:"B", dmin:1600},
+ {ab:[58,60,68,58,62,56,58,60,60], growth:"早め", turf:"B", dirt:"A", dmin:1400},
+ {ab:[55,55,55,56,55,56,56,56,58], growth:"晩成", turf:"B", dirt:"C", dmin:1200},
+ {ab:[66,64,62,66,62,62,60,62,64], growth:"早め", turf:"S", dirt:"B", dmin:1600}
+];
+function stdPoolHorse(pf, nm, sex, age){
+  const h=newHorse({base:60, age, sex});
+  h.name=nm; h.sire="標準父系"; h.dam="標準母系";
+  ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach((k,i)=>{ h[k]=pf.ab[i]; });
+  h.growth=pf.growth; h.turf=pf.turf; h.dirt=pf.dirt;
+  h.dmin=pf.dmin; h.dmax=pf.dmin+800; h.bestDist=Math.round((h.dmin+h.dmax)/2/100)*100;
+  h.pot=null;
+  return h;
+}
+let _stdMarePool=null;
+function stdMarePool(){
+  if(_stdMarePool) return _stdMarePool;
+  _stdMarePool=STD_POOL_PROFILES.map((pf,i)=>stdPoolHorse(pf, "標準的な繁殖牝馬"+(i+1), "牝", 6));
+  return _stdMarePool;
+}
+function stdMareForProb(){ return stdMarePool()[0]; }
+let _stdSirePool=null;
+function stdSirePool(){
+  if(_stdSirePool) return _stdSirePool;
+  _stdSirePool=STD_POOL_PROFILES.map((pf,i)=>({name:"標準的な種牡馬"+(i+1), fee:0, own:stdPoolHorse(pf, "標準的な種牡馬"+(i+1), "牡", 8)}));
+  return _stdSirePool;
+}
+function sireG1Prob(s){
+  if(!s) return null;
+  const ss=sireStats(s);
+  const key=["sireStd", s.name, Math.round(ss.spd+ss.sta+ss.pow+ss.bst+ss.gut+ss.flx+ss.smt+ss.hlt)].join("|");
+  if(_g1pCache[key]!=null) return _g1pCache[key];
+  const pool=stdMarePool();
+  const p=pool.reduce((a,m)=>a+(pairG1Prob(s,m)||0),0)/pool.length;
+  _g1pCache[key]=p;
+  return p;
+}
+function mareG1Prob(m){
+  if(!m) return null;
+  const key=["mareStd", m.id||m.name, Math.round((m.spd||0)+(m.sta||0)+(m.pow||0)+(m.bst||0)+(m.gut||0)+(m.flx||0)+(m.smt||0)+(m.hlt||0))].join("|");
+  if(_g1pCache[key]!=null) return _g1pCache[key];
+  const pool=stdSirePool();
+  const p=pool.reduce((a,s)=>a+(pairG1Prob(s,m)||0),0)/pool.length;
+  _g1pCache[key]=p;
+  return p;
+}
+function g1ProbTxt(p){ return p==null? "―" : "約"+Math.round(p*100)+"%"; }
+
 function renderBreed(){
   const el=$("#v-breed");
   const ownSt=S.stallions, mares=S.mares;
@@ -5301,18 +5509,19 @@ function renderBreed(){
    <button class="btn ghost" id="btn-sub">${breedSel.sub?"サブパラ評価を閉じる":"サブパラ評価"}</button>
   </div></div>${(month()===5||month()===6)?trainerBreedPanelHTML():""}${panelClose()+panelOpen("breed","eval")}<div class="panel">
   <div id="breed-eval">${mares.length?breedEvalHTML(ownSt[breedSel.s||0], mares[breedSel.m||0]):`<p class="small mt">繁殖牝馬がいると、相手を選ぶだけで種付け前に評価が見えます。</p>`}</div>
+  ${mares.length&&ownSt.length?(()=>{ const cm=mares[breedSel.m||0]; if(!cm) return ""; const rows=ownSt.map((s2,i)=>({i, n:s2.name, p:pairG1Prob(s2,cm)})).sort((a,b)=>(b.p||0)-(a.p||0)); return `<div class="mt"><b>相手候補ごとの確率</b> <span class="small">（${esc(cm.name)} との配合でG1級の子が出る確率）</span><div class="flex" style="flex-wrap:wrap;gap:6px;margin-top:6px">${rows.map(r=>`<button class="btn ${breedSel.s===r.i?"gold":"ghost"} sm" data-sirepick="${r.i}">${esc(r.n)}：<b>${g1ProbTxt(r.p)}</b></button>`).join("")}</div></div>`; })():""}
   ${breedSel.sim&&mares.length?(()=>{ const s2=ownSt[breedSel.s||0], m2=mares[breedSel.m||0]; return `<div class="panel mt" style="background:var(--panel2)"><h3 style="margin-top:0">配合シミュレート（種付けはしません）</h3><table class="pedigree"><tr><th>世代</th><th>父系</th><th>母系</th></tr><tr><td>父母</td><td><b>${esc(s2.name)}</b></td><td><b>${esc(m2.name)}</b>（${m2.races}戦${m2.wins}勝）</td></tr><tr><td>祖父母</td><td>${s2.own?esc(s2.own.sire):"名種牡馬系"} × ${s2.own?esc(s2.own.dam):"名牝系"}</td><td>${esc(m2.sire)} × ${esc(m2.dam)}</td></tr><tr><td>産駒予測</td><td colspan="2">適性距離 ${m2.dmin}〜${m2.dmax}m付近／芝${m2.turf}・ダート${m2.dirt}を引き継ぎやすい／傾向は「${TRENDS[evalBreed(s2,m2).domTrend].n}」寄り</td></tr></table>${breedEvalHTML(s2,m2)}</div>`; })():""}
   ${(()=>{ const s3=ownSt[breedSel.s||0]; if(!s3) return ""; const ss3=sireStats(s3); const pts3=Math.round((ss3.spd+ss3.sta+ss3.pow+ss3.bst+ss3.gut+ss3.flx+ss3.smt+ss3.hlt)/8);
    const ranked=[...ownSt].map(x=>{ const q=sireStats(x); return {n:x.name, p:Math.round((q.spd+q.sta+q.pow+q.bst+q.gut+q.flx+q.smt+q.hlt)/8)}; }).sort((a,b)=>b.p-a.p);
    const rk=ranked.findIndex(x=>x.n===s3.name)+1; const sL3=lineOf(s3.name); const dom3=(lineDominance().find(d=>d.line===sL3.parent)||{pct:0}).pct;
-   return `<div class="mt"><b>種牡馬詳細：${esc(s3.name)}</b>${(s3.races!=null||s3.earnings!=null)?recChipsHTML(s3):""}<div class="small">種付料 ${s3.fee?fmt(s3.fee)+"万円":"自家（無料）"}／サイアーランキング <b>${rk}位</b>（繋養 ${ownSt.length}頭中・素質点 ${pts3}）／系統：${sL3.parent}（支配率 ${dom3}%・${lineStatus(sL3.parent)}）<br>素質：速${ss3.spd} ス${ss3.sta} パ${ss3.pow} 瞬${ss3.bst} 根${ss3.gut} 柔${ss3.flx} 賢${ss3.smt} 健${ss3.hlt}</div>${s3.own?`<div class="small" style="margin-top:5px">他牧場向け種付け料 <input type="number" id="fee-in" min="0" max="5000" step="10" value="${s3.feeSet||""}" placeholder="需要連動（自動）" style="width:110px"> 万円 <button class="btn sm" id="btn-fee">設定する</button> <span>需要 ${s3.demand||0}。産駒の実績で需要が動き、料が高すぎると依頼が減ります（空欄＝需要連動の自動価格）</span>${(()=>{ const fi=sireFeeInfo(s3); return `<br>現在の見込み：市場の目安 ${fmt(fi.marketFee)}万円／実効の種付け料 ${fmt(fi.fee)}万円／年末に依頼が来る確率 約${Math.round(fi.pBook*100)}%（来れば ${fmt(fi.fee)}万円の収入・期待値 約${fmt(Math.round(fi.fee*fi.pBook))}万円／需要は産駒 ${fi.wins}勝・G1 ${fi.g1}勝から算出）`; })()}</div>`:""}</div>`; })()}
+   return `<div class="mt"><b>種牡馬詳細：${esc(s3.name)}</b>${(s3.races!=null||s3.earnings!=null)?recChipsHTML(s3):""}<div class="small">種付料 ${s3.fee?fmt(s3.fee)+"万円":"自家（無料）"}／サイアーランキング <b>${rk}位</b>（繋養 ${ownSt.length}頭中・素質点 ${pts3}）／系統：${sL3.parent}（支配率 ${dom3}%・${lineStatus(sL3.parent)}）<br>素質：速${ss3.spd} ス${ss3.sta} パ${ss3.pow} 瞬${ss3.bst} 根${ss3.gut} 柔${ss3.flx} 賢${ss3.smt} 健${ss3.hlt}</div><div class="small" style="margin-top:4px">G1級の子が出る確率 <b style="font-size:15px">${g1ProbTxt(sireG1Prob(s3))}</b> <span>（標準的な繁殖牝馬との産駒・実配合サンプリング）</span></div>${s3.own?`<div class="flex" style="align-items:center;gap:8px;margin-top:4px"><span class="small">売却見積 ${fmt(stallionSellPrice(s3))}万円</span><button class="btn ghost sm" data-stallion-sell="${esc(s3.name)}">売却する</button></div>`:""}${s3.own?`<div class="small" style="margin-top:5px">他牧場向け種付け料 <input type="number" id="fee-in" min="0" max="5000" step="10" value="${s3.feeSet||""}" placeholder="需要連動（自動）" style="width:110px"> 万円 <button class="btn sm" id="btn-fee">設定する</button> <span>需要 ${s3.demand||0}。産駒の実績で需要が動き、料が高すぎると依頼が減ります（空欄＝需要連動の自動価格）</span>${(()=>{ const fi=sireFeeInfo(s3); return `<br>現在の見込み：市場の目安 ${fmt(fi.marketFee)}万円／実効の種付け料 ${fmt(fi.fee)}万円／年末に依頼が来る確率 約${Math.round(fi.pBook*100)}%（来れば ${fmt(fi.fee)}万円の収入・期待値 約${fmt(Math.round(fi.fee*fi.pBook))}万円／需要は産駒 ${fi.wins}勝・G1 ${fi.g1}勝から算出）`; })()}</div>`:""}</div>`; })()}
   </div>${panelClose()+panelOpen("breed","lines")}<div class="panel"><div class="mt"><b>系統一覧（支配率）</b>${lineDominance().map(d=>`<div class="stat"><span style="min-width:118px">${d.line}</span><span class="facbar"><i class="base" style="width:${Math.min(100,d.pct)}%"></i></span><b>${d.pct}%</b><span class="small">${lineStatus(d.line)}</span><span class="small">種付け料・セール・売却価格 ×${trendHeat(d.line).toFixed(2)}</span></div>`).join("")||'<div class="small">まだデータがありません</div>'}</div>
   <div class="mt"><b>ニックス表</b><table class="mt"><tr><th>父 × 母父</th><th>評価</th></tr>${Object.keys(NICKS).map(k=>`<tr><td>${k}</td><td><b>${NICKS[k]}級</b> ニックス</td></tr>`).join("")||'<tr><td colspan="2">登録なし</td></tr>'}</table></div>
   <p class="small mt">種付けは5〜6月のみ。受胎は月末に判明（不受胎なら6月に再種付け可）、受胎した牝馬から翌年4月に幼駒が誕生し、牧場で自動育成されます。配合理論（インブリード／ラインブリード／ニックス／昇華など）は評価に反映され、仔馬の素質・危険度・競走寿命に効きます。</p>
   <div class="mt"><b>血統支配率（系統の広がり）</b><br>${lineDominance().map(d=>`<span class="small">${d.line} ${d.pct}%（${lineStatus(d.line)}）</span>`).join(" ／ ")||'<span class="small">まだデータがありません</span>'}<br><span class="small">支配率が上がると子系統→親系統→世界系統へ昇格し、理論が成立しやすくなります（世界系統では芝質適性の幅も広がります）。</span></div></div>${panelClose()}`;
   html+=(()=>{ const s4=ownSt[breedSel.s||0], m4=mares[breedSel.m||0]; if(!s4||!m4) return ""; return `<div class="actionbar"><span class="ab-name">🌱 ${esc(s4.name)} × ${esc(m4.name)}</span><span class="ab-cost">種付料など ${fmt((s4.fee||0)+150)}万円／種付けは5〜6月</span><span style="flex:1"></span><button class="btn gold sm" id="btn-breed2">この配合で種付けを登録</button></div>`; })();
   const mareCards=mares.map(m=>{ const rs=mareSellReasons(m); const pr=mareProduce(m);
-    return horseMini(m)+`<div class="flex" style="align-items:center;gap:8px;margin:2px 0 12px"><span class="small">産駒 ${pr.n}頭（${pr.wins}勝）／売却見積 ${fmt(mareSellPrice(m))}万円${m.pregnant?"／受胎中":""}${rs.length?`／牧場メモ：${esc(rs[0])}`:""}</span><span style="flex:1"></span><button class="btn ghost sm" data-mare-sell="${m.id}">売却する</button></div>`; });
+    return horseMini(m)+`<div class="flex" style="align-items:center;gap:8px;margin:2px 0 12px"><span class="small">産駒 ${pr.n}頭（${pr.wins}勝）／G1級の子が出る確率 <b>${g1ProbTxt(mareG1Prob(m))}</b>（標準的な種牡馬との産駒）／売却見積 ${fmt(mareSellPrice(m))}万円${m.pregnant?"／受胎中":""}${rs.length?`／牧場メモ：${esc(rs[0])}`:""}</span><span style="flex:1"></span><button class="btn ghost sm" data-mare-sell="${m.id}">売却する</button></div>`; });
   html+=panelHTML("breed","mares",`<h2 class="sec" id="breed-mares">繁殖牝馬 <span class="tag">${mares.length}頭</span></h2>${mares.length?pageSlice("breedMares",mareCards,2).join(""):`<p class="small">まだいません。牝馬を引退させると繁殖入りします。</p>`}`+pagerHTML("breedMares",mareCards.length,2));
   el.innerHTML=html;
   const bs=$("#br-s"), bm=$("#br-m");
@@ -5324,6 +5533,8 @@ function renderBreed(){
   document.querySelectorAll("[data-breedprop]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.breedprop.split(":").map(Number); breedSel.m=pr[0]; breedSel.s=pr[1]; doBreed(); }));
   document.querySelectorAll("[data-breedview]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.breedview.split(":").map(Number); breedSel.m=pr[0]; breedSel.s=pr[1]; UI.breed="eval"; renderAll(); }));
   document.querySelectorAll("[data-mare-sell]").forEach(b=>b.addEventListener("click",()=>sellMare(+b.dataset.mareSell)));
+  document.querySelectorAll("[data-stallion-sell]").forEach(b=>b.addEventListener("click",()=>sellStallion(b.dataset.stallionSell)));
+  document.querySelectorAll("[data-sirepick]").forEach(b=>b.addEventListener("click",()=>{ breedSel.s=+b.dataset.sirepick; renderAll(); }));
   const bsim=$("#btn-sim"); if(bsim) bsim.addEventListener("click",()=>{breedSel.sim=!breedSel.sim; renderAll();});
   const bsub=$("#btn-sub"); if(bsub) bsub.addEventListener("click",()=>{breedSel.sub=!breedSel.sub; renderAll();});
 }
@@ -5976,13 +6187,17 @@ function mareSellReasons(m){
   if(same.length>=2 && same.some(x=>(x.spd+x.sta+x.pow+x.bst+x.gut)>(m.spd+m.sta+m.pow+m.bst+m.gut))) rs.push(`父系（${myLine}）の繁殖牝馬が ${same.length+1} 頭と揃い過ぎています`);
   if(pr.n>=2 && pr.wins===0) rs.push("産駒がまだ勝ち星を挙げていません");
   if((m.wins||0)===0 && pr.n===0 && ((m.spd+m.sta+m.pow+m.bst+m.gut)/5)<62) rs.push("現役時の成績・素質とも目立ちません");
+  let gp=null; try{ gp=mareG1Prob(m); }catch(e){}
+  if(gp!=null&&gp<0.02){ const t=`G1級の子が出る確率が ${g1ProbTxt(gp)} と低く、繁殖での大きな上積みが見込みにくい状態です`; if(gp<0.005) rs.unshift(t); else rs.push(t); }
   if((S.mares||[]).length>mareCap()) rs.push("繋養上限を超えています");
   return rs;
 }
 /* 売却提案の対象：受胎中でなく、理由が2つ以上重なる繁殖牝馬のうち最も理由の多い1頭 */
 function surplusMare(){
   let best=null;
-  (S.mares||[]).forEach(m=>{ if(!m||m.pregnant) return; const rs=mareSellReasons(m); if(rs.length>=2 && (!best||rs.length>best.rs.length)) best={m, rs}; });
+  (S.mares||[]).forEach(m=>{ if(!m||m.pregnant) return; const rs=mareSellReasons(m); let gp=null; try{ gp=mareG1Prob(m); }catch(e){}
+    /* 理由が2つ以上重なる牝馬に加え、G1級の子が出る確率が際立って低く理由が1つでもある牝馬も提案対象にする */
+    if((rs.length>=2 || (gp!=null&&gp<0.02&&rs.length>=1)) && (!best||rs.length>best.rs.length)) best={m, rs}; });
   return best;
 }
 function sellMare(id){
@@ -6000,6 +6215,49 @@ function sellMare(id){
     log(`💴 繁殖牝馬 ${m.name} を ${fmt(price)}万円で売却${buyer?`（${buyer}へ）`:""}`);
     saveAuto(true); renderAll();
   });
+}
+/* ============ 種牡馬の売却 ============
+   自家繋養の種牡馬（引退した牡馬）はいつでも売却できる。価格は能力・
+   現役時の戦績・産駒成績・年齢から算定する。外部の種牡馬は所有物では
+   ないので売却対象にしない */
+function stallionSellPrice(s){
+  if(!s||!s.own) return 0;
+  const h=s.own; ensureFullHorse(h);
+  const ab=((h.spd||0)+(h.sta||0)+(h.pow||0)+(h.bst||0)+(h.gut||0))/5;
+  const kids=[...(S.horses||[]),...(S.youngStock||[])].filter(x=>x&&x.sire===s.name);
+  const kw=kids.reduce((a,x)=>a+(x.wins||0),0);
+  let p=ab*10 + (h.earnings||0)*0.25 + (h.wins||0)*120 + kids.length*160 + kw*150;
+  const age=h.age||6;
+  if(age>=12) p*=Math.max(0.35, 1-(age-11)*0.09);
+  else if(age<=7) p*=1.1;
+  return Math.max(150, Math.round(p));
+}
+function sellStallion(name){
+  const s=(S.stallions||[]).find(x=>x.name===name&&x.own); if(!s) return;
+  const price=stallionSellPrice(s);
+  let prob=null; try{ prob=sireG1Prob(s); }catch(e){}
+  confirm2(`${esc(s.name)} を売却しますか？`, `${fmt(price)}万円で売却します（能力・現役時の戦績・産駒成績から算定）。${prob!=null?`G1級の子が出る確率は ${g1ProbTxt(prob)} です。`:""}売却後は種付けに使えなくなります。`,
+  ()=>{
+    undoPush(`種牡馬の売却の前（${s.name}）`);
+    S.stallions=S.stallions.filter(x=>x!==s);
+    if(breedSel.s>=(S.stallions.length)) breedSel.s=0;
+    S.funds+=price; ledIn("sell",price);
+    const buyer=sellHorseToRival(s.own, price);
+    log(`💴 種牡馬 ${s.name} を ${fmt(price)}万円で売却${buyer?`（${buyer}へ）`:""}`);
+    saveAuto(true); renderAll();
+  });
+}
+/* 売却提案の対象：G1級の子が出る確率が際立って低く、かつ自厩舎に
+   それより見込みのある種牡馬がいる（＝繋養が重複している）自家種牡馬。
+   1頭しかいない場合は、確率がほぼゼロのときに限って提案する */
+function surplusStallion(){
+  const own=(S.stallions||[]).filter(s=>s&&s.own);
+  if(!own.length) return null;
+  const ps=own.map(s=>{ let p=null; try{ p=sireG1Prob(s); }catch(e){} return {s, p}; }).filter(x=>x.p!=null);
+  if(!ps.length) return null;
+  const bestP=Math.max(...ps.map(x=>x.p));
+  const cand=ps.filter(x=>x.p<0.02&&(x.p<bestP||(ps.length===1&&x.p<0.005))).sort((a,b)=>a.p-b.p)[0];
+  return cand||null;
 }
 function canRescue(){ return loanCapacity()>=100 || sponsorAvailable() || S.horses.length>0; }
 /* 融資は「資金が足りない時」専用ではない：資金があっても、借入限度額の
@@ -6207,7 +6465,10 @@ function renderRace(){
       <div class="rn"><span class="gtag ${rr.cls===8?"G1":rr.cls===7?"G2":rr.cls===6?"G3":"OP"}">${CLASSES[rr.cls]}</span>${rr.name}</div>
       <div class="rm">${rr.graded?`${rr.month}月第${rr.week}週開催 ／ `:""}${rr.course} ／ ${rr.surf}${rr.dist}m ／ 馬場：${rr.ground} ／ 1着賞金 <b>${fmt(prize1Of(rr))}万円</b>${rr.overseas?`<br>海外遠征レース（遠征費 ${rr.travel}万円／遠征条件：${overseasReqShort(rr)}）`:""}${rr.exchange?`<br>地方交流重賞`:""}${rr.age?` ／ ${rr.age}歳限定`:rr.ageMin?` ／ ${rr.ageMin}歳以上`:""}${rr.sex==="牝"?" ／ 牝馬限定":rr.sex==="牡騸"?" ／ 牡・騸馬限定":""}${!rr.overseas&&rr.minWins?` ／ ${rr.minWins}勝以上の実績が必要`:""}</div>
       <div class="cardbtns"><button class="btn sm" data-race-btn="${rr.id}">出馬表：${rr.name.split("（")[0]}</button></div></div>`;
-  let listInner=`<div class="panel" style="padding:8px 10px">${entriesHTML()}</div><div class="rgrid">${pageSlice("raceList", S.races, perR).map(raceCardHTML).join("")}</div>`+pagerHTML("raceList", S.races.length, perR);
+  /* レース予定はアコーディオン（基本は閉じて見出しだけ）にし、週の
+     レース一覧が画面を埋めないようにする。開閉はその場で切り替わる */
+  let listInner=accHTML("raceSchedule", `🏁 今週のレース予定（${S.races.length}鞍${allEntries().length?`／エントリー ${allEntries().length}件`:""}）`,
+    `<div class="panel" style="padding:8px 10px">${entriesHTML()}</div><div class="rgrid">${pageSlice("raceList", S.races, perR).map(raceCardHTML).join("")}</div>`+pagerHTML("raceList", S.races.length, perR));
   let cardInner=`<p class="small">「レース一覧」からレースを選んでください。</p>`;
   if(r){
     const eh0=S.horses.find(h=>h.id===S.selected&&!eligible(h,r))||S.horses.find(h=>!eligible(h,r));
@@ -10154,7 +10415,7 @@ function showSettings(){
   </div></details><details class="fold"><summary>引退・繁殖入りの基準</summary><div class="foldbody">
   <label class="small">引退基準（このレベルを狙えない馬は、年末の引退勧告や提案で「基準未満」と表示されます）<br><select id="set-std-retire" style="width:100%">${[[0,"基準なし（年齢・戦績のみで勧告）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"]].map(([v,n])=>`<option value="${v}" ${standards().retire===v?"selected":""}>${n}</option>`).join("")}</select></label><br><br>
   <label class="small">繁殖入り基準（引退した牝馬のうち、このレベル以上の馬だけが繁殖牝馬に入ります。未満は繁殖入りせず、見積価格で売却に回ります）<br><select id="set-std-mare" style="width:100%">${[[0,"基準なし（全頭が繁殖入り）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"]].map(([v,n])=>`<option value="${v}" ${standards().mare===v?"selected":""}>${n}</option>`).join("")}</select></label>
-  <p class="small mt">各馬の「狙えるレベル」は能力（若馬は潜在能力も）と戦績から自動で評価され、馬の一覧・詳細と年末処理に表示されます。基準はセーブに保存されます。</p></div></details><details class="fold"><summary>サウンド</summary><div class="foldbody">
+  <p class="small mt">各馬の「狙えるレベル」は、能力と潜在能力に、年齢と成長型から見た到達可能性、芝・ダート適性、重賞での実績を加味して自動で評価され、馬の一覧・詳細と年末処理に表示されます。戦って結果が出ていない馬は能力が高くても格上げされません。基準はセーブに保存されます。</p></div></details><details class="fold"><summary>サウンド</summary><div class="foldbody">
   <label class="small">サウンド<br><select id="set-snd" style="width:100%"><option value="on" ${sc.on?"selected":""}>ON（BGM・歓声・効果音）</option><option value="off" ${sc.on?"":"selected"}>OFF（ミュート）</option></select></label><br><br>
   <label class="small">BGM音量 <span id="set-bgm-v">${Math.round(sc.bgm*100)}</span><br><input type="range" id="set-bgm" min="0" max="100" value="${Math.round(sc.bgm*100)}" style="width:100%"></label><br>
   <label class="small">効果音・歓声音量 <span id="set-se-v">${Math.round(sc.se*100)}</span><br><input type="range" id="set-se" min="0" max="100" value="${Math.round(sc.se*100)}" style="width:100%"></label>
@@ -10482,6 +10743,11 @@ function buildGuide(){
   if(smp){
     cards.push({key:"maresell"+smp.m.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`繁殖牝馬 ${smp.m.name} の売却を提案します。${smp.rs[0]}（見積 ${fmt(mareSellPrice(smp.m))}万円）`, btn:"繁殖牝馬の売却へ", act:"view", view:"breed", anchor:"breed-mares"});
   }
+  /* 種牡馬の売却提案：G1級の子が出る確率が際立って低い自家種牡馬は、理由（確率）と見積つきで提案する */
+  const sst=(()=>{ try{ return surplusStallion(); }catch(e){ return null; } })();
+  if(sst){
+    cards.push({key:"siresell"+sst.s.name, who:"牧場長・佐伯 恒夫", face:"mgr", text:`種牡馬 ${sst.s.name} の売却を提案します。G1級の子が出る確率が ${g1ProbTxt(sst.p)} と低く、繋養の旨みが薄い状態です（見積 ${fmt(stallionSellPrice(sst.s))}万円）`, btn:"種牡馬の詳細へ", act:"view", view:"breed", anchor:"breed-form"});
+  }
   /* 資金が厳しい：マイナスなら立て直し案（融資・スポンサー・緊急売却）を最優先で提示 */
   if(S.funds<0){
     cards.push({key:"rescue"+S.week, who:"秘書・佐倉 澪", face:"sec", text:`資金がマイナス（${fmt(S.funds)}万円）です。融資・スポンサー支援・緊急売却で立て直せます`, btn:"立て直し案を見る", act:"finance"});
@@ -10655,6 +10921,14 @@ const UI={stable:"horses", train:"plan", race:"list", bet:"races", breed:"breed"
 const PG={};
 function subnavHTML(view, items){ return `<div class="subnav" role="tablist">${items.map(([k,n])=>`<button type="button" data-subnav="${view}:${k}" class="${UI[view]===k?"on":""}">${n}</button>`).join("")}</div>`; }
 function panelHTML(view, key, inner){ return `<div class="subpanel ${UI[view]===key?"on":""}" data-panel="${view}:${key}">${inner}</div>`; }
+/* アコーディオン：基本は閉じた状態（見出しだけ）で表示し、見出しの
+   タップでその場で開閉する。開閉状態はこのセッション限りのUI状態で、
+   セーブには保存しない */
+let ACC={};
+function accHTML(id, title, inner){
+  const open=!!ACC[id];
+  return `<div class="panel" style="padding:0;overflow:hidden"><button type="button" class="acc-head" data-acc="${id}" aria-expanded="${open}"><span>${title}</span><span class="acc-arw">${open?"▲ 閉じる":"▼ 開く"}</span></button>${open?`<div class="acc-body">${inner}</div>`:""}</div>`;
+}
 function pagerHTML(key, total, per){ return ""; } /* ページ送りは廃止：一覧は全件スクロール表示 */
 function pageSlice(key, arr, per){ return arr.slice(); }
 const panelOpen=(view,key)=>`<section class="subpanel ${UI[view]===key?"on":""}" data-panel="${view}:${key}">`;
@@ -10668,6 +10942,7 @@ function wirePanels(root){
     if(pr[0]==="race"&&pr[1]!=="card"&&typeof cardFocus!=="undefined") cardFocus=false;
     UI[pr[0]]=pr[1]; renderAll(); window.scrollTo(0,0); }));
   root.querySelectorAll("[data-pg]").forEach(b=>b.addEventListener("click",()=>{ const pr=b.dataset.pg.split(":"); PG[pr[0]]=(PG[pr[0]]||0)+ +pr[1]; renderAll(); }));
+  root.querySelectorAll("[data-acc]").forEach(b=>b.addEventListener("click",()=>{ const id=b.dataset.acc; ACC[id]=!ACC[id]; renderAll(); }));
 }
 /* 長い詳細HTMLを <h3> 見出し単位で分割し、タブ切替で見せる（見切れ防止） */
 function tabSplitHTML(html){
