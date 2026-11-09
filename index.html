@@ -3867,6 +3867,7 @@ const S={
   pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0, hallOfFame:[],
   club:null, sale:null, saleWeekKey:"", clubOffers:[], ended:false, springFlags:{}, overseasFarm:null, clubFarm:false,
   worldHorses: defaultWorld(),
+  soldToRival:[], rivalry:[], saleHist:[],
 };
 function log(m){S.log.unshift(m); if(S.log.length>14)S.log.pop();}
 function year(){return Math.floor(S.week/48)+1;}
@@ -3948,7 +3949,7 @@ function refreshMarket(){
   for(let i=0;i<3;i++){
     const base=triBase(50,71);
     const h=newHorse({base,age:2});
-    h.price=Math.round((base-40)*55+rnd(200,700));
+    h.price=Math.round(((base-40)*55+rnd(200,700))*lineHeatOf(h.sire));
     S.market.push(h);
   }
 }
@@ -4585,19 +4586,22 @@ function renderStable(){
   const perH=window.innerWidth<720?3:6;
   let horsesInner= allEntries().length? `<div class="panel" style="padding:8px 10px">${entriesHTML()}</div>` : "";
   if(S.weekReport&&S.weekReport.length){ horsesInner+=`<div class="panel" style="background:var(--panel2)"><b>🗓 今週の調教（定常指示による自動実行）</b><br><span class="small">${S.weekReport.slice(0,4).map(x=>esc(x)).join("<br>")}</span></div>`; }
-  /* 多頭管理：検索・並び替え・絞り込み（頭数が増えても目的の馬にすぐ届く） */
+  /* 多頭管理：検索・並び替え・絞り込み（頭数が増えても目的の馬にすぐ届く）。
+     一覧の絞り込み計算は1回の描画で1回だけ行う（従来は表示頭数の表示と
+     本体で2回計算していた。多頭時に無駄な再計算をしないための軽量化） */
+  const ownListCache=ownList();
   const ownCtl=`<div class="panel" style="padding:8px 10px"><div class="flex" style="gap:6px;flex-wrap:wrap;align-items:center">
     <input type="search" id="own-q" placeholder="馬名で検索" value="${esc(ownFilter.q||"")}" style="flex:1;min-width:130px">
     <label class="small">並び替え <select id="own-sort">${[["earn","獲得賞金"],["rating","レーティング"],["age","年齢"],["wins","勝ち星"],["name","名前"]].map(([v,n])=>`<option value="${v}" ${ownFilter.sort===v?"selected":""}>${n}</option>`).join("")}</select></label>
     <label class="small">クラス <select id="own-cls"><option value="all" ${ownFilter.cls==="all"?"selected":""}>すべて</option>${["新馬","未勝利","1勝クラス","2勝クラス","3勝クラス","4勝クラス","オープン"].map(c=>`<option value="${c}" ${ownFilter.cls===c?"selected":""}>${c}</option>`).join("")}</select></label>
     <label class="small">状態 <select id="own-st"><option value="all" ${ownFilter.st==="all"?"selected":""}>すべて</option><option value="entry" ${ownFilter.st==="entry"?"selected":""}>エントリー中</option><option value="inj" ${ownFilter.st==="inj"?"selected":""}>故障中</option><option value="fit" ${ownFilter.st==="fit"?"selected":""}>好調（調子75+）</option></select></label>
-    <span class="small">${ownList().length}頭を表示</span></div></div>`;
-  horsesInner+= S.horses.length? ownCtl+(()=>{ const list=ownList(); const active=ownFilter.q||ownFilter.cls!=="all"||ownFilter.st!=="all"||ownFilter.sort!=="earn";
+    <span class="small">${ownListCache.length}頭を表示</span></div></div>`;
+  horsesInner+= S.horses.length? ownCtl+(()=>{ const list=ownListCache; const active=ownFilter.q||ownFilter.cls!=="all"||ownFilter.st!=="all"||ownFilter.sort!=="earn";
     return list.length? `<div class="hgrid">${(active? list : pageSlice("stableHorses", list, perH)).map(h=>horseMini(h)).join("")}</div>`+(active?"":pagerHTML("stableHorses", list.length, perH)) : `<p class="small">条件に合う馬がいません。</p>`; })() : `<p class="small">所有馬がいません。「市場」タブから購入してください。</p>`;
   const h=selHorse();
   let detailInner=`<p class="small">所有馬がいません。</p>`;
   if(h){ ensureFullHorse(h); const sugs=h.entry?null:suggestNextRaces(h);
-    detailInner=`<div class="compact-detail">${horseDetailHTML(h, sugs)}</div><div class="flex"><button class="btn sm" data-act="train" data-id="${h.id}">調教する</button><button class="btn ghost sm" data-act="race" data-id="${h.id}">レースへ</button><button class="btn ghost sm" data-act="retire" data-id="${h.id}">引退させる</button></div>`;
+    detailInner=`<div class="compact-detail">${horseDetailHTML(h, sugs)}</div><div class="flex"><button class="btn sm" data-act="train" data-id="${h.id}">調教する</button><button class="btn ghost sm" data-act="race" data-id="${h.id}">レースへ</button><button class="btn ghost sm" data-act="sell" data-id="${h.id}">売却する</button><button class="btn ghost sm" data-act="retire" data-id="${h.id}">引退させる</button></div>`;
   }
   const sugRows= S.horses.map(h=>{
     if(h.entry){ const left=entryWeeksLeft(h); return `<div class="sugrow"><div style="flex:1;min-width:200px"><b>${esc(h.name)}</b> <span class="badge win">エントリー中</span><br><span class="small">${esc(entryLabel(h.entry))}（${left<=0?"今週出走！":"あと"+left+"週"}）― エントリー済みのため提案はお休み中です</span></div><button class="btn sm" data-act="race" data-id="${h.id}">レースへ</button></div>`; }
@@ -4638,6 +4642,7 @@ function renderStable(){
       if(rr){ S.selRace=rr.id; raceState.rivals=null; pendingCardFlash=true; cardFocus=true; } switchView("race"); }
     if(act==="suggest"){ detailOpen=true; renderAll(); const d=$("#hdetail"); if(d) guideFocusEl(d); return; }
     if(act==="buy") buyHorse(id);
+    if(act==="sell") sellHorseNormal(id);
     if(act==="retire") retireHorse(id);
   }));
   el.querySelectorAll("[data-chip]").forEach(b=>b.addEventListener("click",()=>{S.selected=+b.dataset.chip; renderAll();}));
@@ -5057,7 +5062,7 @@ function renderBreed(){
    const ranked=[...ownSt].map(x=>{ const q=sireStats(x); return {n:x.name, p:Math.round((q.spd+q.sta+q.pow+q.bst+q.gut+q.flx+q.smt+q.hlt)/8)}; }).sort((a,b)=>b.p-a.p);
    const rk=ranked.findIndex(x=>x.n===s3.name)+1; const sL3=lineOf(s3.name); const dom3=(lineDominance().find(d=>d.line===sL3.parent)||{pct:0}).pct;
    return `<div class="mt"><b>種牡馬詳細：${esc(s3.name)}</b><div class="small">種付料 ${s3.fee?fmt(s3.fee)+"万円":"自家（無料）"}／サイアーランキング <b>${rk}位</b>（繋養 ${ownSt.length}頭中・素質点 ${pts3}）／系統：${sL3.parent}（支配率 ${dom3}%・${lineStatus(sL3.parent)}）<br>素質：速${ss3.spd} ス${ss3.sta} パ${ss3.pow} 瞬${ss3.bst} 根${ss3.gut} 柔${ss3.flx} 賢${ss3.smt} 健${ss3.hlt}</div>${s3.own?`<div class="small" style="margin-top:5px">他牧場向け種付け料 <input type="number" id="fee-in" min="0" max="5000" step="10" value="${s3.feeSet||""}" placeholder="需要連動（自動）" style="width:110px"> 万円 <button class="btn sm" id="btn-fee">設定する</button> <span>需要 ${s3.demand||0}。産駒の実績で需要が動き、料が高すぎると依頼が減ります（空欄＝需要連動の自動価格）</span>${(()=>{ const fi=sireFeeInfo(s3); return `<br>現在の見込み：市場の目安 ${fmt(fi.marketFee)}万円／実効の種付け料 ${fmt(fi.fee)}万円／年末に依頼が来る確率 約${Math.round(fi.pBook*100)}%（来れば ${fmt(fi.fee)}万円の収入・期待値 約${fmt(Math.round(fi.fee*fi.pBook))}万円／需要は産駒 ${fi.wins}勝・G1 ${fi.g1}勝から算出）`; })()}</div>`:""}</div>`; })()}
-  </div>${panelClose()+panelOpen("breed","lines")}<div class="panel"><div class="mt"><b>系統一覧（支配率）</b>${lineDominance().map(d=>`<div class="stat"><span style="min-width:118px">${d.line}</span><span class="facbar"><i class="base" style="width:${Math.min(100,d.pct)}%"></i></span><b>${d.pct}%</b><span class="small">${lineStatus(d.line)}</span></div>`).join("")||'<div class="small">まだデータがありません</div>'}</div>
+  </div>${panelClose()+panelOpen("breed","lines")}<div class="panel"><div class="mt"><b>系統一覧（支配率）</b>${lineDominance().map(d=>`<div class="stat"><span style="min-width:118px">${d.line}</span><span class="facbar"><i class="base" style="width:${Math.min(100,d.pct)}%"></i></span><b>${d.pct}%</b><span class="small">${lineStatus(d.line)}</span><span class="small">種付け料・セール・売却価格 ×${trendHeat(d.line).toFixed(2)}</span></div>`).join("")||'<div class="small">まだデータがありません</div>'}</div>
   <div class="mt"><b>ニックス表</b><table class="mt"><tr><th>父 × 母父</th><th>評価</th></tr>${Object.keys(NICKS).map(k=>`<tr><td>${k}</td><td><b>${NICKS[k]}級</b> ニックス</td></tr>`).join("")||'<tr><td colspan="2">登録なし</td></tr>'}</table></div>
   <p class="small mt">種付けは5〜6月のみ。受胎は月末に判明（不受胎なら6月に再種付け可）、受胎した牝馬から翌年4月に幼駒が誕生し、牧場で自動育成されます。配合理論（インブリード／ラインブリード／ニックス／昇華など）は評価に反映され、仔馬の素質・危険度・競走寿命に効きます。</p>
   <div class="mt"><b>血統支配率（系統の広がり）</b><br>${lineDominance().map(d=>`<span class="small">${d.line} ${d.pct}%（${lineStatus(d.line)}）</span>`).join(" ／ ")||'<span class="small">まだデータがありません</span>'}<br><span class="small">支配率が上がると子系統→親系統→世界系統へ昇格し、理論が成立しやすくなります（世界系統では芝質適性の幅も広がります）。</span></div></div>${panelClose()}`;
@@ -5162,6 +5167,32 @@ function lineStatus(line){
  if(pct>=18) return "子系統（確立）";
  return "未確立";
 }
+/* 系統の熱（盛衰の価格連動）：世界の上位馬の父系シェアが高い系統は
+   種付け料の市場価格・セール価格・売却価格が上がり、シェアの低い系統は
+   下がる。係数は 0.90〜1.45 に収め、際限なくは振れない */
+function trendHeat(line){
+ const t=(S.lineTrend||[]).find(x=>x.line===line);
+ return t? clamp(1+(t.pct-12)/100, 0.9, 1.45) : 1;
+}
+function lineHeatOf(sireName){ return trendHeat(lineOf(sireName||"").parent); }
+/* 世界データの上限管理：何十年遊んでも、新聞・系統推移・対戦履歴・
+   世界の頭数・ライバル資金が際限なく膨らまないよう、保存のたびと
+   年末に古い・弱いものから間引く（セーブ容量と読み書きの安定のため） */
+function pruneWorldData(){
+ try{
+  if(Array.isArray(S.news)&&S.news.length>30)S.news.length=30;
+  if(Array.isArray(S.lineTrendHist)&&S.lineTrendHist.length>10)S.lineTrendHist.splice(0,S.lineTrendHist.length-10);
+  if(Array.isArray(S.betHistory)&&S.betHistory.length>12)S.betHistory.length=12;
+  if(Array.isArray(S.ledgerHist)&&S.ledgerHist.length>12)S.ledgerHist.length=12;
+  if(Array.isArray(S.soldToRival)&&S.soldToRival.length>20)S.soldToRival.length=20;
+  if(Array.isArray(S.saleHist)&&S.saleHist.length>12)S.saleHist.length=12;
+  if(Array.isArray(S.rivalry)&&S.rivalry.length>24){ S.rivalry.sort((a,b)=>(b.count||0)-(a.count||0)); S.rivalry.length=24; }
+  (S.horses||[]).forEach(h=>{ if(Array.isArray(h.metRivals)&&h.metRivals.length>24)h.metRivals.splice(0,h.metRivals.length-24); if(Array.isArray(h.hist)&&h.hist.length>12)h.hist.splice(0,h.hist.length-12); });
+  const world=S.worldHorses||[];
+  if(world.length>280){ const cands=world.map((w,i)=>({w,i})).filter(x=>(x.w.age||0)>=6).sort((a,b)=>wRating(a.w)-wRating(b.w)); const idxs=cands.slice(0,world.length-280).map(x=>x.i).sort((a,b)=>b-a); idxs.forEach(i=>world.splice(i,1)); }
+  (S.rivalStables||[]).forEach(st=>{ st.funds=clamp(Math.round(st.funds||0),0,60000); });
+ }catch(e){}
+}
 /* 系統の盛衰と種牡馬ビジネス：年末に、産駒の実績（自厩舎の現役馬のうち
    その種牡馬の産駒の勝利数）で系統評価を更新し、自家種牡馬の「種付け需要」
    を出す。需要が高い種牡馬は他牧場からの種付け依頼が来て収入になる */
@@ -5205,7 +5236,7 @@ function worldYearStep(prevY){
     const mine=world.filter(w=>w.stable===st.name);
     const earn=mine.reduce((a,w)=>a+Math.max(0,Math.round((wRating(w)-52)*ri(6,20))),0);
     const fundsBefore=st.funds||10000;
-    st.funds=Math.max(600, fundsBefore+earn-ri(1400,4600));
+    st.funds=clamp(Math.max(600, fundsBefore+earn-ri(1400,4600)),600,60000); /* 下限で潰れず上限でも際限なく膨らまない */
     st.lastEarn=earn;
     mine.forEach(w=>{ if(!champ||wRating(w)>wRating(champ)) champ=w; });
     /* 方針は牧場ごとに違う：生産型は生産頭数を増やし、購買型は市場で
@@ -5234,7 +5265,11 @@ function worldYearStep(prevY){
     const buyP= isBuyer?0.75 : isBreeder?0.3 : 0.5;
     const buyN= (isBuyer&&st.funds>16000)?2:1;
     for(let bi=0; bi<buyN; bi++){
-      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base:ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; ensureFullHorse(f); f.rating=wRating(f); world.push(f); st.funds-=ri(800,2400); }
+      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base:ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; ensureFullHorse(f); f.rating=wRating(f); world.push(f); const paid=Math.round(ri(800,2400)*lineHeatOf(f.sire)); st.funds-=paid;
+        if(!Array.isArray(S.saleHist))S.saleHist=[];
+        S.saleHist.unshift({name:f.name, price:paid, week:S.week, buyer:st.name}); if(S.saleHist.length>12)S.saleHist.length=12;
+        if(newsBudget>0&&paid>=1800){ newsBudget--; pushNews(`${st.name}がセールで${f.name}を落札`, `今年のセールで、${st.name}が若馬の${f.name}を ${fmt(paid)}万円 で落札した（父 ${esc(f.sire)}）。${lineHeatOf(f.sire)>1.05?`父系の流行も価格を押し上げた格好だ。`:""}来季のデビューが注目される。`); }
+      }
     }
     st._fundsDelta=(st.funds||0)-fundsBefore;
   });
@@ -5257,6 +5292,10 @@ function worldYearStep(prevY){
   if(S.lineTrendHist.length>10) S.lineTrendHist.splice(0, S.lineTrendHist.length-10);
   const newTop=S.lineTrend[0];
   if(newTop&&prevTop&&prevTop.line!==newTop.line) pushNews(`系統の勢力図に変化：${lineDisp(newTop.line)}が首位に`, `世界の上位馬の父系シェアで ${lineDisp(newTop.line)} が ${newTop.pct}% と首位に立った。前年首位の ${lineDisp(prevTop.line)}（${prevTop.pct}%）を逆転した年になった。流行の移り変わりは種付け需要にも波及する。`);
+  if(newTop&&newTop.pct>=42&&Math.random()<0.7) pushNews(`${lineDisp(newTop.line)}の支配が強まる`, `世界の上位馬の父系シェアで ${lineDisp(newTop.line)} が ${newTop.pct}% に達した。流行系統の種付け料は市場価格で ×${trendHeat(newTop.line).toFixed(2)} まで熱を帯び、セール価格・売却価格にも波及している。逆にシェアの低い系統は割安で狙える時期とも言える。`);
+  /* セール結果のまとめ：その年に記録された大きな取引を1本に */
+  const bigSale=(S.saleHist||[]).filter(x=>x.week>S.week-48).sort((a,b)=>b.price-a.price)[0];
+  if(bigSale&&bigSale.price>=1800&&Math.random()<0.5) pushNews(`今年のセール最高額は${bigSale.name}`, `${bigSale.buyer}が ${fmt(bigSale.price)}万円 で落札した${bigSale.name}が、今年のセール市場の話題をさらった。市場の熱は系統の流行とともに動いている。`);
   /* 新世代の台頭：世界生産の若馬で際立つ存在がいれば取り上げる */
   const rising=world.filter(w=>w.worldBred&&(w.age||0)<=3).sort((a,b)=>wRating(b)-wRating(a))[0];
   if(rising&&wRating(rising)>=88) pushNews(`新星 ${rising.name} が台頭`, `${rising.stable||"ライバル牧場"}の ${rising.age}歳・${rising.name}（レーティング${wRating(rising)}）が世代の中心に躍り出た。${rising.stable||""}の生産力が実を結びつつある。`);
@@ -5280,6 +5319,7 @@ function worldYearStep(prevY){
     else if(tpl===1) pushNews(`年度代表は${champ.name}か`, `関係者の間では、${champ.stable||"ライバル牧場"}の${champ.name}（レーティング${wRating(champ)}）を今年の顔に推す声が強い。${retiredN?`引退馬${retiredN}頭の穴を埋める新世代の台頭も目立った。`:""}あなたの厩舎から対抗馬が出る日が待ち遠しい。`);
     else pushNews(`${champ.name}の時代が続く`, `${champ.stable||"ライバル牧場"}の${champ.name}（レーティング${wRating(champ)}）が今年も世界の頂点に君臨した。${retiredN?`今年は${retiredN}頭がターフを去り、顔ぶれは静かに入れ替わっている。`:""}牙城は高いが、世代交代の足音は確実に近づいている。`);
   }
+  pruneWorldData(); /* 年末の締め：世界の頭数・履歴・資金の上限を必ず通す */
 }
 
 /* 種付け料の見込み（年末の実処理 sireDemandTick と、配合画面の表示で共用。
@@ -5289,7 +5329,7 @@ function sireFeeInfo(s){
   const wins=progeny.reduce((a,h)=>a+(h.wins||0),0);
   const g1=progeny.reduce((a,h)=>a+(h.g1w||0),0);
   const demand=clamp(20+wins*6+g1*25+Math.round((ratingOf(s.own)-70)/2),0,100);
-  const marketFee=Math.round((150+demand*4)/10)*10;
+  const marketFee=Math.round((150+demand*4)*lineHeatOf(s.name)/10)*10;
   const fee=s.feeSet? clamp(Math.round(s.feeSet),0,5000) : marketFee;
   const pBook=s.feeSet? clamp(0.5*(marketFee/Math.max(50,fee)),0.05,0.95) : 0.5;
   return {demand, marketFee, fee, pBook, wins, g1};
@@ -5353,7 +5393,7 @@ function showYearEnd(data){
   box.querySelectorAll("[data-ye-pg]").forEach(b=>b.addEventListener("click",()=>{ yePage+=+b.dataset.yePg; showYearEnd(); }));
   box.querySelectorAll("[data-ye-retire]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetire, ()=>showYearEnd()); }));
   box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; const nm=($("#ye-name-"+y.id)||{}).value; if(nm)y.name=nm.trim().replace(/[<>&"]/g,"")||y.name; y.age=2; y.known=100; S.horses.push(y); S.youngStock=S.youngStock.filter(x=>x!==y); log(`🐴 ${y.name} が入厩（明け2歳）`); b.parentElement.innerHTML=`<b>${esc(y.name)}</b> 入厩しました`; renderAll(); }));
-  box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; const price=Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12); S.funds+=price; S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} を ${fmt(price)}万円で売却`); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; renderAll(); }));
+  box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; const price=Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*12*lineHeatOf(y.sire)); S.funds+=price; ledIn("sell",price); S.youngStock=S.youngStock.filter(x=>x!==y); const buyer=sellHorseToRival(y, price); log(`幼駒 ${y.name} を ${fmt(price)}万円で売却${buyer?`（${buyer}へ）`:""}`); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; renderAll(); }));
   box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; S.club.offers=S.club.offers||[]; S.club.offers.push({name:y.name, price:Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*20), filled:false}); S.youngStock=S.youngStock.filter(x=>x!==y); log(`幼駒 ${y.name} をクラブ募集馬に回した`); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; renderAll(); }));
   const cm=$("#ye-charm-mare"); if(cm) cm.addEventListener("click",()=>{ if((S.charms.green||0)<3)return; S.charms.green-=3; const m=newHorse({base:74, age:5, sex:"牝"}); m.famousDam=true; S.mares.push(m); log(`🧧 お守りと引き換えに特別な繁殖牝馬「${m.name}」が来た（名牝系）`); cm.disabled=true; renderAll(); });
   const yc=$("#ye-club"); if(yc) yc.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); yc.outerHTML=`<span class="small">設立済み</span>`; renderAll(); });
@@ -5437,6 +5477,7 @@ function genSale(kind){
    if(kind==="mare"){ h=newHorse({base:triBase(52,68), age:ri(5,9), sex:"牝"}); h.price=ri(300,2400); h.saleKind="mare"; }
    else if(kind==="overseas"){ h=newHorse({base:triBase(60,80), age:1}); h.sire=pick(["海外・欧州スタミナ種牡馬","海外・米国ダート種牡馬"]); h.price=ri(900,4200); h.saleKind="young"; if(Math.random()<0.2){ h.charmPrice=true; h.price*=3; } }
    else { h=newHorse({base:triBase(55,76), age:0}); h.price=ri(250,1800); h.saleKind="young"; }
+   h.price=Math.round(h.price*lineHeatOf(h.sire)); /* 系統の流行はセール価格にも波及する */
    h.saleEvals={sec:saleEval("sec",h), mgr:saleEval("mgr",h), tr:saleEval("tr",h)};
    list.push(h);
  }
@@ -5597,7 +5638,44 @@ function loanCapacity(){ return Math.max(0, loanLimit()-loanOutstanding()); }
    代償は受取後12週間の賞金の30%控除、再利用は48週に1回まで */
 function sponsorGrant(){ return 1500 + (S.champions||0)*500; }
 function sponsorAvailable(){ return S.week>=(S.sponsorReadyWeek||0); }
-function horseSellPrice(h){ const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5; return Math.max(200, Math.round(ab*10 + (h.earnings||0)*0.3)); }
+function horseSellPrice(h){ const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5; return Math.max(200, Math.round((ab*10 + (h.earnings||0)*0.3) * lineHeatOf(h.sire))); }
+/* 売却した馬をライバル牧場が買い取る：馬は世界から消えず、買い手の
+   所属馬（S.worldHorses の個体）として存続し、重賞で古巣と対戦しうる。
+   買い手は資金が足りる牧場から選ばれ、代金は買い手の資金から引かれる */
+function sellHorseToRival(h, price){
+ try{
+  const sts=rivalStables();
+  const buyers=sts.filter(st=>(st.funds||0)>=price).sort((a,b)=>(b.funds||0)-(a.funds||0));
+  if(!buyers.length) return null;
+  const st=buyers[Math.random()<0.6?0:ri(0,buyers.length-1)];
+  const w=JSON.parse(JSON.stringify(h));
+  delete w.entry; delete w.plan; delete w._pub;
+  w.stable=st.name; w.exPlayer=true; w.owner=false; w.rival=false;
+  ensureFullHorse(w); w.rating=wRating(w);
+  (S.worldHorses||(S.worldHorses=[])).push(w);
+  st.funds=Math.max(0,(st.funds||0)-price);
+  if(!Array.isArray(S.soldToRival))S.soldToRival=[];
+  S.soldToRival.unshift({name:h.name, stable:st.name, price, week:S.week});
+  if(S.soldToRival.length>20)S.soldToRival.length=20;
+  pushNews(`${st.name}が${h.name}を購入`, `あなたが手放した${h.name}が、${st.name}の所属馬として再出発することになった（取引額 ${fmt(price)}万円）。今後、重賞の舞台で古巣と対戦する可能性もある。`);
+  log(`🤝 ${h.name} は ${st.name} が購入しました。今後の対戦に注目です`);
+  return st.name;
+ }catch(e){ return null; }
+}
+function sellHorseNormal(id){
+  const h=S.horses.find(x=>x.id===id); if(!h)return;
+  const price=horseSellPrice(h);
+  confirm2(`${esc(h.name)} を売却しますか？`, `${fmt(price)}万円で売却します（父系の流行も価格に反映）。ライバル牧場が買い取ることもあり、その場合は今後レースで対戦相手として現れます。`,
+  ()=>{
+    if(h.entry){ log(`🏁 ${h.name} のエントリー（${h.entry.name}）は売却に伴い取り消されました`); h.entry=null; }
+    S.horses=S.horses.filter(x=>x.id!==id);
+    S.funds+=price; ledIn("sell",price);
+    const buyer=sellHorseToRival(h, price);
+    log(`💴 ${h.name} を ${fmt(price)}万円で売却${buyer?`（${buyer}へ）`:""}`);
+    if(S.selected===id) S.selected=S.horses[0]?S.horses[0].id:null;
+    saveAuto(true); renderAll();
+  });
+}
 function canRescue(){ return loanCapacity()>=100 || sponsorAvailable() || S.horses.length>0; }
 /* 融資は「資金が足りない時」専用ではない：資金があっても、借入限度額の
    残り枠の範囲ならいつでも・いくらでも（100万円以上）借りられる */
@@ -5629,6 +5707,7 @@ function distressSell(id){
   S.horses=S.horses.filter(x=>x!==h);
   if(S.selected===id) S.selected=S.horses.length?S.horses[0].id:null;
   S.funds+=price; ledIn("sell",price);
+  sellHorseToRival(h, price);
   log(`💴 ${h.name} を緊急売却した（${fmt(price)}万円）`);
   saveAuto(true); renderAll();
   if(S.funds<0) showDistress(); else { $("#overlay").style.display="none"; toast(`${h.name}を売却しました`); }
@@ -5748,7 +5827,7 @@ function makeRivals(r){
   if(r.cls>=6){
     try{ rivalStables();
       const have=new Set(out.map(x=>x.name));
-      const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)).sort((a2,b2)=>wRating(b2)-wRating(a2)).slice(0,6);
+      const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)).sort((a2,b2)=>((b2.exPlayer?1000:0)+wRating(b2))-((a2.exPlayer?1000:0)+wRating(a2))).slice(0,6); /* 売却した元自厩舎馬は優先的に参戦し、古巣との対戦が起きやすくする */
       let added=0;
       for(const w of pool){ if(added>=2||out.length>=n)break;
         const x=ensureFullHorse(JSON.parse(JSON.stringify(w))); x.rival=true; x.worldRef=w.name; x.stable=w.stable||"";
@@ -8395,7 +8474,12 @@ function postRaceHooks(mine, r, myPlace, sorted){
  if(!S.jockStats)S.jockStats={}; const st=S.jockStats[ej]||(S.jockStats[ej]={rides:0,wins:0,last:-99});
  st.rides++; if(myPlace===1)st.wins++; st.last=S.week;
  addFriendship(ej, myPlace===1?8 : myPlace<=3?5 : myPlace<=5?2 : -1);
- if(S.club){ const cp=(ownResults||[]).reduce((a,o)=>a+(o.prize||0),0); if(cp>0){ S.club.prize=(S.club.prize||0)+cp; S.club.funds=(S.club.funds||0)+cp; log(`🏇 クラブ賞金に ${fmt(cp)}万円 を計上（クラブ資金 ${fmt(S.club.funds)}万円）`); } }
+ /* クラブ賞金：postRaceHooks は自厩舎馬ごとに呼ばれるので、この馬の着順から
+    その馬ぶんの賞金だけを計上する（全頭ぶんは各馬の呼び出しで積み上がる）。
+    以前は finishRace のローカル変数 ownResults をここで参照しており、
+    クラブ設立済みのセーブでは全レースの精算で ReferenceError になって
+    消化・完走が軒並み失敗していた（ (ownResults||[]) では未宣言変数は救えない） */
+ if(S.club){ const cp=(myPlace>=1&&myPlace<=5)? Math.round(prize1Of(r)*(PRIZE_R[myPlace-1]||0)) : 0; if(cp>0){ S.club.prize=(S.club.prize||0)+cp; S.club.funds=(S.club.funds||0)+cp; log(`🏇 クラブ賞金に ${fmt(cp)}万円 を計上（クラブ資金 ${fmt(S.club.funds)}万円）`); } }
  /* 絆：主戦騎乗で好成績ほど伸びる（主戦の能力が低めで好成績だと伸びやすい） */
  if(ej===mine.jockey){
    const jk=JOCKEYS[ej]; const gain=(myPlace===1?3:myPlace<=3?2:myPlace<=5?1:0) + (jk.skill<88&&myPlace<=3?1:0);
@@ -8405,6 +8489,24 @@ function postRaceHooks(mine, r, myPlace, sorted){
  }
  /* 対戦履歴（実在馬＝ライバル配合の材料） */
  sorted.forEach(x=>{ if(x!==mine&&x.real&&!(mine.metRivals||[]).includes(x.name)){ mine.metRivals.push(x.name); } });
+ if(Array.isArray(mine.metRivals)&&mine.metRivals.length>24) mine.metRivals.splice(0, mine.metRivals.length-24);
+ /* 因縁（再戦）トラッキング：世界の個体との対戦を数え、2回目以降の
+    重賞対戦は新聞で「因縁の再戦」として扱う。前回の勝者も記録する */
+ try{
+   if(!Array.isArray(S.rivalry)) S.rivalry=[];
+   sorted.forEach((x,ix)=>{ if(!x||!x.worldRef) return;
+     const key=mine.name+"||"+x.worldRef;
+     let rec=S.rivalry.find(rv=>rv.key===key);
+     if(!rec){ rec={key, a:mine.name, b:x.worldRef, stable:x.stable||"", count:0, lastRace:"", lastWinner:""}; S.rivalry.push(rec); }
+     rec.count++;
+     const winner=(myPlace<ix+1)? mine.name : x.worldRef;
+     if(rec.count>=2 && r.cls>=6 && rec.lastWinner){
+       pushNews(`因縁の再戦：${mine.name} vs ${x.worldRef}`, `${rec.lastRace}以来の再戦となった${r.name}。前回は${rec.lastWinner}が先着。今回は${winner}が先着し、対戦は通算${rec.count}回目を数えた。${x.stable?x.stable+"の":""}${x.worldRef}と${mine.name}の因縁は、まだ続きそうだ。`);
+     }
+     rec.lastRace=r.name; rec.lastWinner=winner; if(x.stable)rec.stable=x.stable;
+   });
+   if(S.rivalry.length>24){ S.rivalry.sort((a,b)=>(b.count||0)-(a.count||0)); S.rivalry.length=24; }
+ }catch(e){}
  /* 優勝カップ・お守り */
  if(myPlace===1){
    S.fame=Math.min(120,(S.fame||0)+(r.cls>=8?5:r.cls>=6?2:0)); // 名声：重賞勝利で上昇（G1 +5／G2・G3 +2、上限120・減衰なし）
@@ -8502,7 +8604,10 @@ function finishRace(){
     ["spd","sta","pow","bst","gut"].forEach(k=>{ h[k]=clamp(Math.round(h[k]+grow(h,rnd(0.1,0.5))),20,(h.pot&&h.pot[k])||99); });
     if(place===1 && r.cls===8){ S.champions++; log(`🏆 ${h.name} が ${r.name} を制覇！`); }
     log(`${h.name}：${r.name} ${place}着（賞金${fmt(prz)}万円）`);
-    postRaceHooks(h, r, place, sorted);
+    /* フック側の例外で残りの馬の精算（賞金・記録・エントリー消化）まで
+       巻き添えにしない。ただし握り潰さず、内容は必ず記録に残す */
+    try{ postRaceHooks(h, r, place, sorted); }
+    catch(e){ try{ log(`⚠ レース後処理でエラー（${h.name}）：${(e&&e.message)||e}`); }catch(e2){} }
     h.reqJockey=null; h.special=null; h.cardJockey=null;
     sc.fatA=h.fat; sc.condA=h.cond; sc.weightA=h.weight;
     ownResults.push({h, place, prize:prz, stateChange:sc});
@@ -8972,11 +9077,11 @@ const SAVE_KEY="keibaGemu_";
    切り捨て・破損したセーブを検出して、バックアップ復旧につなげる） */
 function saveChecksum(d){ try{ return fnv1a([d.v,d.week,d.funds,(d.horses||[]).length,(d.horses||[]).map(h=>h&&h.name).join(","),(d.mares||[]).length,(d.youngStock||[]).length,(d.worldHorses||[]).length].join("|")); }catch(e){ return ""; } }
 function saveCkOk(d){ return !d || !d.ck || d.ck===saveChecksum(d); }
-function saveData(){ const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
+function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[],
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
- news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[]}; d.ck=saveChecksum(d); return d; }
+ news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[]}; d.ck=saveChecksum(d); return d; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
   const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
   if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
@@ -9289,6 +9394,9 @@ function saleBuy(i, instant){
  S.sale.list.splice(i,1);
  if(it.saleKind==="mare"){ S.mares.push(it); log(`セールで繁殖牝馬「${it.name}」を落札`); }
  else { it.age=Math.max(0,it.age); S.youngStock.push(it); it.known=40; log(`セールで幼駒「${it.name}」を落札（牧場で育成）`); }
+ if(!Array.isArray(S.saleHist))S.saleHist=[];
+ S.saleHist.unshift({name:it.name, price, week:S.week, buyer:"自厩舎"}); if(S.saleHist.length>12)S.saleHist.length=12;
+ if(price>=1500) pushNews(`セールで${it.name}が高額落札`, `あなたの厩舎が ${fmt(price)}万円 で${it.name}を落札した（父 ${esc(it.sire||"")}）。${lineHeatOf(it.sire)>1.05?"父系の流行も後押しした取引で、":""}関係者の注目を集める取引となった。`);
  renderAll();
 }
 let rankFilter="all", rankOpen=null;
@@ -9306,7 +9414,10 @@ function worldPanelsHTML(){
       return `<div class="ticket"><b>${esc(st.name)}</b> <span class="small">${esc(st.style)}／資金 約${fmt(st.funds||0)}万円／所属 ${mine.length}頭</span><br><span class="small">${top?`看板馬：${esc(top.name)}（レーティング${wRating(top)}・${top.races||0}戦${top.wins||0}勝）`:"所属馬はこれから"}${mine.length>1?`／次点：${esc(mine[1].name)}（${wRating(mine[1])}）`:""}</span></div>`;
     }).join("");
     const lt=(S.lineTrend||[]).map(t=>`${esc(lineDisp(t.line))} ${t.pct}%`).join("／");
-    h+=`<div class="panel"><h2 class="sec" style="margin-top:0">🏇 ライバル牧場 <span class="tag">毎年、生産・売買・世代交代が進む</span></h2>${rows}${lt?`<p class="small" style="margin-top:6px">系統の勢力（世界の上位馬の父系シェア）：${lt} ― 流行の系統は種付け需要にも影響します</p>`:""}${(()=>{ const hist=(S.lineTrendHist||[]).slice(-6); if(hist.length<2) return ""; return `<div class="mt"><b class="small">系統シェアの推移（各年の上位系統）</b>${hist.map(rw=>{ const t0=(rw.top||[])[0]; if(!t0) return ""; return `<div class="stat"><span style="min-width:58px">${rw.y}年</span><span style="min-width:104px">${esc(lineDisp(t0.line))}</span><span class="facbar"><i class="base" style="width:${Math.min(100,t0.pct)}%"></i></span><b>${t0.pct}%</b><span class="small">${(rw.top||[]).slice(1).map(t=>`${esc(t.line)} ${t.pct}%`).join("／")}</span></div>`; }).join("")}</div>`; })()}</div>`;
+    const sold=(S.soldToRival||[]).slice(0,3).map(sv=>`<div class="small" style="margin-top:4px">🤝 売却した ${esc(sv.name)} は ${esc(sv.stable)} へ（${fmt(sv.price)}万円）― 重賞で対戦する可能性があります</div>`).join("");
+    const riv=(S.rivalry||[]).filter(rv=>(rv.count||0)>=2).sort((a,b)=>b.count-a.count).slice(0,3).map(rv=>`<div class="small" style="margin-top:4px">🔥 因縁：${esc(rv.a)} vs ${esc(rv.b)}（${rv.count}回対戦・直近 ${esc(rv.lastRace)} は ${esc(rv.lastWinner)} 先着）</div>`).join("");
+    const sales=(S.saleHist||[]).slice(0,3).map(sh=>`<div class="small" style="margin-top:4px">🔨 セール：${esc(sh.buyer)} が ${esc(sh.name)} を ${fmt(sh.price)}万円 で落札</div>`).join("");
+    h+=`<div class="panel"><h2 class="sec" style="margin-top:0">🏇 ライバル牧場 <span class="tag">毎年、生産・売買・世代交代が進む</span></h2>${rows}${sold}${riv}${sales}${lt?`<p class="small" style="margin-top:6px">系統の勢力（世界の上位馬の父系シェア）：${lt} ― 流行の系統は種付け需要にも影響します</p>`:""}${(()=>{ const hist=(S.lineTrendHist||[]).slice(-6); if(hist.length<2) return ""; return `<div class="mt"><b class="small">系統シェアの推移（各年の上位系統）</b>${hist.map(rw=>{ const t0=(rw.top||[])[0]; if(!t0) return ""; return `<div class="stat"><span style="min-width:58px">${rw.y}年</span><span style="min-width:104px">${esc(lineDisp(t0.line))}</span><span class="facbar"><i class="base" style="width:${Math.min(100,t0.pct)}%"></i></span><b>${t0.pct}%</b><span class="small">${(rw.top||[]).slice(1).map(t=>`${esc(t.line)} ${t.pct}%`).join("／")}</span></div>`; }).join("")}</div>`; })()}</div>`;
   }catch(e){}
   return h;
 }
@@ -9428,6 +9539,7 @@ function applySave(d){
   if(d.sound&&typeof d.sound==="object") S.sound={on:d.sound.on!==false, bgm:clamp(Number.isFinite(+d.sound.bgm)?+d.sound.bgm:0.6,0,1), se:clamp(Number.isFinite(+d.sound.se)?+d.sound.se:0.9,0,1)};
   /* 旧セーブに残る架空の名馬が混ざっていたら、実在馬リストへ移行する */
   S.news=Array.isArray(d.news)?d.news:[]; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[];
+  S.soldToRival=Array.isArray(d.soldToRival)?d.soldToRival:[]; S.rivalry=Array.isArray(d.rivalry)?d.rivalry:[]; S.saleHist=Array.isArray(d.saleHist)?d.saleHist:[];
   if(d.worldHorses&&d.worldHorses.length&&!d.worldHorses.some(w=>FICTIONAL_WORLD.includes(w.name))){ S.worldHorses=d.worldHorses;
     /* ロスター拡張分（実在馬の追加）は旧セーブにも行き渡らせる */
     const have=new Set(S.worldHorses.map(w=>w.name)); defaultWorld().forEach(w=>{ if(!have.has(w.name)) S.worldHorses.push(w); }); }
@@ -9963,7 +10075,10 @@ function autoDigestRace(ne){
     } else {
       AUTO.digestFailReason=`${r.name} を開始できませんでした`;
     }
-  }catch(e){ ok=false; if(!AUTO.digestFailReason) AUTO.digestFailReason=`${r.name} の消化中にエラーが発生しました`; }
+  }catch(e){ ok=false; const em=(e&&e.message)||String(e); if(!AUTO.digestFailReason) AUTO.digestFailReason=`${r.name} の消化中にエラーが発生しました（${em}）`;
+    /* 例外の中身を必ず捕捉して残す：メッセージと発生箇所（スタック先頭）を
+       記録に出し、次に同じ失敗が起きても原因が追えるようにする */
+    try{ log(`⚠ オート消化エラー：${r.name} ― ${em}`); const st=String((e&&e.stack)||"").split("\n")[1]; if(st) log(`⚠ 発生箇所：${st.trim()}`); }catch(e2){} }
   if(!ok){
     /* 消化に失敗しても詰ませない：レース状態を初期化して厩舎画面と操作バー
        （オート開始・次の週へ）を必ず戻し、手動で続けられる状態にフォールバックする。
