@@ -1217,6 +1217,26 @@ img.faceimg{ object-position:center 20%; }
 body.ov-open #app{ visibility:hidden; }
 body.ov-open #app *{ animation-play-state:paused !important; }
 body.ov-open #overlay .box{ box-shadow:0 4px 14px rgba(0,0,0,.30); }
+/* ============================================================
+   アカウント専用・軽量画面（2026-11-09 iPad対策）
+   ・アカウント登録／ログインはゲーム内モーダルから切り離し、
+     #app の外にある最小DOMの専用画面（#acct-screen）で行う。
+   ・表示中は body.lite で #app を display:none にして描画ツリー
+     から外し（visibility ではない）、開く前に WebGL コンテキスト・
+     GLB・画像デコードを解放してページ総メモリを大きく下げる。
+   ・入力欄は font-size:16px を厳密に維持し（iOS自動ズーム防止）、
+     フォーカス時にページ全体へ効くスタイル変更は行わない。
+   ============================================================ */
+body.lite #app{ display:none !important; }
+body.lite #overlay{ z-index:70; }
+#acct-screen{ position:fixed; inset:0; z-index:60; background:#eef3e8; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:20px 14px calc(24px + env(safe-area-inset-bottom,0px)); }
+@media (prefers-color-scheme:dark){ #acct-screen{ background:#142016; } }
+#acct-screen .as-card{ max-width:460px; margin:0 auto; background:var(--panel); color:var(--ink); border:2px solid var(--line); border-radius:16px; padding:20px 16px; }
+#acct-screen h2{ margin:0 0 8px; font-size:19px; }
+#acct-screen input{ font-size:16px !important; }
+#acct-screen .panel{ box-shadow:none; }
+#crash-banner{ display:flex; gap:10px; align-items:center; justify-content:space-between; background:#fff1f1; color:#8c1d1d; border-bottom:2px solid #e0a0a0; padding:9px 12px; font-size:13.5px; font-weight:700; }
+@media (prefers-color-scheme:dark){ #crash-banner{ background:#3d1d1d; color:#ffb9b9; border-bottom-color:#7a3a3a; } }
 #overlay .box > .ov-foot{ flex:none; display:flex; justify-content:center; gap:8px; flex-wrap:wrap; padding-top:12px; margin-top:12px; border-top:1.5px solid var(--line); background:inherit; }
 #overlay .box > .ov-foot .btn{ min-height:52px; flex:1 1 auto; max-width:440px; font-size:15.5px; }
 @media (max-width:640px){ #overlay .box{ padding:16px; } }
@@ -1912,6 +1932,22 @@ html,body{ height:auto; overflow:visible; }
 </style>
 </head>
 <body>
+<script>
+/* クラッシュ段階マーカーの先行退避（メインスクリプトより前に実行する）。
+   前回セッションが残したマーカー（localStorage／Cookie の新しい方）を
+   window.__prevAcctTrace に退避してから、今回の起動マーカー "boot" を
+   同期的に書き込む。iPad Safari がタップ直後にプロセスごと落ちても、
+   少なくとも「どの段階まで到達したか」が次回起動で分かるようにする。 */
+(function(){ try{
+  var k="keibaGemu_acctTrace", prev=null;
+  try{ var t=JSON.parse(localStorage.getItem(k)||"null"); if(t&&t.stage) prev=t; }catch(e){}
+  try{ var m=document.cookie.match(/(?:^|; )keiba_acct_trace=([^;]*)/); if(m){ var p=decodeURIComponent(m[1]).split("|"); if(p[0]&&(!prev||(+p[1]||0)>=(prev.at||0))) prev={stage:p[0], at:+p[1]||0}; } }catch(e){}
+  window.__prevAcctTrace=(prev&&prev.stage&&prev.stage!=="done")? prev : null;
+  var now=Date.now();
+  try{ localStorage.setItem(k, JSON.stringify({stage:"boot", at:now})); }catch(e){}
+  try{ document.cookie="keiba_acct_trace="+encodeURIComponent("boot|"+now)+"; path=/; max-age=2592000; SameSite=Lax"; }catch(e){}
+}catch(e){} })();
+</script>
 <div id="app">
   <div id="hud">
     <span class="date" id="hud-date">1年目 1月 第1週</span>
@@ -1950,6 +1986,7 @@ html,body{ height:auto; overflow:visible; }
   </nav>
 </div>
 <div id="overlay"><div class="box" id="overlay-box"></div></div>
+<div id="acct-screen" hidden><div class="as-card"><h2>☁️ アカウント（クラウド保存）</h2><div id="acct-screen-box"></div><button class="btn gold" id="acct-back" style="width:100%;min-height:52px;margin-top:14px">ゲームに戻る</button></div></div>
 
 <script src="assets/three.min.js"></script>
 <script src="assets/gltf-loader.js"></script>
@@ -9183,14 +9220,81 @@ const ACCT_KEY="keibaGemu_account";
    設定画面のアカウント欄に「前回は『○○』の段階で終了しました」と表示する。
    マーカーは危険な操作の直前に書く（フォーカスは focus イベントの先頭） */
 const ACCT_TRACE_KEY="keibaGemu_acctTrace";
-const ACCT_TRACE_LABELS={settings_open:"設定を開いた",focus_name:"名前欄にフォーカス",focus_pass:"パスワード欄にフォーカス",input_start:"入力開始",submit_register:"登録ボタン押下",submit_login:"ログインボタン押下",sending:"送信",response:"応答受信",applied:"ログイン反映",cloud_push:"クラウド保存開始",done:"完了"};
+const ACCT_TRACE_LABELS={boot:"起動",settings_press:"設定ボタン押下",settings_open:"設定を開いた",acct_open:"アカウント画面を開いた",touch_name:"名前欄にタッチ",touch_pass:"パスワード欄にタッチ",focus_name:"名前欄にフォーカス",focus_pass:"パスワード欄にフォーカス",input_start:"入力開始",submit_register:"登録ボタン押下",submit_login:"ログインボタン押下",sending:"送信",response:"応答受信",applied:"ログイン反映",cloud_push:"クラウド保存開始",done:"完了"};
 let acctLastCrashStage="";
-function acctTrace(stage){ try{ localStorage.setItem(ACCT_TRACE_KEY, JSON.stringify({stage, at:Date.now()})); }catch(e){} }
-function acctTraceRead(){ try{ const t=JSON.parse(localStorage.getItem(ACCT_TRACE_KEY)||"null"); return (t&&t.stage)? t : null; }catch(e){ return null; } }
-function acctTraceClear(){ try{ localStorage.removeItem(ACCT_TRACE_KEY); }catch(e){} }
+/* マーカーは localStorage と Cookie の二重記録にする。iOS WebKit の
+   localStorage はディスクへの書き戻しが非同期で、プロセスが即死すると
+   直前の書き込みが失われることがある。document.cookie の書き込みは
+   ブラウザ側へ同期的に渡るため、タップ直後のクラッシュでも残りやすい。
+   読み出しは両者を見て、新しい方を採用する */
+function acctTrace(stage){ const at=Date.now();
+  try{ localStorage.setItem(ACCT_TRACE_KEY, JSON.stringify({stage, at})); }catch(e){}
+  try{ document.cookie="keiba_acct_trace="+encodeURIComponent(stage+"|"+at)+"; path=/; max-age=2592000; SameSite=Lax"; }catch(e){} }
+function acctTraceRead(){ let ls=null, ck=null;
+  try{ const t=JSON.parse(localStorage.getItem(ACCT_TRACE_KEY)||"null"); if(t&&t.stage) ls=t; }catch(e){}
+  try{ const m=document.cookie.match(/(?:^|; )keiba_acct_trace=([^;]*)/); if(m){ const p=decodeURIComponent(m[1]).split("|"); if(p[0]) ck={stage:p[0], at:+p[1]||0}; } }catch(e){}
+  const cand=[ls,ck].filter(Boolean); if(!cand.length) return null;
+  cand.sort((a,b)=>(b.at||0)-(a.at||0)); return cand[0]; }
+function acctTraceClear(){ try{ localStorage.removeItem(ACCT_TRACE_KEY); }catch(e){}
+  try{ document.cookie="keiba_acct_trace=; path=/; max-age=0; SameSite=Lax"; }catch(e){} }
 function acctCrashNoteHTML(){ if(!acctLastCrashStage) return "";
   const lb=ACCT_TRACE_LABELS[acctLastCrashStage]||acctLastCrashStage;
   return `<p class="small" style="color:#ff4b4b;font-weight:700;margin:6px 0">⚠ 前回は「${esc(lb)}」の段階でアプリが終了しました。もう一度お試しください。</p>`; }
+/* ============ アカウント専用・軽量画面とメモリ解放 ============
+   iPad Safari がタブごと落ちる事象は JS 例外ではなくメモリ／描画負荷が
+   本命と判断し、アカウント操作はゲーム本体から切り離した専用画面で行う。
+   開く時点で (1) WebGL コンテキストを破棄し (2) GLB モデルを解放し
+   (3) 全画像のデコードを解放し (4) BGM を止め (5) #app を display:none
+   にして描画ツリーから外す。閉じれば元に戻る（GLB は再読み込みする） */
+function teardownGL(){ try{
+  if(typeof raceState!=="undefined"&&raceState&&raceState.phase==="run") return; /* レース中は触らない */
+  if(!GL) return; const g=GL; GL=null;
+  try{ if(g.scene) g.scene.traverse(o=>{ try{ if(o.geometry) o.geometry.dispose(); const ms=Array.isArray(o.material)? o.material : (o.material? [o.material] : []); ms.forEach(m=>{ try{ Object.keys(m).forEach(k=>{ const v=m[k]; if(v&&v.isTexture) v.dispose(); }); m.dispose(); }catch(e){} }); }catch(e){} }); }catch(e){}
+  try{ if(g.horses) g.horses.clear(); }catch(e){}
+  try{ g.renderer.dispose(); }catch(e){}
+  try{ const c2=g.renderer.getContext(); const ext=c2&&c2.getExtension("WEBGL_lose_context"); if(ext) ext.loseContext(); }catch(e){}
+}catch(e){ try{ GL=null; }catch(e2){} } }
+function releaseGLBAssets(){ try{
+  const vs=(typeof GLB_STATE!=="undefined"&&GLB_STATE.variants)||{};
+  Object.keys(vs).forEach(k=>{ const st=vs[k]; if(st&&st.scene){ try{ st.scene.traverse(o=>{ try{ if(o.geometry) o.geometry.dispose(); const ms=Array.isArray(o.material)? o.material : (o.material? [o.material] : []); ms.forEach(m=>{ try{ if(m.map) m.map.dispose(); m.dispose(); }catch(e){} }); }catch(e){} }); }catch(e){} } });
+  if(typeof GLB_STATE!=="undefined"){ GLB_STATE.variants={}; GLB_STATE.anyReady=false; }
+}catch(e){} }
+let liteStrippedImgs=[];
+function liteMemoryRelease(){
+  teardownGL(); releaseGLBAssets();
+  try{ document.querySelectorAll('link[rel="prefetch"]').forEach(l=>l.remove()); }catch(e){}
+  try{ if(window.AU&&AU.ctx&&AU.ctx.state==="running") AU.ctx.suspend(); }catch(e){}
+  liteStrippedImgs=[];
+  try{ document.querySelectorAll("#app img, #asset-manifest img").forEach(im=>{ const s=im.getAttribute("src"); if(s){ liteStrippedImgs.push([im,s]); im.removeAttribute("src"); } }); }catch(e){}
+}
+function liteMemoryRestore(){
+  liteStrippedImgs.forEach(pr=>{ try{ if(!pr[0].getAttribute("src")) pr[0].setAttribute("src", pr[1]); }catch(e){} });
+  liteStrippedImgs=[];
+  try{ loadHorseGLB(); }catch(e){} /* 解放した GLB は裏で読み直す。読み直し中・失敗時はプリミティブモデル→2Dに落ちる */
+}
+function openAcctScreen(){
+  acctTrace("acct_open");
+  liteMemoryRelease();
+  const ov=$("#overlay"); if(ov) ov.style.display="none";
+  document.body.classList.add("lite");
+  const sc=$("#acct-screen"); if(sc) sc.hidden=false;
+  renderAcctBox();
+  if(cloudAvail===null) acctProbe().then(()=>{ const s2=$("#acct-screen"); if(s2&&!s2.hidden) renderAcctBox(); });
+}
+function closeAcctScreen(){
+  const sc=$("#acct-screen"); if(sc) sc.hidden=true;
+  document.body.classList.remove("lite");
+  liteMemoryRestore();
+  try{ acctTraceClear(); }catch(e){} /* 正常に閉じられた＝このセッションは落ちていない */
+  renderAll();
+}
+function renderAcctLauncher(){ const box=$("#acct-box"); if(!box) return; const a=acctGet();
+  box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>${acctCrashNoteHTML()}
+  <p class="small" style="margin:6px 0">${a? `ログイン中：<b>${esc(a.name)}</b> さん。保存・読み込み・ログアウトは専用のアカウント画面で行います。` : "名前とパスワードで登録・ログインすると、セーブがサーバーに保存され、どの端末でも続きから遊べます。"}</p>
+  <button class="btn gold" id="acct-open" style="width:100%;min-height:52px">アカウント画面を開く</button>
+  <p class="small" id="acct-launcher-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
+  const b=$("#acct-open"); if(b){ b.addEventListener("pointerdown",()=>acctTrace("acct_open"),{passive:true}); b.addEventListener("click",()=>openAcctScreen()); } }
+const acctBackBtn=$("#acct-back"); if(acctBackBtn) acctBackBtn.addEventListener("click",()=>closeAcctScreen());
 let cloudAvail=null; /* null=未確認 / true=APIあり / false=この環境では使えない */
 let acctBusy=false, acctMsg="", acctPushTimer=null, acctPendingRender=false;
 /* iPad Safari対策の中核：アカウント欄の再描画を「安全なタイミング」まで保留する。
@@ -9205,7 +9309,7 @@ function acctHold(ms){ acctHoldUntil=Math.max(acctHoldUntil, Date.now()+(ms||600
 function acctRenderBlocked(){ return acctInputFocused()||acctBusy||Date.now()<acctHoldUntil; }
 function scheduleAcctRender(){
   if(acctRenderTimer) return;
-  const tick=()=>{ acctRenderTimer=null; if(!$("#acct-box")) return;
+  const tick=()=>{ acctRenderTimer=null; if(!$("#acct-screen-box")) return;
     if(acctRenderBlocked()){ acctRenderTimer=setTimeout(tick,160); return; }
     renderAcctBox(); };
   acctRenderTimer=setTimeout(tick,90);
@@ -9235,6 +9339,7 @@ function acctParseSave(sv){ if(typeof sv==="string"){ try{ sv=JSON.parse(sv); }c
 function acctDate(ts){ if(!ts) return ""; try{ return new Date(ts).toLocaleString("ja-JP"); }catch(e){ return ""; } }
 function acctApplyCloud(sv){ const d=acctParseSave(sv); if(!d){ toast("クラウドのセーブを読み込めませんでした"); return; }
   acctTrace("done"); acctLastCrashStage="";
+  if(document.body.classList.contains("lite")){ try{ closeAcctScreen(); }catch(e){} }
   applySave(d); booted=true; raceState.phase="idle"; const ov=$("#overlay"); if(ov) ov.style.display="none"; renderAll();
   try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); }catch(e){}
   toast("クラウドのセーブを読み込みました"); }
@@ -9248,7 +9353,7 @@ function cloudQueuePush(){ /* オートセーブのタイミングで、ログ�
   if(!acctGet()||cloudAvail===false) return;
   if(acctPushTimer) clearTimeout(acctPushTimer);
   acctPushTimer=setTimeout(()=>{ acctPushTimer=null; cloudPushNow(false); },2500); }
-function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
+function renderAcctBox(){ const box=$("#acct-screen-box"); if(!box) return;
   /* iOS Safari対策：入力欄にフォーカスがある間はフォームを再描画しない。
      非同期処理（接続確認・保存応答など）の完了に合わせて innerHTML を差し替えると、
      キーボード表示中のフォーカス要素がDOMから消えて Safari が落ちることがある。
@@ -9275,7 +9380,7 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
         const sv=acctParseSave(r.data&&r.data.save);
         if(!sv){ toast("クラウドにセーブデータがありません"); return; }
         if(r.data.updatedAt){ acc.cloudAt=r.data.updatedAt; acctSet(acc); }
-        confirm2("クラウドのセーブを読み込みますか？",`クラウドの保存日時：${acctDate(r.data.updatedAt)||"不明"}。今のデータはクラウドの内容で置き換わります。`,()=>acctApplyCloud(sv),()=>showSettings());
+        confirm2("クラウドのセーブを読み込みますか？",`クラウドの保存日時：${acctDate(r.data.updatedAt)||"不明"}。今のデータはクラウドの内容で置き換わります。`,()=>acctApplyCloud(sv),()=>{ renderAcctBox(); });
       }catch(e){ acctBusy=false; cloudAvail=false; renderAcctBox(); } });
     $("#acct-logout").addEventListener("click",()=>{ acctSet(null); acctMsg=""; toast("ログアウトしました（この端末のセーブはそのまま残ります）"); renderAcctBox(); });
     return; }
@@ -9287,10 +9392,11 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
   <p class="small" id="acct-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
   const msg=t=>{ acctMsg=t; const m=$("#acct-msg"); if(m)m.textContent=t; };
   const setBusy=b=>{ acctBusy=b; const r=$("#acct-reg"), l=$("#acct-login"); if(r)r.disabled=b; if(l)l.disabled=b; };
-  /* フォレンジクス：フォーカス／入力開始の段階を即時記録する（落ちた箇所の特定用） */
+  /* フォレンジクス：段階は「フォーカスの前」＝タップの pointerdown 時点で
+     同期的に記録する。フォーカス確定前にプロセスが落ちても、触れた段階が残る */
   const nmIn=$("#acct-name"), pwIn=$("#acct-pass");
-  if(nmIn) nmIn.addEventListener("focus",()=>acctTrace("focus_name"));
-  if(pwIn) pwIn.addEventListener("focus",()=>acctTrace("focus_pass"));
+  if(nmIn){ nmIn.addEventListener("pointerdown",()=>acctTrace("touch_name"),{passive:true}); nmIn.addEventListener("touchstart",()=>acctTrace("touch_name"),{passive:true}); nmIn.addEventListener("focus",()=>acctTrace("focus_name")); }
+  if(pwIn){ pwIn.addEventListener("pointerdown",()=>acctTrace("touch_pass"),{passive:true}); pwIn.addEventListener("touchstart",()=>acctTrace("touch_pass"),{passive:true}); pwIn.addEventListener("focus",()=>acctTrace("focus_pass")); }
   let acctInputTraced=false;
   [nmIn,pwIn].forEach(e=>{ if(e) e.addEventListener("input",()=>{ if(!acctInputTraced){ acctInputTraced=true; acctTrace("input_start"); } }); });
   const creds=()=>{ const n=($("#acct-name").value||"").trim(), p=$("#acct-pass").value||"";
@@ -9310,7 +9416,7 @@ function renderAcctBox(){ const box=$("#acct-box"); if(!box) return;
         const sv=acctParseSave(r.data.save);
         /* 確認ダイアログ（showOverlay で入力欄ごと画面を差し替える）も、
            フォーカスが外れてキーボードが閉じ切ってから表示する */
-        if(sv){ await acctWaitSafe(); confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ showSettings(); }); }
+        if(sv){ await acctWaitSafe(); confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ renderAcctBox(); }); }
         else { await acctWaitSafe(); toast("ログインしました"); renderAcctBox(); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; renderAcctBox(); } }); } }
       else msg((r.data&&r.data.error)||"ログインできませんでした");
     }catch(e){ acctBusy=false; setBusy(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log("⚠ アカウントのログインで接続エラーが発生しました"); }catch(e2){} renderAcctBox(); } });
@@ -9647,8 +9753,8 @@ function showSettings(){
   const ledBtn=$("#set-ledger"); if(ledBtn)ledBtn.addEventListener("click",()=>{ showLedger(); });
   const bgmIn=$("#set-bgm"), seIn=$("#set-se"); if(bgmIn)bgmIn.addEventListener("input",()=>{ updLbl(); applySet(); }); if(seIn)seIn.addEventListener("input",()=>{ updLbl(); applySet(); });
   $("#set-ok").addEventListener("click",()=>{ acctTraceClear(); $("#overlay").style.display="none"; renderAll(); });
-  renderAcctBox();
-  if(cloudAvail===null) acctProbe().then(()=>{ if($("#acct-box")) renderAcctBox(); });
+  renderAcctLauncher();
+  if(cloudAvail===null) acctProbe().then(()=>{ renderAcctLauncher(); });
 }
 function applySave(d){
   sanitizeSaveData(d);
@@ -10609,6 +10715,7 @@ document.querySelectorAll("#tabs button").forEach(b=>b.addEventListener("click",
 $("#btn-nextweek").addEventListener("click",()=>{ if(raceState.phase==="run"||raceState.phase==="done")return; pendingTrain=null; nextWeek(); });
 $("#btn-save").addEventListener("click",()=>showSavePanel());
 const setBtn=$("#btn-settings"); if(setBtn)setBtn.addEventListener("click",()=>showSettings());
+if(setBtn)setBtn.addEventListener("pointerdown",()=>{ try{ acctTrace("settings_press"); }catch(e){} },{passive:true}); /* 設定を開く前（押下の瞬間）にマーカーを同期記録する */
 /* サウンド開始はユーザーの操作以降（自動再生制限・iOS Safari対応）：
    pointerdown／touchend／click のいずれでも、操作の同期処理の中で
    AudioContextを生成・resumeする。画面復帰時も resume を試みる */
@@ -10624,15 +10731,23 @@ log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月
 (function boot(){
   /* 前回のアカウント操作が未完了のまま終わっていたら（＝途中でアプリが
      落ちた可能性）、落ちた段階を覚えておき、設定画面で表示する */
-  try{ const t=acctTraceRead(); if(t&&t.stage&&t.stage!=="done") acctLastCrashStage=t.stage; }catch(e){}
+  try{ let t=null; try{ t=window.__prevAcctTrace||null; }catch(e){}
+    if(!t){ const r=acctTraceRead(); if(r&&r.stage&&r.stage!=="boot") t=r; } /* 先行スクリプトが書いた今回の boot は前回分ではない */
+    if(t&&t.stage&&t.stage!=="done") acctLastCrashStage=t.stage; }catch(e){}
   /* モーダルの開閉を監視し、表示中は body.ov-open を付ける（CSS 側で背後の
      アプリ全体を不可視にし、合成・アニメーションを止める）。閉じ方は
      呼び出し側ごとに異なる（style.display の直接変更）ため、属性監視で
      すべての経路を一括して拾う */
   try{
     const ovEl=$("#overlay");
+    let prevOpen=false;
     const syncOv=()=>{ const open=!!ovEl&&ovEl.style.display!=="none"&&ovEl.style.display!==""; document.body.classList.toggle("ov-open", open);
-      if(!open){ const box=$("#overlay-box"); if(box&&box.dataset.hFrozen){ delete box.dataset.hFrozen; box.style.height=""; box.style.maxHeight=""; } document.body.classList.remove("acct-editing"); } };
+      if(!open){ const box=$("#overlay-box"); if(box&&box.dataset.hFrozen){ delete box.dataset.hFrozen; box.style.height=""; box.style.maxHeight=""; } document.body.classList.remove("acct-editing");
+        /* モーダルが正常に閉じた＝このセッションは落ちていない。浅い段階の
+           マーカーはここで消し、次回起動での誤表示を防ぐ（クラッシュ時は
+           プロセスごと死ぬため、この消去は実行されずマーカーが残る） */
+        if(prevOpen&&!document.body.classList.contains("lite")){ try{ const r=acctTraceRead(); if(r&&["boot","settings_open","settings_press","acct_open","touch_name","touch_pass","focus_name","focus_pass"].includes(r.stage)) acctTraceClear(); }catch(e){} } }
+      prevOpen=open; };
     new MutationObserver(syncOv).observe(ovEl,{attributes:true,attributeFilter:["style"]});
     syncOv();
   }catch(e){}
@@ -10647,7 +10762,8 @@ log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月
     const box=$("#overlay-box"), ov=$("#overlay");
     if(box&&ov&&ov.style.display!=="none"&&ov.style.display!==""&&box.contains(t)){
       if(!box.dataset.hFrozen){ box.dataset.hFrozen="1"; box.style.height=box.clientHeight+"px"; box.style.maxHeight="none"; }
-      document.body.classList.add("acct-editing");
+      /* フォーカス時に body へクラスを付け外しする全体スタイル変更はしない
+         （アカウント入力は専用画面側にあり、この経路には入らない） */
     }
   });
   document.addEventListener("focusout",()=>{ setTimeout(()=>{ const ae=document.activeElement, box=$("#overlay-box");
@@ -10678,6 +10794,17 @@ log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月
     $("#boot-new").addEventListener("click",()=>{ booted=true; $("#overlay").style.display="none"; renderAll(); });
     renderAll();
   } else { booted=true; renderAll(); }
+  /* 前回セッションが途中で終了していたら、設定を開かなくても分かるよう、
+     起動直後の厩舎画面の上部に落ちた段階をバナー表示する */
+  if(acctLastCrashStage){ try{ const lb=ACCT_TRACE_LABELS[acctLastCrashStage]||acctLastCrashStage;
+    const bn=document.createElement("div"); bn.id="crash-banner";
+    bn.innerHTML=`<span>⚠ 前回は「${esc(lb)}」の段階でアプリが終了しました</span><button type="button" class="btn ghost sm" id="crash-banner-x">閉じる</button>`;
+    const app=$("#app"); if(app&&app.children[1]) app.insertBefore(bn, app.children[1]); else if(app) app.appendChild(bn);
+    const x=$("#crash-banner-x"); if(x) x.addEventListener("click",()=>{ acctLastCrashStage=""; acctTraceClear(); bn.remove(); });
+  }catch(e){} }
+  /* 起動が安定したら、今回の boot マーカーは役目を終えるので消す
+     （通常終了しただけの次回起動で「起動で終了」と誤表示しないため） */
+  setTimeout(()=>{ try{ const r=acctTraceRead(); if(r&&r.stage==="boot") acctTraceClear(); }catch(e){} },3000);
 })();
 </script>
 </body>
