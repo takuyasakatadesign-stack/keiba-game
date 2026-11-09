@@ -3747,7 +3747,7 @@ function allEntries(){ return S.horses.filter(h=>h.entry).map(h=>({h, e:h.entry,
 function nearestEntry(){ const a=allEntries(); return a.length?a[0]:null; }
 function blockedEntries(){ return allEntries().filter(x=>x.left<=0); }
 function entryLabel(e){ return `${e.name}（${e.course} ${e.surf}${e.dist}m・${e.month}月第${e.week}週）`; }
-function registerEntry(h,raceLike,absWeek){
+function registerEntry(h,raceLike,absWeek,managed){
   if(!h||!raceLike)return false;
   /* 適格チェックは登録の入口（ここ）で必須にする：手動・秘書提案・自動登録の
      どの経路から呼ばれても、出走条件を満たさないエントリーは作らない。
@@ -3761,7 +3761,8 @@ function registerEntry(h,raceLike,absWeek){
   if(rs){ log(`⚠ ${h.name} は「${raceLike.name}」の出走条件を満たしていないため、エントリーできませんでした（${rs}）`); return false; }
   undoPush(`出走登録の前（${h.name}→${raceLike.name}）`);
   h.entry={name:raceLike.name, course:raceLike.course, dist:raceLike.dist, surf:raceLike.surf, cls:raceLike.cls,
-    month:raceLike.month!=null?raceLike.month:month(), week:raceLike.week!=null?raceLike.week:weekInMonth(), absWeek};
+    month:raceLike.month!=null?raceLike.month:month(), week:raceLike.week!=null?raceLike.week:weekInMonth(), absWeek,
+    managed:!!managed}; /* managed=方針で管理されるエントリー（オート登録／おまかせ中の提案登録）。手動登録は false で、出走の自動取消し（maybeCancelEntryForForm）の対象にしない */
   h.nextPlan=h.entry.name+"（"+h.entry.course+" "+h.entry.surf+h.entry.dist+"m）";
   log(`${h.name} が ${esc(entryLabel(h.entry))} にエントリー（あと${Math.max(0,absWeek-S.week)}週）`);
   return true;
@@ -4606,8 +4607,8 @@ function rotationPlan(h){
    変更した瞬間に提案が計算し直される。S.entryPolicy に保存する */
 const ENTRY_POLICIES=[
  {id:"balance", n:"バランス", d:"適性・戦績・疲労・調子を総合して、いちばん良い次走を提案します（従来どおり）"},
- {id:"winrate", n:"勝率重視", d:"勝ちやすい条件を最優先。実績のある馬場・距離帯・競馬場を強く評価し、実績不足の格上挑戦は控えめにして、勝てる条件のレースを選びます"},
- {id:"cond", n:"コンディション重視", d:"疲労と調子を最優先。疲労が抜け、調子が整う週のレースを高く評価し、状態が悪いうちは無理をしません"},
+ {id:"winrate", n:"勝率重視", d:"勝ちやすい条件を最優先。実績のある馬場・距離帯・競馬場を強く評価し、実績不足の格上挑戦は控えめにして、勝てる条件のレースを選びます。おまかせ・オートで登録したレースは、出走週に調子が好調に届かず見込み勝率も10%未満の場合、自動で取り消して休養に回します（手動登録は対象外）"},
+ {id:"cond", n:"コンディション重視", d:"疲労と調子を最優先。疲労が抜け、調子が整う週のレースを高く評価し、状態が悪いうちは無理をしません。おまかせ・オートで登録したレースは、出走週に調子が好調に届かず見込み勝率も10%未満の場合、自動で取り消して休養に回します（手動登録は対象外）"},
  {id:"graded", n:"重賞挑戦", d:"重賞・G1への挑戦を最優先。格上の大レースを積極的に評価してタイトルを狙いにいきます（条件戦は後回しになります）"},
  {id:"prize", n:"賞金重視", d:"1着賞金の高いレースを優先。オープン・重賞など賞金の大きいレースを高く評価します"},
 ];
@@ -4619,38 +4620,36 @@ function entryPolicy(){
   return S.entryPolicy;
 }
 function policyName(){ return (ENTRY_POLICIES.find(p=>p.id===entryPolicy().id)||ENTRY_POLICIES[0]).n; }
+/* 較正済み見込み勝率：相手の強さ（クラス別の相手基礎値＝makeRivals と同じ
+   物差し）と自分の能力（ability＝着順計算と同じ物差し）を比べる。
+   勝敗はフィールドの平均ではなく最強の相手で決まるため、最強格の水準
+   （基礎値＋頭数ぶんの上振れ＋重賞の世界の馬＋実在馬のいるG1はさらに上）を
+   物差しにし、実測で較正したロジスティック（傾き3.6）で勝率に直す。
+   policyAdjust（勝率方針のスコア）と、出走の自動取消し判定
+   （maybeCancelEntryForForm）で同じ物差しを使う。能力が測れない時は null */
+function estWinProb(h,r,weeks){
+  weeks=weeks||0;
+  const baseByCls=[52,54,60,65,72,77,82,85,90];
+  const yrB= r.cls>=2? Math.min(3, Math.max(0, year()-1)) : 0;
+  const rivalBase=(baseByCls[clamp(r.cls||0,0,8)]||60)+yrB;
+  /* 自分の能力は「開催週時点の予測疲労」で測る（今の疲労のままでは、
+     週数が先のレースほど実力を過小評価してしまう） */
+  let ownAb=0; try{ const hp=Object.assign({},h,{fat:Math.max(0,h.fat-7*weeks)}); ownAb=ability(hp,r,jockOf(h)); }catch(e){ ownAb=0; }
+  if(!(ownAb>0)) return null;
+  const bar=rivalBase + 13 + (r.cls>=6?4:0) + ((r.maxField||16)>=17?1:0)
+    + ((r.cls===8 && year()<=3 && typeof REAL_FIELDS!=="undefined" && REAL_FIELDS[r.name])?6:0);
+  return clamp(1/(1+Math.exp(-(ownAb-bar)/3.6)),0.02,0.92);
+}
 function policyAdjust(h,r,why){
   const p=entryPolicy(); let d=0;
   const graded=(r.graded||r.cls>=6), weeks=r.weeks||0;
   const hc= h.races===0?0 : h.wins===0?1 : clamp(1+h.wins,2,5);
   if(p.id==="winrate"){
-    /* 勝率方針の中核：相手の強さ（クラス別の相手基礎値＝makeRivals と同じ物差し）と
-       自分の能力（ability＝着順計算と同じ物差し）を比べ、「勝ち切れる相手関係か」を
-       大きく評価する。格が上がるほど相手は強くなるので、能力が届かない格上挑戦は
-       強く避け、勝ち切れるクラス・条件を優先する。未出走馬にも適用する
-       （従来は実績条件の微調整だけで、相手の強さを見ていなかった） */
-    /* 基礎値は makeRivals の実生成と一致させる（以前は重賞側が最大+5も
-       高く見積もられ、物差しがずれていた） */
-    const baseByCls=[52,54,60,65,72,77,82,85,90];
-    const yrB= r.cls>=2? Math.min(3, Math.max(0, year()-1)) : 0;
-    const rivalBase=(baseByCls[clamp(r.cls||0,0,8)]||60)+yrB;
-    /* 自分の能力は「開催週時点の予測疲労」で測る（今の疲労のままでは、
-       週数が先のレースほど実力を過小評価してしまう） */
-    let ownAb=0; try{ const hp=Object.assign({},h,{fat:Math.max(0,h.fat-7*weeks)}); ownAb=ability(hp,r,jockOf(h)); }catch(e){ ownAb=0; }
-    if(ownAb>0){
-      /* 勝敗はフィールドの平均ではなく最強の相手で決まる。従来は平均的な
-         相手（基礎値そのもの）との能力差で見込んでいたため、弱い馬でも
-         「能力差 −3＝互角に近い」と読めてしまい、実際は最強格に大きく
-         離されて勝率ほぼ0%のレースを推すことがあった（実測で確認）。
-         最強格の水準（基礎値＋頭数ぶんの上振れ＋重賞の世界の馬＋実在馬の
-         いるG1はさらに上）を物差しに、実測で較正した見込み勝率に直し、
-         その勝率そのものでスコアを付ける */
-      /* 較正（実測）：傾き5のロジスティックでは、格下の馬の見込みが
-         甘く出た（芝1勝クラスで見込み11%→実測3%）。物差しを+2し、
-         傾きを3.6に立てて、勝てない相手関係ははっきり低く出るようにする */
-      const bar=rivalBase + 13 + (r.cls>=6?4:0) + ((r.maxField||16)>=17?1:0)
-        + ((r.cls===8 && year()<=3 && typeof REAL_FIELDS!=="undefined" && REAL_FIELDS[r.name])?6:0);
-      const pWin=clamp(1/(1+Math.exp(-(ownAb-bar)/3.6)),0.02,0.92);
+    /* 勝率方針の中核：estWinProb の見込み勝率そのものでスコアを付ける。
+       格が上がるほど相手は強くなるので、能力が届かない格上挑戦は
+       強く避け、勝ち切れるクラス・条件を優先する。未出走馬にも適用する */
+    const pWin=estWinProb(h,r,weeks);
+    if(pWin!=null){
       d+=clamp((pWin-0.14)*150,-34,24);
       if(pWin>=0.45) why.push(`勝率方針：見込み勝率 約${Math.round(pWin*100)}%と勝ち切れる相手関係です`);
       else if(pWin<=0.10) why.push(`勝率方針：相手が強く、見込み勝率は約${Math.round(pWin*100)}%と厳しい相手関係です`);
@@ -4689,6 +4688,40 @@ function policyAdjust(h,r,why){
     if(fatAt>35){ d-=30; why.push(`追加条件：その週はまだ疲労が${fatAt}残る見込みのため後回しにします`); }
   }
   return d;
+}
+/* ============ 出走の自動取消し（勝率／コンディション方針×方針管理エントリー） ============
+   方針が「勝率重視」または「コンディション重視」の時だけ、出走週に
+   最終調整（omakaseFinalAdjust）を済ませてもなお
+     ・調子が好調ライン（55：condTxt の「好調」下限）に届かない
+     ・見込み勝率（estWinProb＝方針で使う較正済みの物差し）が10%未満
+   の両方を満たすエントリーは、無理に出走させず自動で取り消して休養に回す。
+   policyAdjust が「厳しい相手関係」と表示する線（10%）と同じ基準を使う。
+   対象は方針で管理されるエントリー（entry.managed：オート登録／おまかせ中の
+   提案登録）だけ。プレイヤーがレース一覧から手動で登録したレースは、
+   たとえ状態が悪くても取り消さない。登録時点では料金は発生しておらず
+   （騎乗料はレース開始時に初めて引かれる）、取消しはその課金の前に行う
+   ため、返金すべき金額は生じない。判定は週送りの出走週チェック
+   （nextWeekBody）とレース開始直前（startRace／autoDigestRace）の両方で行い、
+   直前登録で週次チェックを踏まなかった馬も同じ基準で判定する */
+const FORM_CANCEL_COND=55;
+const FORM_CANCEL_PWIN=0.10;
+function maybeCancelEntryForForm(h){
+  if(!h||!h.entry||!h.entry.managed) return false;
+  const pol=entryPolicy().id;
+  if(pol!=="winrate"&&pol!=="cond") return false;
+  if(h.entry.absWeek==null||h.entry.absWeek>S.week) return false; /* 出走週〜レース開始前のみ */
+  const r=(S.races||[]).find(x=>x.name===h.entry.name); if(!r) return false;
+  try{ omakaseFinalAdjust(h); }catch(e){} /* 最終調整の後に判定する（冪等：1エントリー1回だけ効く） */
+  if(!(h.cond<FORM_CANCEL_COND)) return false;
+  let p=null; try{ p=estWinProb(h,r,0); }catch(e){ p=null; }
+  if(p==null||!(p<FORM_CANCEL_PWIN)) return false;
+  const ename=h.entry.name, condNow=Math.round(h.cond), pw=Math.round(p*100);
+  h.entry=null; h.nextPlan=""; h._finalAdjFor=null;
+  /* その週は休養寄りの扱いにする（厩舎休養で疲労を抜き、立て直す） */
+  try{ doTrain("rest",true,h); }catch(e){ h.fat=clamp(h.fat-10,0,100); }
+  if(Array.isArray(S.weekReport)) S.weekReport.push(`${h.name}：出走取消し ― 調子が上がらず見込みも低いため「${ename}」を取り消し、今週は休養して立て直す`);
+  log(`🏥 ${h.name}：調子が上がらず（調子${condNow}／好調ライン${FORM_CANCEL_COND}未満）見込み勝率も約${pw}%と低いため、「${ename}」への出走を取り消しました。今週は休養して立て直します（方針「${policyName()}」／自動取消しの対象はおまかせ・オート登録分のみ。騎乗料は未課金のため返金はありません）`);
+  return true;
 }
 
 /* ============ HUD / 画面描画 ============ */
@@ -5099,7 +5132,7 @@ function renderStable(){
     if(cur) return eligible(hh,cur);
     return eligibleAt(hh,race,ageAtRaceMonth(hh,race.month,race.week),race.weeks||0);
   };
-  el.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.plan]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } const doReg=()=>{ registerEntry(hh, race, S.week+(race.weeks||0)); renderAll(); }; if(hh.entry&&hh.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${esc(hh.name)}は「${esc(hh.entry.name)}」にエントリー中です。取り消して「${esc(race.name)}」に登録し直します。`,doReg); return; } doReg(); }));
+  el.querySelectorAll("[data-plan]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); const sgs=suggestNextRaces(hh); const pk=sgs.list[+b.dataset.plan]; if(!pk)return; const race=pk.race; const rs=planReason(hh,race); if(rs){ alert2("エントリーできません",`${esc(hh.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; } const doReg=()=>{ registerEntry(hh, race, S.week+(race.weeks||0), !!S.omakase); renderAll(); }; /* おまかせ中の提案登録は方針管理エントリーにする（手動登録は対象外） */ if(hh.entry&&hh.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${esc(hh.name)}は「${esc(hh.entry.name)}」にエントリー中です。取り消して「${esc(race.name)}」に登録し直します。`,doReg); return; } doReg(); }));
   /* 秘書パネル（全馬提案）からの導線：詳細で候補を見る／ベスト候補をその場で登録 */
   el.querySelectorAll("[data-sugsel]").forEach(b=>b.addEventListener("click",()=>{ S.selected=+b.dataset.sugsel; detailOpen=true; renderAll(); const d=$("#hdetail"); if(d) guideFocusEl(d); }));
   el.querySelectorAll("[data-sugreg]").forEach(b=>b.addEventListener("click",()=>{ const hh=S.horses.find(x=>x.id===+b.dataset.sugreg); if(!hh||hh.entry)return; S.selected=hh.id; detailOpen=true; renderAll(); if(!openPlanFold()){ const d=$("#hdetail"); if(d) d.scrollIntoView({behavior:"smooth",block:"start"}); } }));
@@ -6258,6 +6291,10 @@ function nextWeekBody(){
   /* レース週の開始時：昇級などで条件外になった到来済みエントリーを自動取消し
      （理由は記録に残る）。これで週送りの停止判定に条件外エントリーが残らない */
   sweepDueEntries();
+  /* 出走週の自動取消し（勝率／コンディション方針×方針管理エントリー）：
+     レース週に入った時点で、最終調整後も調子が上がらず見込みも低い馬は
+     ここで取り消しておく（直前登録の馬は startRace／autoDigestRace で判定） */
+  S.horses.slice().forEach(h=>{ try{ maybeCancelEntryForForm(h); }catch(e){ try{ log("⚠ 出走取消しの判定でエラーが発生しました："+((e&&e.message)||e)); }catch(e2){} } });
   log(`${year()}年目${month()}月第${weekInMonth()}週：維持費 ${upkeep()}万円 を支払い`);
   /* 資金がマイナスになったら即破産ではなく、秘書経由で立て直しの選択肢を出す。
      立て直す手段（融資枠・スポンサー・売却できる馬）が何も残っていない時だけ破産 */
@@ -6945,8 +6982,17 @@ function startRace(r,mine,field){
   let all=field;
   if(!all){ all=[...fixedRivalsFor(r)]; if(mine&&!all.includes(mine))all.push(mine); fixGates(all); }
   /* 出走する自厩舎馬（複数頭可）：全頭ぶん出走条件と騎乗料を処理する */
-  const owns=all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
+  let owns=all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
   if(owns.length){
+    /* 出走の自動取消し（勝率／コンディション方針×方針管理エントリー）：
+       直前登録で週次チェックを踏まなかった馬も、騎乗料の課金前にここで判定する。
+       取り消した馬はフィールドから外し、全頭取り消しならレースを開始しない */
+    const fcCancelled=owns.filter(h=>{ try{ return maybeCancelEntryForForm(h); }catch(e){ return false; } });
+    if(fcCancelled.length){
+      fcCancelled.forEach(h=>{ const i=all.indexOf(h); if(i>=0) all.splice(i,1); });
+      owns=owns.filter(h=>!fcCancelled.includes(h));
+      if(!owns.length){ alert2("出走を取り消しました",`${fcCancelled.map(h=>esc(h.name)).join("、")} は調子が上がらず見込みも低いため、出走を取り消しました。理由は記録に残しています。`); return; }
+    }
     let totalFee=0;
     for(const h of owns){
       const er=eligible(h,r);
@@ -10855,7 +10901,7 @@ function guideRegister(h){
   const cur=S.races.find(x=>x.id===race.id);
   const rs=cur?eligible(h,cur):eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
   if(rs){ alert2("エントリーできません",`${esc(h.name)}は「${esc(race.name)}」の出走条件を満たしていません（${rs}）。`); return; }
-  const doReg=()=>{ registerEntry(h,race,S.week+(race.weeks||0)); renderAll(); };
+  const doReg=()=>{ registerEntry(h,race,S.week+(race.weeks||0), !!S.omakase); renderAll(); }; /* おまかせ中の提案登録は方針管理エントリーにする（手動登録は対象外） */
   if(h.entry&&h.entry.name!==race.name){ confirm2("エントリーを変更しますか？",`${h.name}は「${h.entry.name}」にエントリー中です。取り消して「${race.name}」に登録し直します。`,doReg); return; }
   doReg();
 }
@@ -11237,6 +11283,8 @@ function autoDigestRace(ne){
   const due=S.horses.filter(x=>x.entry&&x.entry.name===r.name&&x.entry.absWeek<=S.week);
   const owns=[];
   for(const x of due){ const why=eligible(x,r); if(why) cancelEntryStale(x,why); else owns.push(x); }
+  /* 出走の自動取消し（勝率／コンディション方針×方針管理エントリー）も消化前に判定する */
+  for(const x of owns.slice()){ let cx=false; try{ cx=maybeCancelEntryForForm(x); }catch(e){ cx=false; } if(cx) owns.splice(owns.indexOf(x),1); }
   if(!owns.length) return true; /* 全頭取り消し済み：消化するレースは無いので進行を続ける */
   /* 繰り返しガード：同じレース（同じ週・同じエントリー）の消化が2回目に
      入ったら、前回でエントリーが消費されなかった異常とみなして即失敗にする。
@@ -11316,7 +11364,7 @@ function autoRegisterBest(h){
     const cur=S.races.find(x=>x.id===race.id);
     const rs=cur? eligible(h,cur) : eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
     if(rs){ lastRs=`${race.name}：${rs}`; continue; }
-    if(!registerEntry(h,race,S.week+(race.weeks||0))){ lastRs=`${race.name}：登録時に出走条件を満たしませんでした`; continue; }
+    if(!registerEntry(h,race,S.week+(race.weeks||0),true)){ lastRs=`${race.name}：登録時に出走条件を満たしませんでした`; continue; } /* オート登録は方針管理エントリー（managed）として登録し、出走の自動取消しの対象にする */
     log(`🤖 オート：${h.name} の次走をエントリー方針「${policyName()}」で登録 ― ${race.name}（${year()}年${race.month||month()}月第${race.week||weekInMonth()}週・あと${race.weeks||0}週）`);
     return true;
   }
