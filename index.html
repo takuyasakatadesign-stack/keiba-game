@@ -2865,7 +2865,7 @@ function theorize(sireStr, dam, sireHorse, damHorse){
 const ABNAME={spd:"スピード",sta:"スタミナ",pow:"パワー",gut:"勝負根性",bst:"瞬発力",flx:"柔軟性",men:"精神力",smt:"賢さ",hlt:"健康"};
 /* 牧場長 */
 const FARM_MANAGER={name:"佐伯 恒夫",ranks:{eye:"A",blood:"B",breakin:"A",health:"B",breed:"B"},facility:"坂路",policy:"スピード重視",desc:"長年幼駒を見てきたベテラン。坂路での育成が得意"};
-function rankVal(r){ return {"S":5,"A":4,"B":3,"C":2,"D":1,"E":0}[r]||3; }
+function rankVal(r){ const v={"S":5,"A":4,"B":3,"C":2,"D":1,"E":0}[r]; return v==null?3:v; } /* E級は0：以前は `||3` のため 0 が偽値として落ち、E級がB級（3）扱いになり、最低ランクの調教師・牧場長でも能力が効いてしまっていた */
 /* ============ 調教「指示」方式 ============ */
 function defaultPlan(){ return {repeat:"awase", fatTh:60, fatAct:"bokujou", preRace:true, postRest:1, goalTrait:"", weakFocus:false}; }
 const PLAN_PRESETS={
@@ -4273,6 +4273,23 @@ function distFor(course,surf,lo,hi){
    ・1〜2月は3歳新馬あり。3歳未勝利は1〜9月まで（秋以降は組まれない）
    ・古馬条件戦は上半期「4歳以上」、下半期「3歳以上」
    レース名は実際の番組表記「（競馬場）○歳／○歳以上＋クラス名」で、架空のカップ／S等の汎用名は使わない */
+/* 条件戦の番組テンプレート（6週サイクル）：残り4鞍は [クラス, 年齢種別, 馬場, 距離帯] の
+   決め打ちローテーションにする。以前は週番号から場当たり的に決めていたため、周期同士が
+   共振して「ダートの未勝利戦が12週先まで無い」「4歳以上の未勝利馬は出走できる条件戦が
+   永遠に無い（未勝利は2・3歳限定しか組まれなかった）」という空白が生まれていた。
+   テンプレートでは、古馬の全クラス帯（未勝利=3歳以上／1〜3勝クラス／オープン条件）×
+   芝・ダートがどの6週間窓にも必ず現れ、距離帯もひと通り揃うことを保証する。
+   年齢種別: M3=3歳以上（未勝利の受け皿）／O=古馬（上半期4歳以上・下半期3歳以上）／Y=若馬枠 */
+const COND_TMPL=[
+  [[1,"M3","ダート","M"],[3,"O","芝","C"],[4,"O","ダート","S"],[5,"O","芝","M"]],
+  [[2,"O","芝","S"],[4,"O","ダート","C"],[1,"M3","芝","M"],[3,"O","ダート","L"]],
+  [[5,"O","ダート","S"],[2,"O","ダート","M"],[3,"O","芝","S"],[4,"O","芝","L"]],
+  [[3,"O","ダート","M"],[5,"O","芝","C"],[2,"O","芝","L"],[1,"M3","ダート","S"]],
+  [[4,"O","芝","M"],[1,"M3","芝","S"],[5,"O","ダート","C"],[2,"O","ダート","S"]],
+  [[2,"O","芝","M"],[3,"O","芝","L"],[4,"O","ダート","M"],[0,"Y","芝","M"]],
+];
+/* 年が変わると位相をずらし、同じ月×同じ顔ぶれが毎年固定される共振を避ける */
+function condPhase(absWeek){ return (absWeek + 2*Math.floor(absWeek/48)) % 6; }
 function condSlots(m,w,absWeek){
   const older = m<=5 ? 4 : 3;
   let s0,s1;
@@ -4280,12 +4297,14 @@ function condSlots(m,w,absWeek){
   else if(m<=5){ s0={cls:1,age:3}; s1={cls:2,age:3}; }
   else if(m<=9){ s0={cls:0,age:2}; s1 = w%2===1 ? {cls:1,age:2} : {cls:1,age:3}; }
   else { s0 = w%2===1 ? {cls:0,age:2} : {cls:1,age:2}; s1={cls:2,age:2}; }
-  const restPool = m<=5
-    ? [{cls:2,age:3},{cls:2,ageMin:older},{cls:3,ageMin:older},{cls:4,ageMin:older},{cls:5,ageMin:older},{cls:3,age:3}]
-    : [{cls:2,ageMin:3},{cls:3,ageMin:3},{cls:4,ageMin:3},{cls:5,ageMin:3},{cls:2,age:3},{cls:2,age:2},{cls:5,age:2}];
-  /* absWeek が渡されたら残り2鞍も週から一意に決める（将来週の番組を次走提案と一致させるため） */
-  if(absWeek!=null) return [s0,s1,restPool[absWeek%restPool.length],restPool[(absWeek+3)%restPool.length]];
-  return [s0,s1,pick(restPool),pick(restPool)];
+  const phase = absWeek!=null ? condPhase(absWeek) : 0;
+  const rest = COND_TMPL[phase].map(cell=>{
+    const cls=cell[0], kind=cell[1];
+    if(kind==="M3") return {cls, ageMin:3};
+    if(kind==="Y") return m<=5 ? {cls:3,age:3} : m<=9 ? {cls:2,age:2} : {cls:5,age:2};
+    return {cls, ageMin:older};
+  });
+  return [s0,s1,...rest];
 }
 function genRaces(){
   const m=month(), w=weekInMonth(); S.races=[];
@@ -4299,10 +4318,10 @@ function genRaces(){
   EXCHANGE_RACES.filter(g=>g.month===m&&g.week===w).forEach((g,i)=>{
     S.races.push({...g, id:"x"+S.week+"_"+i, ground:pick(GROUNDS.slice(0,3)), graded:true, month:m, week:w});
   });
-  /* 条件戦：毎週4鞍。年齢・クラス・開催場・距離はすべて実際の体系に合わせる */
+  /* 条件戦：毎週6鞍（若馬枠2＋テンプレート4）。年齢・クラス・開催場・距離はすべて実際の体系に合わせる */
   const courses=seasonCourses(m);
   condSlots(m,w,S.week).forEach((sp,i)=>{
-    const course=courses[(w-1+i)%courses.length];
+    const course=courses[(w-1+i+Math.floor(S.week/48))%courses.length];
     /* 馬場・距離も週から一意に決める：次走提案で提示した将来の条件戦が、その週にそのまま組まれるようにする */
     const surf=slotSurf(S.week,i);
     const dist=slotDist(course,surf,sp,S.week,i);
@@ -4427,8 +4446,27 @@ function ensureCourseRec(h){
 }
 /* 将来週の条件戦は、開催週・競馬場ローテーションからクラス・馬場・距離を一意に決める。
    genRaces も同じ式を使うので、提案したレースはその週になれば実際にそのまま組まれる */
-function slotSurf(absWeek,i){ return ((absWeek*7+i*3)%10)<7 ? "芝" : "ダート"; }
+function slotSurf(absWeek,i){
+  if(i>=2){ const cell=COND_TMPL[condPhase(absWeek)][i-2]; if(cell) return cell[2]; }
+  return ((absWeek*7+i*3)%10)<7 ? "芝" : "ダート";
+}
+const COND_BANDS={"芝":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,3000]},"ダート":{S:[1000,1400],M:[1500,1800],C:[1900,2200],L:[2300,2500]}};
 function slotDist(course,surf,sp,absWeek,i){
+  if(i>=2){
+    const cell=COND_TMPL[condPhase(absWeek)][i-2];
+    if(cell){
+      let band=cell[3];
+      /* 1勝クラスのダートは、サイクル後半では中距離帯も組む（マイル偏重の解消） */
+      if(sp.cls===2&&surf==="ダート"&&Math.floor(absWeek/6)%2===1) band="C";
+      const hi= sp.age===2?2000:2600;
+      const all=((COURSE_DISTS[course]||{})[surf]||[1600]).filter(d=>d<=hi);
+      const bd=(COND_BANDS[surf]||{})[band]||[1500,1800];
+      const inb=all.filter(d=>d>=bd[0]&&d<=bd[1]);
+      if(inb.length) return inb[(Math.floor(absWeek/6)+i)%inb.length];
+      if(all.length){ const ctr=(bd[0]+bd[1])/2; return all.reduce((a,b)=>Math.abs(b-ctr)<Math.abs(a-ctr)?b:a); }
+      return 1600;
+    }
+  }
   const lo= sp.age===2?1000:1200, hi= sp.age===2?2000 : (sp.age===3&&sp.cls<=1)?2400:2600;
   const list=((COURSE_DISTS[course]||{})[surf]||[1600]).filter(d=>d>=lo&&d<=hi);
   return list.length? list[(absWeek+i)%list.length] : 1600;
@@ -4436,7 +4474,7 @@ function slotDist(course,surf,sp,absWeek,i){
 function futureCondRace(absWeek,i){
   const m=Math.floor((absWeek%48)/4)+1, w=(absWeek%4)+1;
   const sp=condSlots(m,w,absWeek)[i]; if(!sp) return null;
-  const courses=seasonCourses(m), course=courses[(w-1+i)%courses.length];
+  const courses=seasonCourses(m), course=courses[(w-1+i+Math.floor(absWeek/48))%courses.length];
   const surf=slotSurf(absWeek,i), dist=slotDist(course,surf,sp,absWeek,i);
   const r={id:"fc"+absWeek+"_"+i, name:course+" "+(sp.age?sp.age+"歳":sp.ageMin+"歳以上")+CLASSES[sp.cls], course, dist, surf, cls:sp.cls,
     ground:"良", weight:sp.age===2?55:57, graded:false, maxField:(course==="東京"||course==="中山")&&surf==="芝"?18:16,
@@ -4510,7 +4548,7 @@ function suggestNextRaces(h){
     const pool=[];
     S.races.forEach(r=>pool.push({...r,when:"今週",weeks:0}));
     GRADED.forEach(g=>{ const w=weeksUntilRace(g); if(w>=1&&w<=horizon) pool.push({...g,id:"f_"+g.name+"_"+w,graded:true,ground:"良",when:g.month+"月第"+g.week+"週",weeks:w}); });
-    for(let w=1;w<=horizon;w++){ for(let i=0;i<4;i++){ const r=futureCondRace(S.week+w,i); if(r) pool.push(r); } }
+    for(let w=1;w<=horizon;w++){ for(let i=0;i<6;i++){ const r=futureCondRace(S.week+w,i); if(r) pool.push(r); } }
     const seen=new Set(), out=[];
     pool.forEach(r=>{
       const key=r.name+"|"+(r.month||0)+"|"+(r.week||0)+"|"+r.weeks;
@@ -4587,15 +4625,32 @@ function policyAdjust(h,r,why){
        大きく評価する。格が上がるほど相手は強くなるので、能力が届かない格上挑戦は
        強く避け、勝ち切れるクラス・条件を優先する。未出走馬にも適用する
        （従来は実績条件の微調整だけで、相手の強さを見ていなかった） */
-    const baseByCls=[52,54,60,65,72,78,84,88,93];
-    const yrB= r.cls>=2? Math.min(5, Math.max(0, year()-1)) : 0;
+    /* 基礎値は makeRivals の実生成と一致させる（以前は重賞側が最大+5も
+       高く見積もられ、物差しがずれていた） */
+    const baseByCls=[52,54,60,65,72,77,82,85,90];
+    const yrB= r.cls>=2? Math.min(3, Math.max(0, year()-1)) : 0;
     const rivalBase=(baseByCls[clamp(r.cls||0,0,8)]||60)+yrB;
-    let ownAb=0; try{ ownAb=ability(h,r,jockOf(h)); }catch(e){ ownAb=0; }
+    /* 自分の能力は「開催週時点の予測疲労」で測る（今の疲労のままでは、
+       週数が先のレースほど実力を過小評価してしまう） */
+    let ownAb=0; try{ const hp=Object.assign({},h,{fat:Math.max(0,h.fat-7*weeks)}); ownAb=ability(hp,r,jockOf(h)); }catch(e){ ownAb=0; }
     if(ownAb>0){
-      const margin=ownAb-rivalBase;
-      d+=clamp(margin*2.4,-34,22);
-      if(margin>=4) why.push(`勝率方針：相手関係に勝ち切れる力があります（能力差 約+${Math.round(margin)}）`);
-      else if(margin<=-6) why.push(`勝率方針：相手が強く、勝ち切るのは厳しい相手関係です（能力差 約${Math.round(margin)}）`);
+      /* 勝敗はフィールドの平均ではなく最強の相手で決まる。従来は平均的な
+         相手（基礎値そのもの）との能力差で見込んでいたため、弱い馬でも
+         「能力差 −3＝互角に近い」と読めてしまい、実際は最強格に大きく
+         離されて勝率ほぼ0%のレースを推すことがあった（実測で確認）。
+         最強格の水準（基礎値＋頭数ぶんの上振れ＋重賞の世界の馬＋実在馬の
+         いるG1はさらに上）を物差しに、実測で較正した見込み勝率に直し、
+         その勝率そのものでスコアを付ける */
+      /* 較正（実測）：傾き5のロジスティックでは、格下の馬の見込みが
+         甘く出た（芝1勝クラスで見込み11%→実測3%）。物差しを+2し、
+         傾きを3.6に立てて、勝てない相手関係ははっきり低く出るようにする */
+      const bar=rivalBase + 13 + (r.cls>=6?4:0) + ((r.maxField||16)>=17?1:0)
+        + ((r.cls===8 && year()<=3 && typeof REAL_FIELDS!=="undefined" && REAL_FIELDS[r.name])?6:0);
+      const pWin=clamp(1/(1+Math.exp(-(ownAb-bar)/3.6)),0.02,0.92);
+      d+=clamp((pWin-0.14)*150,-34,24);
+      if(pWin>=0.45) why.push(`勝率方針：見込み勝率 約${Math.round(pWin*100)}%と勝ち切れる相手関係です`);
+      else if(pWin<=0.10) why.push(`勝率方針：相手が強く、見込み勝率は約${Math.round(pWin*100)}%と厳しい相手関係です`);
+      else why.push(`勝率方針：見込み勝率 約${Math.round(pWin*100)}%の相手関係です`);
     }
     if(h.races>0){
       const srR=recRate((h.surfRec||{})[r.surf]), drR=recRate((h.distRec||{})[distBand(r.dist)]), rrC=recRate((ensureCourseRec(h)||{})[r.course]);
@@ -5938,8 +5993,46 @@ function runPlan(h){
  let tid=null, why="";
  const ent=h.entry; const weeksLeft=ent? ent.absWeek-S.week : 99;
  const sinceRace = h.restW!=null? h.restW : 99;
- if(ent && ent.absWeek===S.week){ rep.push(`${h.name}：今週は出走週のため調教は軽め（レース優先）`); doTrain("rest",true,h); S.weekReport.push(rep[0]); return; }
+ if(ent && ent.absWeek===S.week){
+   /* おまかせ中は出走週も「休養で調子を落とす」ことはせず、疲労だけを抜いて
+      調子を維持したままレースへ送る（ピークの最終調整）。固定指示は対象外 */
+   if(S.omakase && !h.planFixed){
+     const peak0=rankVal(TRAINER.ranks.cond);
+     h.fat=clamp(h.fat-20,0,100);
+     h.cond=clamp(h.cond + (peak0>=4? ri(1,3) : peak0>=2? ri(0,2) : ri(-2,0)),15,100);
+     S.weekReport.push(`${h.name}：おまかせ最終調整 ― 出走週、調子を維持して疲労だけ抜いた（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
+     return;
+   }
+   rep.push(`${h.name}：今週は出走週のため調教は軽め（レース優先）`); doTrain("rest",true,h); S.weekReport.push(rep[0]); return; }
  if(h.injured>0){ doTrain("bokujou",true,h); S.weekReport.push(`${h.name}：故障中のため放牧（指示より療養を優先）`); return; }
+ /* ============ おまかせのレース逆算調整（ピーク作り） ============
+    従来は定常指示をレース日から逆算せず一律に適用していたため、出走前の
+    2週は「休養（調子 −2〜5）」が続き、調子はランダムウォーク任せで
+    レース時点の調子がバラついていた（実測：一流調教師でも好調以上は50%）。
+    おまかせ時は登録レースから逆算し、2週前に追い切り／回復、出走前週に
+    軽い仕上げで調子をピークへ持っていく。上げ幅は調教師の体調管理
+    ランクで決まり、高いほどピークの精度と安定度が上がる。
+    プレイヤーが固定した指示（planFixed）の馬は従来どおり一切触らない */
+ if(S.omakase && !h.planFixed && ent){
+   const peak=rankVal(TRAINER.ranks.cond); /* 体調管理ランク 0(E)〜5(S) */
+   if(weeksLeft===1){
+     h.fat=clamp(h.fat-(16+peak*2),0,100);
+     const up=Math.round((peak-1)*2+rnd(0,2));
+     h.cond=clamp(h.cond+up,15,100);
+     S.weekReport.push(`${h.name}：おまかせ最終調整 ― レース前週、軽めに仕上げて調子をピークへ（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
+     return;
+   }
+   if(weeksLeft===2){
+     if(h.fat>40){ doTrain("rest",true,h); S.weekReport.push(`${h.name}：おまかせ調整 ― レース2週前、疲労を抜くため休養`); return; }
+     if(peak>=2){ doTrain("turf",true,h); S.weekReport.push(`${h.name}：おまかせ調整 ― レース2週前、芝で最終追い切り（調子を上げる）`); return; }
+     doTrain("pool",true,h); S.weekReport.push(`${h.name}：おまかせ調整 ― レース2週前、プールで軽めに調整`); return;
+   }
+   if(weeksLeft<=3 && h.fat>p.fatTh && h.fat<85){
+     /* レースが近い週に疲労上限を超えても、放牧（調子が50〜65へリセット
+        され、レースまでに立て直せない）には出さず、休養で抜く */
+     doTrain("rest",true,h); S.weekReport.push(`${h.name}：おまかせ調整 ― レースが近いため放牧ではなく休養で疲労を抜いた`); return;
+   }
+ }
  if(h.fat>p.fatTh){ tid=p.fatAct==="light"?"pool":(p.fatAct==="rest"?"rest":"bokujou"); why=`疲労が${Math.round(h.fat)}のため${FAT_ACTS[p.fatAct]}に切替`; }
  else if(p.preRace && ent && weeksLeft<=1){ tid="rest"; why= weeksLeft===0?"レース週のため軽めに調整":"レース前週のため軽めに調整"; }
  else if(p.postRest>0 && sinceRace>=0 && sinceRace<p.postRest && h.races>0){ tid="pool"; why=`レース後${sinceRace}週目のため軽めに調整`; }
