@@ -5986,6 +5986,26 @@ function showYearEnd(data){
   const cm=$("#ye-charm-mare"); if(cm) cm.addEventListener("click",()=>{ if((S.charms.green||0)<3)return; undoPush("年末処理：特別な繁殖牝馬を迎える前"); S.charms.green-=3; const m=newHorse({base:74, age:5, sex:"牝"}); m.famousDam=true; S.mares.push(m); log(`🧧 お守りと引き換えに特別な繁殖牝馬「${m.name}」が来た（名牝系）`); cm.disabled=true; renderAll(); });
   const yc=$("#ye-club"); if(yc) yc.addEventListener("click",()=>{ undoPush("年末処理：クラブ設立の前"); S.club=buildClub(); log("🏇 クラブを設立した"); yc.outerHTML=`<span class="small">設立済み</span>`; renderAll(); });
 }
+/* おまかせ最終調整（出走週の週次処理とレース開始時の両方から使う共通処理）。
+   エントリーは週送りの合間に登録されるため、出走2週前・前週の逆算フェーズは
+   登録タイミング次第で一度も発動しないことがある（実測：残り1週で登録した馬は
+   前週フェーズを踏めず好調以上95%止まり、残り0週＝当週登録の馬は全フェーズを
+   踏めず好調以上73%・平均調子63まで落ちた）。そこで最終調整は「そのエントリー
+   について1回だけ」レース開始時点でも行い、調教師の体調管理ランクに応じた
+   目標値まで、不足分を上限付きで引き上げる（下げはしない。疲労困憊など
+   土台が崩れた馬を当日だけで満点に戻すことはしない） */
+function omakaseFinalAdjust(h){
+  if(!S.omakase || !h || h.planFixed) return false;
+  const key=h.entry? h.entry.absWeek : S.week;
+  if(h._finalAdjFor===key) return false;
+  h._finalAdjFor=key;
+  const peak=rankVal(TRAINER.ranks.cond); /* 体調管理ランク 0(E)〜5(S) */
+  const target=62+peak*3;                 /* 目標値 S:77 A:74 B:71 C:68 D:65 E:62 */
+  const cap=4+peak*2;                     /* 当日の引き上げ上限 S:14 A:12 B:10 C:8 D:6 E:4 */
+  h.fat=clamp(h.fat-(12+peak*2),0,100);
+  if(h.cond<target) h.cond=clamp(h.cond+Math.min(cap,target-h.cond),15,100);
+  return true;
+}
 /* 指示の自動実行：条件ルールを評価して調教を1〜2回実行し、週報に残す */
 function weakestTrainId(h){
  const wk=weakestStatKey(h);
@@ -5998,13 +6018,12 @@ function runPlan(h){
  const ent=h.entry; const weeksLeft=ent? ent.absWeek-S.week : 99;
  const sinceRace = h.restW!=null? h.restW : 99;
  if(ent && ent.absWeek===S.week){
-   /* おまかせ中は出走週も「休養で調子を落とす」ことはせず、疲労だけを抜いて
-      調子を維持したままレースへ送る（ピークの最終調整）。固定指示は対象外 */
+   /* おまかせ中は出走週も「休養で調子を落とす」ことはせず、最終調整で
+      調子をピークへ合わせて疲労を抜いてレースへ送る。固定指示は対象外。
+      実処理は omakaseFinalAdjust（レース開始時と共通・1エントリー1回） */
    if(S.omakase && !h.planFixed){
-     const peak0=rankVal(TRAINER.ranks.cond);
-     h.fat=clamp(h.fat-20,0,100);
-     h.cond=clamp(h.cond + (peak0>=4? ri(1,3) : peak0>=2? ri(0,2) : ri(-2,0)),15,100);
-     S.weekReport.push(`${h.name}：おまかせ最終調整 ― 出走週、調子を維持して疲労だけ抜いた（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
+     omakaseFinalAdjust(h);
+     S.weekReport.push(`${h.name}：おまかせ最終調整 ― 出走週、調子をピークに合わせて疲労を抜いた（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
      return;
    }
    rep.push(`${h.name}：今週は出走週のため調教は軽め（レース優先）`); doTrain("rest",true,h); S.weekReport.push(rep[0]); return; }
@@ -6938,6 +6957,14 @@ function startRace(r,mine,field){
     }
     if(S.funds<totalFee){ alert2("資金不足",r.overseas?"騎乗料と遠征費が払えません。":"騎乗料が払えません。騎手を変更してください。"); owns.forEach(h=>{h._effJockey=null;}); return; }
     S.funds-=totalFee; ledOut("jockey",totalFee);
+    /* おまかせ最終調整：登録が直前（当週・前週）だと週次の逆算フェーズを
+       踏めないため、レース開始時点でも未実施の馬にだけ最終調整を行う。
+       オート消化も startRace を通るので同じ扱いになる */
+    if(S.omakase){
+      for(const h of owns){
+        if(omakaseFinalAdjust(h)) log(`🤝 ${h.name}：おまかせ最終調整 ― レース当日に調子をピークへ合わせた（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
+      }
+    }
   }
   all.forEach((h,i)=>{ if(!h._gate)h._gate=i+1; });
   /* --- 基本設定：自厩舎馬の単勝を「所有資金の○%」で自動購入する ---
@@ -9423,7 +9450,7 @@ function finishRace(){
     h.weight=clamp(h.weight-ri(2,8),420,540);
     h.lastRace=`${r.name} ${place}着`;
     recordRaceResult(h, r, place, sc.weightB);
-    if(h.entry && (h.entry.name===r.name || h.entry.absWeek<=S.week)){ log(`${h.name} のエントリー「${h.entry.name}」を消化しました`); h.entry=null; }
+    if(h.entry && (h.entry.name===r.name || h.entry.absWeek<=S.week)){ log(`${h.name} のエントリー「${h.entry.name}」を消化しました`); h.entry=null; h._finalAdjFor=null; }
     ["spd","sta","pow","bst","gut"].forEach(k=>{ h[k]=clamp(Math.round(h[k]+grow(h,rnd(0.1,0.5))),20,(h.pot&&h.pot[k])||99); });
     if(place===1 && r.cls===8){ S.champions++; log(`🏆 ${h.name} が ${r.name} を制覇！`); }
     log(`${h.name}：${r.name} ${place}着（賞金${fmt(prz)}万円）`);
