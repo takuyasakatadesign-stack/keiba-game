@@ -5686,7 +5686,16 @@ function genSale(kind){
  const n=5;
  for(let i=0;i<n;i++){
    let h;
-   if(kind==="mare"){ h=newHorse({base:triBase(52,68), age:ri(5,9), sex:"牝"}); h.price=ri(300,2400); h.saleKind="mare"; }
+   if(kind==="mare"){ h=newHorse({base:triBase(52,68), age:ri(5,9), sex:"牝"}); h.price=ri(300,2400); h.saleKind="mare";
+     /* 繁殖牝馬セールの上場馬は現役を引退した繁殖牝馬。現役時代の戦績を
+        年齢と能力から生成して持たせる（カードの recChipsHTML で通算賞金と
+        「N戦M勝」が名前の近くに出るように。従来は全頭 0戦・0万円で
+        「未出走」と表示され、戦績の優先表示が空転していた） */
+     const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5;
+     h.races=clamp(Math.round((h.age-2)*ri(4,6)+ri(0,4)),6,38);
+     h.wins=clamp(Math.round(h.races*clamp((ab-46)/160,0.03,0.24)*ri(70,130)/100),0,h.races);
+     h.gWins=(h.wins>=4&&ab>=60)?ri(0,2):0;
+     h.earnings=Math.round(h.wins*ri(750,1700)+(h.races-h.wins)*ri(25,150)); }
    else if(kind==="overseas"){ h=newHorse({base:triBase(60,80), age:1}); h.sire=pick(["海外・欧州スタミナ種牡馬","海外・米国ダート種牡馬"]); h.price=ri(900,4200); h.saleKind="young"; if(Math.random()<0.2){ h.charmPrice=true; h.price*=3; } }
    else { h=newHorse({base:triBase(55,76), age:0}); h.price=ri(250,1800); h.saleKind="young"; }
    h.price=Math.round(h.price*lineHeatOf(h.sire)); /* 系統の流行はセール価格にも波及する */
