@@ -6278,12 +6278,13 @@ function startRace(r,mine,field){
   raceState.photoFinish = sorted.length>1 && (sorted[1]._margin||0)<0.4; // ハナ差級の接戦だけ写真判定スローモーションが入る
   raceState.photoSlowSeen=false; raceState._pbShown=false;
   raceState.race=r; raceState.mine=mine||owns[0]||null; raceState.owns=owns; raceState.phase="run"; raceState.done=false; raceState.betResults=null;
-  buildVisPath(); // 表示専用の進路（すり抜け防止・包まれ・技術差）を事前計算する。着順・着差は sim のまま
+  /* 演出系の準備（表示専用の進路・スプライト）は付随処理：失敗しても消化（精算）は続行する */
+  try{ buildVisPath(); }catch(e){ console.warn("buildVisPath failed", e); raceState.visPath=null; } // 表示専用の進路（すり抜け防止・包まれ・技術差）を事前計算する。着順・着差は sim のまま
   raceState.camPath=null; raceState.geo=null;
   raceState.simT=0; raceState.lastNow=null; raceState.rate=[1,2,4].includes(S.raceSpeed)?S.raceSpeed:1; // 再生速度（前回選択を引き継ぐ・既定はそのまま1倍）
   raceState.camMode=["leader","mine","all","jockey"].includes(S.camMode)?S.camMode:"leader"; raceState.camBlend=null; // 視点（前回選択を引き継ぐ・既定は先頭）
   raceState.ord=null; raceState._pbStr=""; raceState._lblList=null;
-  preRenderRaceSprites(all, r.surf==="ダート");
+  try{ preRenderRaceSprites(all, r.surf==="ダート"); }catch(e){ console.warn("preRenderRaceSprites failed", e); }
   raceState.titleImg=new Image(); raceState.titleImg.src="assets/scene-racecourse.webp"; // 全馬・全コマを先に描き上げておく（レース中の新規描画＝カクつきを防ぐ）
   /* サウンド：レース用BGMへ切替、歓声は小さく開始。発走前に格に応じた
      ファンファーレ演奏を入れ、演奏が終わるまで発走を待たせる（実競馬の入場演奏）。
@@ -8622,6 +8623,7 @@ function finishRace(){
   const top=sorted.map(h=>h._gate);
   const pending=S.bets.filter(b=>b.raceId===r.id);
   if(pending.length){
+   try{
     raceState.betResults=pending.map(b=>{
       let hit=betHit(b,top);
       /* 作戦画面で買った自馬の単勝・複勝は、馬番ではなく馬そのもので判定する
@@ -8638,22 +8640,21 @@ function finishRace(){
     const tot=raceState.betResults.reduce((a,b)=>a+b.pay,0);
     log(`馬券精算：${r.name} 的中${raceState.betResults.filter(b=>b.hit).length}件／払戻 ${fmt(tot)}万円`);
     if(tot>0) S.lastEvent={type:"betwin", pay:tot};
+   }catch(e){ log(`⚠ 馬券精算でエラー（レースの精算は継続しました）：${e&&e.message?e.message:e}`); raceState.betResults=[]; }
   }
   raceState.result={sorted, myPlace, prize, prize1, stateChange, ownResults};
-  /* サウンド：ゴール歓声。自厩舎馬の勝利は最大歓声＋勝利ジングル、馬券的中は的中音 */
-  if(AU.ctx){
+  /* サウンド（付随処理）：失敗しても精算結果には影響させない */
+  try{ if(AU.ctx){
     const betPayed=raceState.betResults?raceState.betResults.reduce((a,b)=>a+b.pay,0):0;
     auSetCrowd(ownResults.some(o=>o.place===1)?1.0:0.8,0.25);
     if(ownResults.some(o=>o.place===1)) auWinJingle();
     if(betPayed>0) setTimeout(()=>auBetWin(),450);
     if(AU._crowdTimer) clearTimeout(AU._crowdTimer);
     AU._crowdTimer=setTimeout(()=>{ AU._crowdTimer=0; if(raceState.phase!=="run"){ auStopCrowd(); auSetMode("home"); } },2800); // ゴール歓声は約3秒で完全に止める（残響として残さない）
-  }
-  renderRaceScreen($("#v-race"));
-  wirePanels($("#v-race"));
-  hud();
-  renderChrome();
-  saveAuto();
+  } }catch(e){ console.warn("finishRace audio failed", e); }
+  /* 描画・保存（付随処理）：ここで例外が出てもレース精算は完了済みとして扱う */
+  try{ renderRaceScreen($("#v-race")); wirePanels($("#v-race")); hud(); renderChrome(); saveAuto(); }
+  catch(e){ console.warn("finishRace render/save failed", e); try{ saveAuto(); }catch(e2){} }
 }
 /* ============ レース後の敗因分析 ============
    敗因は2系統のデータから組み立てる：①着順計算の実データ（能力値・ペース・
@@ -10069,7 +10070,8 @@ function autoDigestRace(ne){
       const res=(raceState.result&&raceState.result.ownResults)||[];
       res.forEach(o=>log(`🤖 オート：${year()}年${month()}月第${weekInMonth()}週／${o.h.name} は ${r.name} に出走し ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
       raceState.phase="idle";
-      switchView("stable");
+      /* 画面切替は付随処理：失敗しても精算済みの消化を「失敗」にしない */
+      try{ switchView("stable"); }catch(e2){ console.warn("autoDigest switchView failed", e2); }
     } else if(raceState.phase==="done"){
       AUTO.digestFailReason=`${r.name} の結果が精算されませんでした（エントリーが消費されませんでした）`;
     } else {
@@ -10452,7 +10454,7 @@ function switchView(v){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   document.querySelectorAll(".view").forEach(s=>s.classList.toggle("on",s.id==="v-"+v));
   $("#main").scrollTop=0;
-  window.scrollTo(0,0); /* 通常フロー化に伴い、画面切替時はページ先頭へ戻す */
+  try{ window.scrollTo(0,0); }catch(e){} /* 通常フロー化に伴い、画面切替時はページ先頭へ戻す（失敗しても画面切替自体は止めない） */
   if(v!=="race"&&raceState.phase!=="run"){ raceState.phase = raceState.phase==="done"?"done":"idle"; if(v!=="race"){raceState.phase="idle";} }
   if(v!=="race"&&raceState.phase!=="run"&&typeof AU!=="undefined"&&AU.ctx&&(AU.mode==="race"||AU.crowdLvl>0)){ auStopCrowd(); auSetMode("home"); } /* 安全網：歓声・レースBGMの止め忘れを画面切替で必ず止める */
   renderAll();
