@@ -1994,6 +1994,21 @@ html,body{ height:auto; overflow:visible; }
 .rulecard{ background:var(--panel2); border:1.5px solid var(--line); border-radius:12px; padding:8px 10px; }
 .rulecard b{ display:block; font-size:13px; margin-bottom:3px; }
 .rulecard p{ margin:0; font-size:12px; line-height:1.6; color:var(--ink2); }
+
+/* ===== レースタイトル帯＆視点ボタンの重なり解消（2026-11-10） =====
+   ・レース名は映像の上に直接描かず、ステージ直上の濃色帯（#racetitle-bar）に
+     白太字で常時表示する。空・芝など明るい背景でも必ず読める。
+   ・視点切替（#racecam-float）は映像右上に残すが、隊列パネル（キャンバス描画）は
+     その下へずらし（drawRacePanels の fpY）、写真判定バナーも帯の下へ逃がす */
+#racetitle-bar{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; background:#0d2417; color:#fff; padding:8px 12px; border-bottom:3px solid #f2c41c; }
+#racetitle-bar .rt-grade{ background:#f5b90d; color:#241a00; font-weight:900; font-size:12px; border-radius:6px; padding:2px 8px; white-space:nowrap; }
+#racetitle-bar .rt-name{ font-size:19px; font-weight:900; letter-spacing:.02em; line-height:1.25; overflow-wrap:anywhere; text-shadow:0 1px 2px rgba(0,0,0,.6); }
+#racetitle-bar .rt-meta{ font-size:12.5px; font-weight:700; color:#ffe9a8; white-space:nowrap; }
+@media (max-width:640px){ #racetitle-bar .rt-name{ font-size:16.5px; } #racetitle-bar{ padding:7px 10px; gap:7px; } }
+#racestage #photo-banner{ top:74px !important; z-index:5 !important; }
+@media (max-width:640px){ #racestage #photo-banner{ top:86px !important; } }
+#racecam-float{ z-index:12 !important; }
+#racestage #raceov{ z-index:3; }
 </style>
 </head>
 <body>
@@ -2468,7 +2483,42 @@ const JOCKEYS=[
  {id:13,name:"三浦皇成",skill:84,fee:12,tier:"B",fam:{front:4,mid:3,late:3},dist:{sprint:"A",mile:"B",middle:"C",long:"C"},traits:["gowin","jukuren"]},
  {id:14,name:"鮫島克駿",skill:83,fee:11,tier:"B",fam:{front:3,mid:3,late:4},dist:{sprint:"B",mile:"B",middle:"B",long:"C"},traits:["fuusha"]},
  {id:15,name:"丹内祐次",skill:82,fee:10,tier:"C",fam:{front:3,mid:3,late:3},dist:{sprint:"B",mile:"B",middle:"B",long:"B"},traits:["heavy","exchange"]},
+ {id:16,name:"横山典弘",skill:88,fee:20,tier:"A",fam:{front:4,mid:4,late:4},dist:{sprint:"B",mile:"A",middle:"A",long:"A"},traits:["jukuren","bigrace","classic"],fact:"JRA通算2,900勝超の現役最年長級ベテラン。ダノンデサイルで日本ダービー制覇（2024）"},
+ {id:17,name:"岩田康誠",skill:86,fee:16,tier:"B",fam:{front:4,mid:4,late:4},dist:{sprint:"A",mile:"A",middle:"A",long:"B"},traits:["bigrace","jukuren"],fact:"ロードカナロアの主戦（スプリンターズS・香港スプリント）。G1勝利多数のベテラン"},
+ {id:18,name:"池添謙一",skill:85,fee:15,tier:"B",fam:{front:3,mid:4,late:4},dist:{sprint:"B",mile:"A",middle:"A",long:"A"},traits:["bigrace","ana"],fact:"オルフェーヴルの主戦（三冠・有馬記念×2）"},
+ {id:19,name:"内田博幸",skill:84,fee:13,tier:"B",fam:{front:4,mid:3,late:3},dist:{sprint:"A",mile:"A",middle:"B",long:"B"},traits:["jukuren","gowin"],fact:"エイシンフラッシュで日本ダービー（2010）、ゴールドシップで有馬記念（2012）制覇"},
+ {id:20,name:"田辺裕信",skill:84,fee:13,tier:"B",fam:{front:4,mid:4,late:3},dist:{sprint:"B",mile:"A",middle:"A",long:"B"},traits:["dirt","ana"],fact:"コパノリッキーの主戦（フェブラリーS連覇）。関東の主力"},
+ {id:21,name:"吉田隼人",skill:83,fee:12,tier:"B",fam:{front:3,mid:4,late:4},dist:{sprint:"A",mile:"A",middle:"B",long:"C"},traits:["filly","fuusha"],fact:"ソダシの主戦（阪神ジュベナイルF・桜花賞・ヴィクトリアマイル）"},
+ {id:22,name:"大野拓弥",skill:82,fee:11,tier:"B",fam:{front:3,mid:3,late:3},dist:{sprint:"B",mile:"B",middle:"B",long:"B"},traits:["in"],fact:"関東所属の中堅主力。重賞勝利多数"},
+ {id:23,name:"津村明秀",skill:82,fee:11,tier:"B",fam:{front:4,mid:3,late:3},dist:{sprint:"A",mile:"B",middle:"B",long:"C"},traits:["gowin"],fact:"関東所属。重賞戦線の常連"},
+ {id:24,name:"藤岡佑介",skill:81,fee:10,tier:"B",fam:{front:3,mid:4,late:3},dist:{sprint:"B",mile:"A",middle:"A",long:"B"},traits:["dirt","oriai"],fact:"ペプチドナイルでフェブラリーS制覇（2024）。父・藤岡健一は調教師"},
+ {id:25,name:"幸英明",skill:81,fee:10,tier:"C",fam:{front:3,mid:3,late:3},dist:{sprint:"B",mile:"B",middle:"A",long:"B"},traits:["jukuren","heavy"],fact:"セイウンハーデスでエプソムCを東京芝1800mレコードで制覇（2025）。関西のベテラン"},
+ {id:26,name:"石橋脩",skill:80,fee:9,tier:"C",fam:{front:3,mid:3,late:4},dist:{sprint:"B",mile:"A",middle:"B",long:"C"},traits:["newhorse","oriai"],fact:"サリオスの主戦（朝日杯フューチュリティS）"},
+ {id:27,name:"丸山元気",skill:79,fee:8,tier:"C",fam:{front:4,mid:3,late:3},dist:{sprint:"A",mile:"B",middle:"B",long:"C"},traits:["gowin"],fact:"関東所属。若手〜中堅の主力として重賞でも騎乗"},
+ {id:28,name:"荻野極",skill:78,fee:8,tier:"C",fam:{front:3,mid:3,late:4},dist:{sprint:"B",mile:"B",middle:"B",long:"C"},traits:["ana"],fact:"関西所属の若手。重賞戦線で台頭中"},
+ {id:29,name:"今村聖奈",skill:77,fee:7,tier:"C",fam:{front:3,mid:3,late:3},dist:{sprint:"A",mile:"B",middle:"C",long:"C"},traits:["newhorse","ana"],fact:"2022年に女性騎手としてJRA平地重賞初勝利（CBC賞・テイエムスパーダ）"},
 ];
+/* 実績メモ（実データ）：主な勝鞍・達成記録は JRA公式等の公表実績に基づく。
+   総合力・適性・特性は当ゲーム内の換算値（実績のオーダーに合わせた解釈） */
+const JOCKEY_FACTS={
+ 0:"2015年からJRA所属しリーディングを複数回獲得。イクイノックス、アーモンドアイの主戦",
+ 1:"JRA通算2,000勝を2024年に達成。リバティアイランド、ジェンティルドンナの主戦",
+ 2:"JRA通算4,500勝超は歴代最多。日本ダービー6勝、ディープインパクトの主戦",
+ 3:"関東のトップ騎手。ジェンティルドンナでジャパンカップ制覇（2013）",
+ 4:"エフフォーリアの主戦（皐月賞・天皇賞（秋）・有馬記念）",
+ 5:"デアリングタクトの主戦（牝馬三冠）",
+ 6:"フォーエバーヤングの主戦（サウジカップ、BCクラシック）",
+ 7:"若手リーディング上位の常連。父・岩田康誠も騎手",
+ 8:"ネオユニヴァース（2003）、ドゥラメンテ（2015）で日本ダービー制覇",
+ 9:"クロノジェネシスの主戦（宝塚記念×2・有馬記念）",
+ 10:"タイトルホルダーの主戦（菊花賞・天皇賞（春）・宝塚記念）",
+ 11:"ミクソロジーでダイヤモンドSを東京芝3400mレコードで制覇（2023）",
+ 12:"ブローザホーンで宝塚記念制覇（2024）",
+ 13:"2008年に新人騎手の年間最多勝記録を樹立",
+ 14:"関西所属の若手主力。重賞制覇を持つ",
+ 15:"函館開催のリーディング常連。ローカル開催に強い",
+};
+JOCKEYS.forEach(j=>{ if(!j.fact&&JOCKEY_FACTS[j.id]) j.fact=JOCKEY_FACTS[j.id]; });
 const FAM_MARK=["×","×","△","○","◎","◉"];
 function jockOf(h){ return JOCKEYS[(h&&h.cardJockey!=null)?h.cardJockey:(h?h.jockey||0:0)]||JOCKEYS[0]; }
 function riderName(h){ return h.rider || jockOf(h).name; }
@@ -2618,11 +2668,27 @@ const GRADED=[
 ];
 /* ============ コースレコード（裏取り済みのもののみ収録） ============
    出典：JRA公式レース結果・各レース回顧（2025年）。time=秒 */
+/* コースレコード（3歳以上の主要コース・JRAレコードタイム表に基づく実データ。
+   time は秒。2025年シーズン終了時点の公表レコード） */
 const COURSE_RECORDS={
+ "東京|芝|1400":{time:78.3, horse:"トウシンマカオ", year:2025, race:"京王杯スプリングカップ"},
+ "東京|芝|1600":{time:90.5, horse:"ノームコア", year:2019, race:"ヴィクトリアマイル"},
+ "東京|芝|1800":{time:103.9, horse:"セイウンハーデス", year:2025, race:"エプソムカップ"},
+ "東京|芝|2000":{time:115.2, horse:"イクイノックス", year:2023, race:"天皇賞（秋）"},
  "東京|芝|2400":{time:140.3, horse:"カランダガン", year:2025, race:"ジャパンカップ"},
- "阪神|芝|2000":{time:116.2, horse:"ベラジオオペラ", year:2025, race:"大阪杯"},
+ "東京|芝|2500":{time:148.2, horse:"ルックトゥワイス", year:2019, race:"目黒記念"},
+ "東京|芝|3400":{time:209.1, horse:"ミクソロジー", year:2023, race:"ダイヤモンドS"},
+ "東京|ダート|1600":{time:92.9, horse:"ジェイパームス", year:2025, race:"武蔵野ステークス"},
+ "中山|芝|1600":{time:90.3, horse:"トロワゼトワル", year:2019, race:"京成杯オータムハンデキャップ"},
  "京都|芝|1600":{time:91.3, horse:"ジャンタルマンタル", year:2025, race:"マイルチャンピオンシップ"},
  "京都|芝|2200":{time:131.0, horse:"レガレイラ", year:2025, race:"エリザベス女王杯"},
+ "京都|芝|3000":{time:181.0, horse:"トーホウジャッカル", year:2014, race:"菊花賞"},
+ "京都|芝|3200":{time:192.5, horse:"キタサンブラック", year:2017, race:"天皇賞（春）"},
+ "京都|ダート|1800":{time:107.5, horse:"ダブルハートボンド", year:2025, race:"みやこステークス"},
+ "阪神|芝|1600":{time:91.1, horse:"ソダシ", year:2021, race:"桜花賞"},
+ "阪神|芝|1800":{time:103.0, horse:"マスクトディーヴァ", year:2023, race:"ローズステークス"},
+ "阪神|芝|2000":{time:116.2, horse:"ベラジオオペラ", year:2025, race:"大阪杯"},
+ "阪神|芝|2200":{time:129.7, horse:"タイトルホルダー", year:2022, race:"宝塚記念"},
 };
 function courseRecord(r){ return COURSE_RECORDS[r.course+"|"+r.surf+"|"+r.dist]||null; }
 /* ============ 実在馬（現役・2025年シーズンの実績。JRA公式の公表値に基づく） ============
@@ -2657,6 +2723,24 @@ const REAL_DEFS={
  "ジャスティンミラノ":{sex:"牡",age:4,coat:0,races:8,wins:4,top2:6,top3:6,gWins:2,earnings:42000,weight:486,style:"先行",jockey:6,rider:"戸崎圭太",form:[2],spd:93,sta:90,pow:88,bst:94,turf:"S",dirt:"C",dmin:1600,dmax:2400,unique:"u_milano",note:"皐月賞（2024）"},
  "シンエンペラー":{sex:"牡",age:4,coat:0,races:12,wins:4,top2:7,top3:8,gWins:2,earnings:76000,weight:486,style:"先行",jockey:2,rider:"坂井瑠星",form:[2,1],spd:93,sta:93,pow:88,bst:94,turf:"S",dirt:"C",dmin:1800,dmax:2600,unique:"u_shin",note:"ネオムターフカップ（2025）・ジャパンカップ2着（2024）"},
  "ブローザホーン":{sex:"牡",age:6,coat:0,races:18,wins:7,top2:10,top3:12,gWins:3,earnings:56000,weight:490,style:"差し",jockey:7,rider:"菅原明良",form:[4],spd:91,sta:94,pow:90,bst:90,turf:"A",dirt:"C",heavy:"S",dmin:2000,dmax:2600,unique:"u_blow",note:"宝塚記念（2024）"},
+ "タスティエーラ":{sex:"牡",age:5,coat:0,races:13,wins:4,top2:7,top3:8,gWins:3,earnings:52000,weight:478,style:"差し",jockey:8,rider:"D.レーン",form:[1],spd:93,sta:92,pow:87,bst:94,turf:"S",dirt:"C",dmin:1800,dmax:2400,unique:"u_tast",note:"日本ダービー（2023）・クイーンエリザベスII世カップ（2025）"},
+ "ソールオリエンス":{sex:"牡",age:5,coat:0,races:14,wins:3,top2:6,top3:8,gWins:2,earnings:43000,weight:458,style:"差し",jockey:10,form:[3],spd:92,sta:91,pow:85,bst:95,turf:"A",dirt:"C",dmin:1800,dmax:2600,unique:"u_sol",note:"皐月賞（2023）"},
+ "ドゥレッツァ":{sex:"牡",age:5,coat:0,races:11,wins:5,top2:7,top3:8,gWins:2,earnings:46000,weight:484,style:"先行",jockey:0,form:[2],spd:92,sta:95,pow:88,bst:91,turf:"S",dirt:"C",dmin:2200,dmax:3000,unique:"u_durezza",note:"菊花賞（2023）・金鯱賞（2025）"},
+ "ジャスティンパレス":{sex:"牡",age:6,coat:1,races:19,wins:5,top2:8,top3:11,gWins:3,earnings:62000,weight:478,style:"差し",jockey:14,form:[3],spd:91,sta:96,pow:87,bst:91,turf:"S",dirt:"C",dmin:2200,dmax:3200,unique:"u_jpalace",note:"天皇賞（春）（2023）"},
+ "ブレイディヴェーグ":{sex:"牝",age:5,coat:0,races:12,wins:5,top2:7,top3:8,gWins:3,earnings:38000,weight:470,style:"差し",jockey:0,form:[2],spd:92,sta:89,pow:84,bst:95,turf:"S",dirt:"C",dmin:1600,dmax:2400,unique:"u_brede",note:"エリザベス女王杯（2023）"},
+ "ママコチャ":{sex:"牝",age:6,coat:0,races:20,wins:8,top2:11,top3:13,gWins:3,earnings:42000,weight:472,style:"先行",jockey:1,form:[2],spd:94,sta:80,pow:86,bst:93,turf:"S",dirt:"C",dmin:1200,dmax:1600,unique:"u_mama",note:"スプリンターズS（2023）"},
+ "ルガル":{sex:"牡",age:5,coat:2,races:15,wins:5,top2:8,top3:9,gWins:3,earnings:36000,weight:500,style:"先行",jockey:11,form:[1],spd:95,sta:79,pow:89,bst:92,turf:"S",dirt:"C",dmin:1200,dmax:1400,unique:"u_lugal",note:"スプリンターズS（2024）"},
+ "トウシンマカオ":{sex:"牡",age:6,coat:0,races:24,wins:7,top2:11,top3:13,gWins:4,earnings:39000,weight:472,style:"差し",jockey:4,form:[1],spd:94,sta:80,pow:85,bst:93,turf:"A",dirt:"C",dmin:1200,dmax:1600,unique:"u_macao",note:"京王杯スプリングC（2025・東京芝1400レコード）・京阪杯"},
+ "ナムラクレア":{sex:"牝",age:6,coat:1,races:24,wins:5,top2:12,top3:16,gWins:4,earnings:46000,weight:458,style:"差し",jockey:5,form:[3],spd:93,sta:79,pow:84,bst:94,turf:"A",dirt:"C",dmin:1200,dmax:1400,unique:"u_namura",note:"函館スプリントS・キーンランドC・シルクロードS"},
+ "ウインマーベル":{sex:"牡",age:6,coat:2,races:26,wins:7,top2:10,top3:12,gWins:4,earnings:38000,weight:484,style:"先行",jockey:5,form:[2],spd:93,sta:81,pow:87,bst:91,turf:"A",dirt:"C",dmin:1200,dmax:1600,unique:"u_winmarvel",note:"京王杯スプリングC・阪急杯・スワンS"},
+ "エルトンバローズ":{sex:"牡",age:5,coat:0,races:17,wins:4,top2:7,top3:9,gWins:2,earnings:38000,weight:488,style:"先行",jockey:11,form:[4],spd:92,sta:84,pow:86,bst:92,turf:"A",dirt:"C",dmin:1600,dmax:2000,unique:"u_elton",note:"毎日王冠（2023）・マイルCS 2着（2023）"},
+ "シックスペンス":{sex:"牡",age:4,coat:0,races:10,wins:6,top2:7,top3:7,gWins:3,earnings:30000,weight:484,style:"差し",jockey:0,form:[1,1],spd:93,sta:86,pow:86,bst:95,turf:"S",dirt:"C",dmin:1600,dmax:2000,unique:"u_sixpence",note:"毎日王冠（2024）・中山記念（2025）"},
+ "ペプチドナイル":{sex:"牡",age:5,coat:0,races:16,wins:6,top2:8,top3:9,gWins:2,earnings:34000,weight:516,style:"先行",jockey:3,rider:"藤岡佑介",form:[3],spd:91,sta:86,pow:94,bst:88,turf:"C",dirt:"S",dmin:1600,dmax:2100,unique:"u_peptide",note:"フェブラリーS（2024）"},
+ "ウィルソンテソーロ":{sex:"牡",age:6,coat:0,races:24,wins:8,top2:13,top3:15,gWins:4,earnings:52000,weight:482,style:"先行",jockey:1,form:[2],spd:92,sta:88,pow:93,bst:89,turf:"C",dirt:"S",dmin:1600,dmax:2000,unique:"u_wilson",note:"かしわ記念・JBCクラシック 2着などダート重賞の常連"},
+ "ミックファイア":{sex:"牡",age:5,coat:1,races:13,wins:6,top2:7,top3:8,gWins:2,earnings:24000,weight:502,style:"先行",jockey:8,rider:"御神本訓史",form:[5],spd:90,sta:87,pow:93,bst:87,turf:"C",dirt:"A",dmin:1600,dmax:2000,unique:"u_mick",note:"ジャパンダートダービー（2023）"},
+ "シャマル":{sex:"牡",age:7,coat:0,races:30,wins:10,top2:14,top3:17,gWins:5,earnings:43000,weight:486,style:"逃げ",jockey:1,rider:"川須栄彦",form:[1],spd:93,sta:84,pow:92,bst:88,turf:"C",dirt:"S",dmin:1400,dmax:1800,unique:"u_shamal",note:"かしわ記念（2025）・根岸S"},
+ "アルマヴェローチェ":{sex:"牝",age:3,coat:1,races:6,wins:3,top2:5,top3:5,gWins:2,earnings:19000,weight:472,style:"差し",jockey:7,form:[2,1],spd:91,sta:83,pow:83,bst:93,turf:"A",dirt:"C",dmin:1400,dmax:2000,unique:"u_alma",note:"阪神ジュベナイルフィリーズ（2024）"},
+ "サトノシャイニング":{sex:"牡",age:3,coat:1,races:7,wins:3,top2:5,top3:5,gWins:2,earnings:17000,weight:486,style:"先行",jockey:11,form:[1],spd:91,sta:87,pow:85,bst:92,turf:"A",dirt:"C",dmin:1800,dmax:2400,unique:"u_shining",note:"きさらぎ賞（2025）・東京スポーツ杯2歳S（2024）"},
 };
 /* 主要G1への実在馬の配置（そのレースの2025年優勝馬・上位馬を中心に） */
 const REAL_FIELDS={
@@ -4098,6 +4182,77 @@ const LEGENDS=[
  {n:"イクイノックス",sex:"牡",born:2019,coat:"青鹿毛",sire:"キタサンブラック",dam:"シャトーブランシュ",races:10,wins:8,earn:221544,g1:"天皇賞（秋）×2・有馬記念・宝塚記念・ジャパンカップ・ドバイシーマクラシック",rider:"C.ルメール",style:"先行",dmin:1800,dmax:2500,dept:"中長距離",rating:124},
  {n:"ドウデュース",sex:"牡",born:2019,coat:"鹿毛",sire:"ハーツクライ",dam:"ダストアンドダイヤモンズ",races:16,wins:8,earn:177587,g1:"朝日杯フューチュリティS・日本ダービー・有馬記念・天皇賞（秋）・ジャパンカップ",rider:"武豊",style:"差し",dmin:1600,dmax:2500,dept:"中長距離",rating:112},
  {n:"リバティアイランド",sex:"牝",born:2020,coat:"鹿毛",sire:"ドゥラメンテ",dam:"ヤンキーローズ",races:12,wins:5,earn:98919,g1:"阪神ジュベナイルF・桜花賞・オークス・秋華賞",rider:"川田将雅",style:"差し",dmin:1400,dmax:2400,dept:"マイル・中距離（牝馬）",rating:106},
+ /* ===== 拡充（2026-11-10）：古馬・ダート・海外の名馬を追加し100頭規模へ。
+    戦績・主な勝鞍は JRA公式／netkeiba／JBIS 等の公表実績に基づく。母名が公表資料で
+    確認しにくい古い馬は「―」とし、創作で埋めない ===== */
+ {n:"ハイセイコー",sex:"牡",born:1970,coat:"鹿毛",sire:"チャイナロック",dam:"―",races:22,wins:13,earn:24462,g1:"皐月賞",rider:"増沢末夫",style:"先行",dmin:1600,dmax:2400,dept:"マイル・中距離",rating:102},
+ {n:"テンポイント",sex:"牡",born:1975,coat:"栗毛",sire:"キタノカチドキ",dam:"―",races:12,wins:11,earn:27120,g1:"朝日杯3歳S・有馬記念",rider:"鹿戸明",style:"先行",dmin:1600,dmax:2500,dept:"マイル・中距離",rating:108},
+ {n:"マルゼンスキー",sex:"牡",born:1974,coat:"鹿毛",sire:"ニジンスキー",dam:"シル",races:8,wins:8,earn:22885,g1:"朝日杯3歳S",rider:"中野渡清一",style:"逃げ",dmin:1200,dmax:2000,dept:"短距離・マイル",rating:110},
+ {n:"トウショウボーイ",sex:"牡",born:1973,coat:"鹿毛",sire:"ダンディルート",dam:"―",races:15,wins:10,earn:33670,g1:"皐月賞・宝塚記念・有馬記念",rider:"武邦彦",style:"先行",dmin:1800,dmax:2500,dept:"中距離",rating:107},
+ {n:"グリーングラス",sex:"牡",born:1973,coat:"鹿毛",sire:"―",dam:"―",races:34,wins:13,earn:40180,g1:"菊花賞・有馬記念・天皇賞（春）",rider:"安田富男",style:"差し",dmin:2000,dmax:3200,dept:"中長距離",rating:102},
+ {n:"カブラヤオー",sex:"牡",born:1972,coat:"黒鹿毛",sire:"コインドシルバー",dam:"―",races:18,wins:10,earn:22640,g1:"日本ダービー・菊花賞",rider:"大崎昭一",style:"逃げ",dmin:1800,dmax:3000,dept:"中長距離",rating:100},
+ {n:"メジロラモーヌ",sex:"牝",born:1983,coat:"鹿毛",sire:"モガミ",dam:"メジロヒリュウ",races:17,wins:9,earn:31113,g1:"桜花賞・オークス・エリザベス女王杯",rider:"河内洋",style:"差し",dmin:1600,dmax:2400,dept:"マイル・中距離（牝馬）",rating:106},
+ {n:"ダイナガリバー",sex:"牡",born:1983,coat:"鹿毛",sire:"ノーザンテースト",dam:"―",races:15,wins:6,earn:35549,g1:"日本ダービー・有馬記念",rider:"増沢末夫",style:"差し",dmin:2000,dmax:2500,dept:"中距離",rating:104},
+ {n:"サクラスターオー",sex:"牡",born:1984,coat:"鹿毛",sire:"ノーザンテースト",dam:"―",races:10,wins:5,earn:31095,g1:"皐月賞・菊花賞",rider:"東信二",style:"差し",dmin:1800,dmax:3000,dept:"中長距離",rating:103},
+ {n:"スーパークリーク",sex:"牡",born:1985,coat:"鹿毛",sire:"ノーリユート",dam:"―",races:22,wins:8,earn:60683,g1:"菊花賞・天皇賞（春）・天皇賞（秋）",rider:"武豊",style:"先行",dmin:2200,dmax:3200,dept:"長距離",rating:107},
+ {n:"イナリワン",sex:"牡",born:1986,coat:"鹿毛",sire:"ミルジョージ",dam:"―",races:25,wins:11,earn:67393,g1:"天皇賞（春）・宝塚記念・有馬記念",rider:"武豊",style:"差し",dmin:2000,dmax:3200,dept:"中長距離",rating:106},
+ {n:"ヤエノムテキ",sex:"牡",born:1985,coat:"鹿毛",sire:"サクラショウリ",dam:"―",races:21,wins:8,earn:42855,g1:"皐月賞・天皇賞（秋）",rider:"西浦勝一",style:"先行",dmin:1600,dmax:2000,dept:"マイル・中距離",rating:104},
+ {n:"メジロライアン",sex:"牡",born:1987,coat:"鹿毛",sire:"アンバーシャダイ",dam:"―",races:21,wins:7,earn:48767,g1:"宝塚記念",rider:"横山典弘",style:"差し",dmin:1800,dmax:2500,dept:"中距離",rating:103},
+ {n:"ビワハヤヒデ",sex:"牡",born:1990,coat:"芦毛",sire:"シャルード",dam:"パシフィカス",races:16,wins:10,earn:69913,g1:"菊花賞・天皇賞（春）・宝塚記念",rider:"岡部幸雄",style:"先行",dmin:2000,dmax:3200,dept:"中長距離",rating:108},
+ {n:"ウイニングチケット",sex:"牡",born:1990,coat:"栗毛",sire:"トニービン",dam:"―",races:14,wins:6,earn:44227,g1:"日本ダービー",rider:"柴田政人",style:"差し",dmin:1800,dmax:2400,dept:"中距離",rating:104},
+ {n:"マーベラスサンデー",sex:"牡",born:1992,coat:"鹿毛",sire:"サンデーサイレンス",dam:"―",races:21,wins:10,earn:60683,g1:"宝塚記念",rider:"竹原啓二",style:"先行",dmin:1800,dmax:2500,dept:"中距離",rating:104},
+ {n:"マヤノトップガン",sex:"牡",born:1992,coat:"栗毛",sire:"ブライアンズタイム",dam:"―",races:21,wins:8,earn:81083,g1:"菊花賞・有馬記念・宝塚記念・天皇賞（春）",rider:"田原成貴",style:"先行",dmin:2200,dmax:3200,dept:"長距離",rating:106},
+ {n:"サクラローレル",sex:"牡",born:1991,coat:"鹿毛",sire:"Rainbow Quest",dam:"―",races:22,wins:9,earn:62640,g1:"天皇賞（春）・有馬記念",rider:"横山典弘",style:"差し",dmin:2200,dmax:3200,dept:"長距離",rating:106},
+ {n:"バブルガムフェロー",sex:"牡",born:1993,coat:"鹿毛",sire:"サンデーサイレンス",dam:"―",races:19,wins:7,earn:54307,g1:"朝日杯3歳S・天皇賞（秋）",rider:"蛯名正義",style:"先行",dmin:1600,dmax:2000,dept:"マイル・中距離",rating:105},
+ {n:"ダンスインザダーク",sex:"牡",born:1993,coat:"鹿毛",sire:"サンデーサイレンス",dam:"―",races:13,wins:5,earn:37910,g1:"菊花賞",rider:"武豊",style:"差し",dmin:2000,dmax:3000,dept:"中長距離",rating:105},
+ {n:"アドマイヤベガ",sex:"牡",born:1996,coat:"鹿毛",sire:"サンデーサイレンス",dam:"―",races:16,wins:6,earn:60200,g1:"日本ダービー",rider:"武豊",style:"差し",dmin:1800,dmax:2400,dept:"中距離",rating:105},
+ {n:"ナリタトップロード",sex:"牡",born:1996,coat:"栗毛",sire:"サッカーボーイ",dam:"―",races:30,wins:8,earn:70313,g1:"菊花賞",rider:"渡辺薫彦",style:"先行",dmin:2000,dmax:3000,dept:"中長距離",rating:104},
+ {n:"ファレノプシス",sex:"牝",born:1995,coat:"鹿毛",sire:"ブライアンズタイム",dam:"―",races:21,wins:7,earn:40535,g1:"桜花賞・秋華賞・エリザベス女王杯",rider:"熊沢重文",style:"差し",dmin:1600,dmax:2400,dept:"マイル・中距離（牝馬）",rating:104},
+ {n:"アグネスタキオン",sex:"牡",born:1998,coat:"栗毛",sire:"サンデーサイレンス",dam:"アグネスフローラ",races:4,wins:4,earn:22208,g1:"皐月賞",rider:"河内洋",style:"先行",dmin:1600,dmax:2000,dept:"マイル・中距離",rating:109},
+ {n:"ジャングルポケット",sex:"牡",born:1998,coat:"鹿毛",sire:"トニービン",dam:"ダンスチャーマー",races:13,wins:5,earn:70426,g1:"日本ダービー・ジャパンカップ",rider:"角田晃一",style:"差し",dmin:2000,dmax:2400,dept:"中距離",rating:107},
+ {n:"マンハッタンカフェ",sex:"牡",born:1998,coat:"青鹿毛",sire:"サンデーサイレンス",dam:"サトルチェンジ",races:12,wins:6,earn:52247,g1:"菊花賞・有馬記念・天皇賞（春）",rider:"蛯名正義",style:"差し",dmin:2200,dmax:3200,dept:"長距離",rating:107},
+ {n:"キングカメハメハ",sex:"牡",born:2001,coat:"鹿毛",sire:"Kingmambo",dam:"マンファス",races:8,wins:7,earn:42999,g1:"NHKマイルカップ・日本ダービー",rider:"安藤勝己",style:"先行",dmin:1600,dmax:2400,dept:"マイル・中距離",rating:108},
+ {n:"スイープトウショウ",sex:"牝",born:2001,coat:"鹿毛",sire:"エンドスウィープ",dam:"タバサトウショウ",races:24,wins:8,earn:74476,g1:"秋華賞・エリザベス女王杯・宝塚記念",rider:"池添謙一",style:"差し",dmin:1600,dmax:2200,dept:"マイル・中距離（牝馬）",rating:106},
+ {n:"ダンスインザムード",sex:"牝",born:2001,coat:"黒鹿毛",sire:"サンデーサイレンス",dam:"ダンシングキイ",races:25,wins:5,earn:55345,g1:"桜花賞・ヴィクトリアマイル",rider:"武豊",style:"差し",dmin:1400,dmax:2000,dept:"マイル・中距離（牝馬）",rating:104},
+ {n:"アグネスデジタル",sex:"牡",born:1997,coat:"栗毛",sire:"Crafty Prospector",dam:"Chancey Squaw",races:32,wins:12,earn:89340,g1:"天皇賞（秋）・安田記念・マイルチャンピオンシップ・香港カップ・フェブラリーS",rider:"四位洋文",style:"先行",dmin:1200,dmax:2000,dept:"マイル・中距離（芝ダート）",rating:107},
+ {n:"クロフネ",sex:"牡",born:1998,coat:"芦毛",sire:"フレンチデピュティ",dam:"ブルーアヴェニュー",races:10,wins:6,earn:41427,g1:"NHKマイルカップ・ジャパンカップダート",rider:"武豊",style:"先行",dmin:1600,dmax:2100,dept:"マイル・中距離（芝ダート）",rating:108},
+ {n:"カネヒキリ",sex:"牡",born:2002,coat:"栗毛",sire:"フジキセキ",dam:"ライフアウトゼア",races:23,wins:12,earn:85600,g1:"ジャパンカップダート×2・フェブラリーS・東京大賞典・川崎記念・ジャパンダートダービー",rider:"武豊",style:"先行",dmin:1600,dmax:2100,dept:"ダート中距離",rating:108},
+ {n:"ヴァーミリアン",sex:"牡",born:2002,coat:"黒鹿毛",sire:"エルコンドルパサー",dam:"スカーレットレディ",races:34,wins:15,earn:116000,g1:"JBCクラシック×3・東京大賞典・フェブラリーS・ジャパンカップダート・帝王賞",rider:"武豊",style:"先行",dmin:1600,dmax:2100,dept:"ダート中距離",rating:107},
+ {n:"ゴールドアリュール",sex:"牡",born:1999,coat:"栗毛",sire:"サンデーサイレンス",dam:"ニキーヤ",races:16,wins:8,earn:52780,g1:"フェブラリーS・ジャパンダートダービー・ダートグランプリ",rider:"武豊",style:"先行",dmin:1600,dmax:2100,dept:"ダート中距離",rating:105},
+ {n:"アドマイヤドン",sex:"牡",born:1999,coat:"鹿毛",sire:"ティンバーカントリー",dam:"―",races:25,wins:10,earn:77460,g1:"朝日杯フューチュリティS・JBCクラシック×3・フェブラリーS",rider:"藤田伸二",style:"先行",dmin:1600,dmax:2100,dept:"ダート中距離",rating:105},
+ {n:"ウイングアロー",sex:"牡",born:1995,coat:"鹿毛",sire:"アサティス",dam:"―",races:34,wins:11,earn:62550,g1:"フェブラリーS・JBCクラシック",rider:"南井克巳",style:"差し",dmin:1600,dmax:2100,dept:"ダート中距離",rating:103},
+ {n:"カンパニー",sex:"牡",born:2001,coat:"鹿毛",sire:"ミラクルアドマイヤ",dam:"―",races:35,wins:12,earn:83440,g1:"天皇賞（秋）・マイルチャンピオンシップ",rider:"横山典弘",style:"差し",dmin:1600,dmax:2000,dept:"マイル・中距離",rating:104},
+ {n:"ドリームジャーニー",sex:"牡",born:2004,coat:"鹿毛",sire:"ステイゴールド",dam:"オリエンタルアート",races:31,wins:9,earn:83630,g1:"宝塚記念・有馬記念",rider:"池添謙一",style:"追い込み",dmin:2000,dmax:2500,dept:"中距離",rating:105},
+ {n:"エイシンフラッシュ",sex:"牡",born:2007,coat:"黒鹿毛",sire:"King's Best",dam:"ムーンレディ",races:27,wins:6,earn:85120,g1:"日本ダービー・天皇賞（秋）",rider:"内田博幸",style:"差し",dmin:1800,dmax:2400,dept:"中距離",rating:105},
+ {n:"ワグネリアン",sex:"牡",born:2015,coat:"鹿毛",sire:"ディープインパクト",dam:"ミスアンコール",races:19,wins:5,earn:45600,g1:"日本ダービー",rider:"福永祐一",style:"差し",dmin:1800,dmax:2400,dept:"中距離",rating:103},
+ {n:"ブラストワンピース",sex:"牡",born:2015,coat:"鹿毛",sire:"ハービンジャー",dam:"ツルマルワンピース",races:18,wins:7,earn:50200,g1:"有馬記念",rider:"池添謙一",style:"差し",dmin:2000,dmax:2800,dept:"中長距離",rating:104},
+ {n:"フィエールマン",sex:"牡",born:2015,coat:"鹿毛",sire:"ディープインパクト",dam:"リュヌドール",races:12,wins:5,earn:70900,g1:"菊花賞・天皇賞（春）×2",rider:"C.ルメール",style:"差し",dmin:2500,dmax:3200,dept:"長距離",rating:106},
+ {n:"ワールドプレミア",sex:"牡",born:2016,coat:"青鹿毛",sire:"ディープインパクト",dam:"マンデラ",races:18,wins:5,earn:49900,g1:"菊花賞・天皇賞（春）",rider:"武豊",style:"差し",dmin:2200,dmax:3200,dept:"長距離",rating:104},
+ {n:"デアリングタクト",sex:"牝",born:2017,coat:"黒鹿毛",sire:"エピファネイア",dam:"デアリングバード",races:13,wins:5,earn:60300,g1:"桜花賞・オークス・秋華賞",rider:"松山弘平",style:"差し",dmin:1600,dmax:2400,dept:"マイル・中距離（牝馬）",rating:107},
+ {n:"シャフリヤール",sex:"牡",born:2018,coat:"黒鹿毛",sire:"ディープインパクト",dam:"ドバイマジェスティ",races:16,wins:4,earn:108000,g1:"日本ダービー・ドバイシーマクラシック",rider:"福永祐一",style:"差し",dmin:2000,dmax:2500,dept:"中距離",rating:106},
+ {n:"タイトルホルダー",sex:"牡",born:2018,coat:"鹿毛",sire:"ドゥラメンテ",dam:"メーヴェ",races:19,wins:7,earn:101400,g1:"菊花賞・天皇賞（春）・宝塚記念",rider:"横山和生",style:"逃げ",dmin:2200,dmax:3200,dept:"長距離",rating:107},
+ {n:"ソダシ",sex:"牝",born:2018,coat:"白毛",sire:"クロフネ",dam:"ブチコ",races:16,wins:7,earn:63700,g1:"阪神ジュベナイルF・桜花賞・ヴィクトリアマイル",rider:"吉田隼人",style:"先行",dmin:1400,dmax:1800,dept:"マイル（牝馬）",rating:106},
+ {n:"レモンポップ",sex:"牡",born:2018,coat:"栗毛",sire:"Lemon Drop Kid",dam:"―",races:18,wins:13,earn:95600,g1:"フェブラリーS×2・チャンピオンズC×2・マイルチャンピオンシップ南部杯",rider:"坂井瑠星",style:"先行",dmin:1400,dmax:1800,dept:"ダートマイル",rating:108},
+ {n:"ウシュバテソーロ",sex:"牡",born:2017,coat:"鹿毛",sire:"オルフェーヴル",dam:"ミルフィオリ",races:35,wins:11,earn:258000,g1:"ドバイワールドカップ・東京大賞典×2・川崎記念",rider:"川田将雅",style:"差し",dmin:1800,dmax:2100,dept:"ダート中距離",rating:106},
+ {n:"ソングライン",sex:"牝",born:2018,coat:"黒鹿毛",sire:"キズナ",dam:"ルミナスパレード",races:18,wins:7,earn:74200,g1:"安田記念×2・ヴィクトリアマイル",rider:"戸崎圭太",style:"差し",dmin:1400,dmax:1800,dept:"マイル（牝馬）",rating:106},
+ {n:"ナミュール",sex:"牝",born:2019,coat:"鹿毛",sire:"ハービンジャー",dam:"サンブルエミューズ",races:18,wins:6,earn:53900,g1:"マイルチャンピオンシップ",rider:"藤岡康太",style:"差し",dmin:1400,dmax:2000,dept:"マイル・中距離（牝馬）",rating:104},
+ {n:"スターズオンアース",sex:"牝",born:2019,coat:"鹿毛",sire:"ドゥラメンテ",dam:"サザンスターズ",races:15,wins:3,earn:60900,g1:"桜花賞・オークス",rider:"C.ルメール",style:"差し",dmin:1600,dmax:2400,dept:"マイル・中距離（牝馬）",rating:104},
+ {n:"セクレタリアト",sex:"牡",born:1970,coat:"栗毛",sire:"Bold Ruler",dam:"Somethingroyal",races:21,wins:16,earn:13160,g1:"ケンタッキーダービー・プリークネスS・ベルモントS（米三冠）",rider:"R.ターコット",style:"差し",dmin:1400,dmax:2400,dept:"海外・中距離",rating:127},
+ {n:"マンノウォー",sex:"牡",born:1917,coat:"栗毛",sire:"Fair Play",dam:"Mahubah",races:21,wins:20,earn:2493,g1:"プリークネスS・ベルモントS",rider:"J.ロフタス",style:"逃げ",dmin:1200,dmax:2200,dept:"海外・中距離",rating:124},
+ {n:"ノーザンダンサー",sex:"牡",born:1961,coat:"鹿毛",sire:"Nearctic",dam:"Natalma",races:18,wins:14,earn:5800,g1:"ケンタッキーダービー・プリークネスS",rider:"B.ハータック",style:"先行",dmin:1400,dmax:2000,dept:"海外・マイル・中距離",rating:120},
+ {n:"サンデーサイレンス",sex:"牡",born:1986,coat:"青鹿毛",sire:"Halo",dam:"Wishing Well",races:14,wins:9,earn:59684,g1:"ケンタッキーダービー・プリークネスS・BCクラシック",rider:"P.ヴァレンズエラ",style:"先行",dmin:1600,dmax:2000,dept:"海外・中距離",rating:118},
+ {n:"ドバイミレニアム",sex:"牡",born:1996,coat:"鹿毛",sire:"Seeking the Gold",dam:"Colorado Dancer",races:10,wins:9,earn:54000,g1:"ドバイワールドカップ",rider:"L.デットーリ",style:"逃げ",dmin:1600,dmax:2000,dept:"海外・中距離",rating:127},
+ {n:"ガリレオ",sex:"牡",born:1998,coat:"鹿毛",sire:"Sadler's Wells",dam:"Urban Sea",races:8,wins:6,earn:24000,g1:"英ダービー・愛ダービー・キングジョージVI世＆クイーンエリザベスS",rider:"M.キネーン",style:"先行",dmin:2000,dmax:2400,dept:"海外・中距離",rating:123},
+ {n:"シーザスターズ",sex:"牡",born:2006,coat:"鹿毛",sire:"Cape Cross",dam:"Urban Sea",races:9,wins:8,earn:64000,g1:"英2000ギニー・英ダービー・凱旋門賞",rider:"M.キネーン",style:"先行",dmin:1600,dmax:2400,dept:"海外・中距離",rating:126},
+ {n:"フランクエル",sex:"牡",born:2008,coat:"鹿毛",sire:"Galileo",dam:"Kind",races:14,wins:14,earn:45000,g1:"英2000ギニー・チャンピオンSなどG1 10勝",rider:"T.クウィーリー",style:"先行",dmin:1400,dmax:2100,dept:"海外・マイル・中距離",rating:130},
+ {n:"ゼニヤッタ",sex:"牝",born:2004,coat:"黒鹿毛",sire:"Street Cry",dam:"Vertigineux",races:20,wins:19,earn:87600,g1:"BCクラシック・BCレディスクラシックなどG1 13勝",rider:"M.スミス",style:"追い込み",dmin:1600,dmax:2000,dept:"海外・中距離（牝馬）",rating:122},
+ {n:"ブラックキャビア",sex:"牝",born:2006,coat:"黒鹿毛",sire:"Bel Esprit",dam:"Helsinge",races:25,wins:25,earn:63000,g1:"ダイヤモンドジュビリーSなどG1 15勝",rider:"L.ノーレン",style:"先行",dmin:1000,dmax:1400,dept:"海外・短距離（牝馬）",rating:124},
+ {n:"ウィンクス",sex:"牝",born:2011,coat:"鹿毛",sire:"Street Cry",dam:"Vegas Showgirl",races:43,wins:37,earn:200000,g1:"コックスプレート×4などG1 25勝",rider:"H.ボウマン",style:"差し",dmin:1400,dmax:2200,dept:"海外・マイル・中距離（牝馬）",rating:126},
+ {n:"アメリカンファラオ",sex:"牡",born:2012,coat:"鹿毛",sire:"Pioneerof the Nile",dam:"Littleprincessemma",races:11,wins:9,earn:103000,g1:"ケンタッキーダービー・プリークネスS・ベルモントS（米三冠）・BCクラシック",rider:"V.エスピノーザ",style:"先行",dmin:1700,dmax:2400,dept:"海外・中距離",rating:124},
+ {n:"ジャスティファイ",sex:"牡",born:2015,coat:"栗毛",sire:"Scat Daddy",dam:"Stage Magic",races:6,wins:6,earn:45600,g1:"ケンタッキーダービー・プリークネスS・ベルモントS（米三冠）",rider:"M.スミス",style:"先行",dmin:1800,dmax:2400,dept:"海外・中距離",rating:122},
+ {n:"エネイブル",sex:"牝",born:2014,coat:"鹿毛",sire:"Nathaniel",dam:"Concentric",races:19,wins:15,earn:160000,g1:"凱旋門賞×2・キングジョージ×3などG1 11勝",rider:"L.デットーリ",style:"先行",dmin:2000,dmax:2400,dept:"海外・中距離（牝馬）",rating:126},
+ {n:"ゴールデンシックスティ",sex:"騸",born:2015,coat:"鹿毛",sire:"Medaglia d'Oro",dam:"Gaudeamus",races:31,wins:26,earn:250000,g1:"香港マイル×3・チャンピオンズマイル×3・香港スチュワーズカップ",rider:"C.ホー",style:"差し",dmin:1400,dmax:2000,dept:"海外・マイル・中距離",rating:118},
+ {n:"フライトライン",sex:"牡",born:2018,coat:"鹿毛",sire:"Tapit",dam:"Feathered",races:6,wins:6,earn:54000,g1:"BCクラシック・パシフィッククラシック",rider:"F.プラット",style:"先行",dmin:1600,dmax:2000,dept:"海外・中距離",rating:126},
 ];
 const FICTIONAL_WORLD=["タイタンクイーン","ゴールドエンペラー","シルバーストーム","ルミナスハート","オーシャンキング","コスモブレイズ","アストラノヴァ","ハヤブサエース"];
 function legendWorld(){ return LEGENDS.map(L=>({name:L.n,sex:L.sex,born:L.born,coatName:L.coat,sire:L.sire,dam:L.dam,wins:L.wins,races:L.races,earnings:L.earn,g1:L.g1,rider:L.rider,style:L.style,dmin:L.dmin,dmax:L.dmax,dept:L.dept,rating:L.rating,legend:true,spd:92,sta:92,pow:90,bst:92,gut:90})); }
@@ -4148,8 +4303,14 @@ function dedupeWorldNames(){
    実在の歴代名馬と並んで表示される。引退して繁殖入りした馬
    （繁殖牝馬・種牡馬）も対象に含め、売却などで手元を離れた後も
    残るよう、達した時点の記録を S.hallOfFame に写して残す */
+/* 殿堂ラインは拡充前からの殿堂コア（LEGENDS先頭の40頭）の最低値に固定する。
+   拡充で加えた大昔・海外の名馬は当時の賞金水準が現在と大きく異なり（例：1920年代の
+   米国馬は獲得賞金が数千万円相当）、最低値に連動させると殿堂ラインが崩れてしまうため、
+   比較表示（ランキング）には全頭を使うが、ライン算出には使わない */
+const LEGEND_CORE_N=40;
 function hallThresholds(){
-  return { earn:Math.min(...LEGENDS.map(L=>L.earn)), rating:Math.min(...LEGENDS.map(L=>L.rating)) };
+  const core=LEGENDS.slice(0,LEGEND_CORE_N);
+  return { earn:Math.min(...core.map(L=>L.earn)), rating:Math.min(...core.map(L=>L.rating)) };
 }
 function hallQualifies(h){
   if(!h||!(h.races>0)) return false;
@@ -4340,8 +4501,53 @@ function condSlots(m,w,absWeek){
   });
   return [s0,s1,...rest];
 }
+/* ============ オープン特別：実在のレース名（JRAリステッド競走を中心に実在のオープン特別） ============
+   [レース名, 開催場, 馬場, 距離, 開催月] はJRAのリステッド競走一覧（2025年施行）に基づく実データ。
+   オープン（cls=5）の条件戦は、開催場・馬場・距離・時期の近さでこの中から最も合う実在レースを選び、
+   開催場が一致する場合は馬場・距離も実在の番組に合わせる。名前の創作はしない */
+const OPEN_REAL=[
+ ["ニューイヤーステークス","中山","芝",1600,1],["すばるステークス","京都","ダート",1400,1],["淀短距離ステークス","京都","芝",1200,1],["白富士ステークス","東京","芝",2000,1],
+ ["洛陽ステークス","京都","芝",1600,2],["仁川ステークス","阪神","ダート",2000,3],["大阪城ステークス","阪神","芝",1800,3],["コーラルステークス","阪神","ダート",1400,3],
+ ["東風ステークス","中山","芝",1600,3],["六甲ステークス","阪神","芝",1600,3],["京葉ステークス","中山","ダート",1200,4],["春雷ステークス","中山","芝",1200,4],
+ ["福島民報杯","福島","芝",2000,4],["オアシスステークス","東京","ダート",1600,4],["ブリリアントステークス","東京","ダート",2100,4],["谷川岳ステークス","新潟","芝",1400,5],
+ ["メトロポリタンステークス","東京","芝",2400,5],["都大路ステークス","京都","芝",1800,5],["栗東ステークス","京都","ダート",1400,5],["安土城ステークス","京都","芝",1400,5],
+ ["パラダイスステークス","東京","芝",1400,6],["大沼ステークス","函館","ダート",1700,6],["札幌日経賞","札幌","芝",2600,7],["ジュライステークス","中京","ダート",1800,7],
+ ["BSN賞","新潟","ダート",1800,8],["朱鷺ステークス","新潟","芝",1400,8],["エニフステークス","阪神","ダート",1400,9],["ポートアイランドステークス","阪神","芝",1600,9],
+ ["オパールステークス","京都","芝",1200,10],["グリーンチャンネルカップ","東京","ダート",1600,10],["オクトーバーステークス","東京","芝",2000,10],["ブラジルカップ","東京","ダート",2100,10],
+ ["カシオペアステークス","京都","芝",1800,10],["ルミエールオータムダッシュ","新潟","芝",1000,10],["オーロカップ","東京","芝",1400,11],["アンドロメダステークス","京都","芝",2000,11],
+ ["福島民友カップ","福島","ダート",1700,11],["キャピタルステークス","東京","芝",1600,11],["ラピスラズリステークス","中山","芝",1200,12],["師走ステークス","中山","ダート",1800,12],
+ ["リゲルステークス","阪神","芝",1600,12],["ディセンバーステークス","中山","芝",1800,12],["ベテルギウスステークス","阪神","ダート",1800,12],
+];
+/* 2歳オープンは実在の2歳オープン特別から（リステッドのアイビーS・萩Sを含む） */
+const OPEN_2YO=[
+ ["アイビーステークス","東京","芝",1800,10],["萩ステークス","京都","芝",1800,10],["もみじステークス","京都","芝",1600,10],
+ ["野路菊ステークス","阪神","芝",1600,9],["カンナステークス","中山","芝",1400,9],["すずらん賞","札幌","芝",1200,8],
+];
+function pickOpenSpecial(course,surf,dist,month,is2yo,seed,exclude){
+  const pool=is2yo?OPEN_2YO:OPEN_REAL;
+  let best=null, bs=-1e9;
+  pool.forEach((o,i)=>{
+    if(exclude&&exclude.has(o[0])) return;
+    let sc=0;
+    if(o[1]===course) sc+=60;
+    if(o[2]===surf) sc+=40;
+    sc-=Math.min(50, Math.abs(o[3]-dist)/20);
+    sc-=Math.abs(o[4]-month)*4;
+    sc+=(((seed||0)*7+i*13)%5)*0.1;
+    if(sc>bs){ bs=sc; best=o; }
+  });
+  return best;
+}
+/* オープン枠のレースオブジェクトに実在名を付け、開催場が一致すれば馬場・距離も実在番組へ合わせる */
+function applyOpenSpecial(r,course,surf,dist,month,is2yo,seed,exclude){
+  const op=pickOpenSpecial(course,surf,dist,month,is2yo,seed,exclude);
+  if(!op) return null;
+  r.name=op[0];
+  if(op[1]===course){ r.surf=op[2]; r.dist=op[3]; }
+  return op[0];
+}
 function genRaces(){
-  const m=month(), w=weekInMonth(); S.races=[];
+  const m=month(), w=weekInMonth(); S.races=[]; genRaces._usedOpen=new Set();
   /* 重賞は実際の開催（月・週）が来た週だけ開催する */
   GRADED.filter(g=>g.month===m&&g.week===w).forEach((g,i)=>{
     S.races.push({...g, id:"g"+S.week+"_"+i, ground:pick(GROUNDS.slice(0, m>=6&&m<=9?3:2)), graded:true});
@@ -4368,6 +4574,7 @@ function genRaces(){
     };
     if(sp.age) r.age=sp.age;
     if(sp.ageMin) r.ageMin=sp.ageMin;
+    if(sp.cls===5){ if(!genRaces._usedOpen) genRaces._usedOpen=new Set(); applyOpenSpecial(r,course,surf,dist,m,sp.age===2,S.week*10+i,genRaces._usedOpen); genRaces._usedOpen.add(r.name); }
     S.races.push(r);
   });
   S.selRace=null;
@@ -4513,6 +4720,7 @@ function futureCondRace(absWeek,i){
     ground:"良", weight:sp.age===2?55:57, graded:false, maxField:(course==="東京"||course==="中山")&&surf==="芝"?18:16,
     month:m, week:w, weeks:absWeek-S.week, when:m+"月第"+w+"週"};
   if(sp.age)r.age=sp.age; if(sp.ageMin)r.ageMin=sp.ageMin;
+  if(sp.cls===5) applyOpenSpecial(r,course,surf,dist,m,sp.age===2,absWeek*10+i,null);
   return r;
 }
 const BAND_JP={sprint:"短距離",mile:"マイル",middle:"中距離",long:"長距離"};
@@ -7736,12 +7944,15 @@ function drawTitleFrame(){
   const tgg=ctx.createLinearGradient(0,-10,0,10); tgg.addColorStop(0,"#a87e10"); tgg.addColorStop(0.5,"#7a5c08"); tgg.addColorStop(1,"#5c4300");
   ctx.fillStyle=tgg; ctx.font="bold 19px sans-serif"; ctx.textAlign="center"; ctx.fillText(gl,0,7);
   ctx.restore();
-  /* レース名（金・特大） */
+  /* レース名：明るい空の上でも読めるよう、濃色の帯（プレート）を敷いた上に
+     白に近い文字＋濃い縁取りで描く（金文字だけでは空に溶けて見えなかった） */
   const nm=r.name.split("（")[0];
   ctx.font="900 "+Math.min(64,W/Math.max(4.4,nm.length*1.04))+"px sans-serif"; ctx.textAlign="center";
-  ctx.lineWidth=7; ctx.strokeStyle="rgba(70,52,4,.85)"; ctx.strokeText(nm,W/2,H*0.52);
-  const gg=ctx.createLinearGradient(0,H*0.36,0,H*0.54); gg.addColorStop(0,"#ffe98a"); gg.addColorStop(0.55,"#e9bc2e"); gg.addColorStop(1,"#a87e10");
-  ctx.fillStyle=gg; ctx.fillText(nm,W/2,H*0.52);
+  const nmW=Math.min(W-16, ctx.measureText(nm).width+44);
+  ctx.fillStyle="rgba(8,22,12,.82)"; ctx.beginPath(); ctx.roundRect(W/2-nmW/2, H*0.52-44, nmW, 62, 12); ctx.fill();
+  ctx.strokeStyle="rgba(243,214,123,.9)"; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(W/2-nmW/2, H*0.52-44, nmW, 62, 12); ctx.stroke();
+  ctx.lineWidth=8; ctx.strokeStyle="#12240f"; ctx.lineJoin="round"; ctx.strokeText(nm,W/2,H*0.52);
+  ctx.fillStyle="#fffbe8"; ctx.fillText(nm,W/2,H*0.52);
   if(r.cls===8){
     const recs=Object.keys(COURSE_RECORDS).map(k=>({k,...COURSE_RECORDS[k]})).filter(x=>{ const parts=x.k.split("|"); return parts[1]===r.surf && +parts[2]===r.dist; });
     const jr=recs.length? recs.reduce((a,b)=>a.time<=b.time?a:b) : null;
@@ -8389,7 +8600,7 @@ function rebuildGLCourse(r){
       const sg2=scrCv.getContext("2d"); sg2.fillStyle="#10222e"; sg2.fillRect(0,0,512,224);
       sg2.strokeStyle="#f3d67b"; sg2.lineWidth=6; sg2.strokeRect(8,8,496,208);
       sg2.fillStyle="#ffe9a8"; sg2.font="bold 44px sans-serif"; sg2.textAlign="center"; sg2.fillText((r.course||"")+"競馬場",256,92);
-      sg2.fillStyle="#cfe9fb"; sg2.font="bold 30px sans-serif"; sg2.fillText(r.name||"",256,152);
+      sg2.font="bold 34px sans-serif"; sg2.lineWidth=7; sg2.strokeStyle="#08131c"; sg2.lineJoin="round"; sg2.strokeText(r.name||"",256,152); sg2.fillStyle="#ffffff"; sg2.fillText(r.name||"",256,152);
       const scrTex=new THREE.CanvasTexture(scrCv); scrTex.encoding=THREE.sRGBEncoding;
       const scr=new THREE.Mesh(new THREE.PlaneGeometry(13.5,5.9), new THREE.MeshBasicMaterial({map:scrTex}));
       scr.position.set(0,7.4,0.16); grp.add(scr);
@@ -8715,7 +8926,7 @@ function drawRacePanels(ctx,W,H,o){
   const items=o.items, leader=o.leader, remain=o.remain, leadH=o.leadH, dist=o.dist;
   /* 右上：帽子アイコンによる隊列表示＋残り距離。
      先頭馬の体・頭上のダイヤ・馬名ラベルがこの枠に入る時は枠ごと半透明化し、先頭馬を常に完全に見せる */
-  const fpW=164, fpX=W-fpW-8, fpY=8, fpH=78;
+  const fpW=164, fpX=W-fpW-8, fpY=(W<640?76:70), fpH=78; /* 視点切替バー（右上・高さ約56px）の下に置き、重ならないようにする */
   let fpAlpha=1;
   { const li=o.iMap?o.iMap.get(leadH):null;
     if(li){ const hx0=li.x-86*li.s, hx1=li.x+94*li.s, hy0=li.y-84*li.s-40, hy1=li.y+12*li.s;
@@ -9720,7 +9931,7 @@ function renderRaceScreen(el){
   renderActionBar();
   const r=raceState.race;
   if(raceState.phase==="run"){
-    el.innerHTML=`<div id="racewrap"><div id="racestage"><canvas id="racecv"></canvas><div id="photo-banner" role="status" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(20,20,20,.8);color:#fff;font-weight:900;font-size:14px;padding:7px 16px;border-radius:999px;pointer-events:none;white-space:nowrap">📸 写真判定スローモーション</div><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬${(raceState.owns||[]).length>1?`（${raceState.mine._gate}番・切替）`:""}</button><button class="btn ghost sm cambtn" data-cam="all">全体</button><button class="btn ghost sm cambtn" data-cam="jockey" ${raceState.mine?"":"disabled"}>騎手</button></div></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
+    el.innerHTML=`<div id="racewrap"><div id="racetitle-bar"><span class="rt-grade">${CLASSES[r.cls]}</span><span class="rt-name">${esc(r.name)}</span><span class="rt-meta">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span></div><div id="racestage"><canvas id="racecv"></canvas><div id="photo-banner" role="status" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(20,20,20,.8);color:#fff;font-weight:900;font-size:14px;padding:7px 16px;border-radius:999px;pointer-events:none;white-space:nowrap">📸 写真判定スローモーション</div><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬${(raceState.owns||[]).length>1?`（${raceState.mine._gate}番・切替）`:""}</button><button class="btn ghost sm cambtn" data-cam="all">全体</button><button class="btn ghost sm cambtn" data-cam="jockey" ${raceState.mine?"":"disabled"}>騎手</button></div></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
     <div id="racectl"><b>${r.name}</b><span class="small">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
     <div class="spdctl"><span class="spdlbl">再生速度</span><button class="btn ghost sm spd" data-rate="1">そのまま（1倍）</button><button class="btn ghost sm spd" data-rate="2">早送り 2倍</button><button class="btn ghost sm spd" data-rate="4">早送り 4倍</button></div>
     <button class="btn ghost sm mapbtn" id="btn-form">隊列図 OFF</button>
@@ -10506,6 +10717,7 @@ function renderJockey(){
  html+=panelHTML("jockey","detail",`<div class="panel"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${jockeyFaceSVG(dj)}<div style="min-width:0"><span class="jname" style="font-size:19px;font-weight:900">${dj.name}</span> <span class="aptchip ${dj.tier==="S"?"strong":""}">${dj.tier}級</span><br><span class="small">総合力 ${dj.skill}／騎乗料 ${dj.fee}万円</span></div></div>
  <dl class="kv mt"><dt>友好度（信頼）</dt><dd>${heartsHTML(dfr)}</dd>
  <dt>自厩舎での成績</dt><dd>騎乗 ${dst.rides}回／勝利 ${dst.wins}回（勝率 ${dwr}%）</dd>
+ <dt>実績（実データ）</dt><dd>${dj.fact||"―"}</dd>
  <dt>主な勝鞍</dt><dd>${dst.wins>0?`自厩舎で ${dst.wins}勝を挙げている`:"自厩舎での勝利はまだありません"}${dj.traits.includes("bigrace")?"／大レースでの実績が豊富":""}${dj.traits.includes("classic")?"／クラシック戦線に強い":""}</dd>
  <dt>特性</dt><dd>${dj.traits.map(x=>`<span class="trait plus">${JOCKEY_TRAITS[x]||x}</span>`).join(" ")}</dd>
  <dt>脚質・距離適性</dt><dd><div class="jgrid2" style="max-width:430px">
@@ -10523,7 +10735,7 @@ function renderJockey(){
   <div class="small" style="margin-top:4px">自厩舎での騎乗 ${st.rides}回／勝利 ${st.wins}回（タップで詳細）</div>
   <div class="mt"><button class="btn sm" data-main="${j.id}" ${fr>=60||j.tier==="B"||j.tier==="C"?"":"disabled"}>この騎手を主戦にする</button>${fr<60&&(j.tier==="S"||j.tier==="A")?`<span class="small"> 友好度60で主戦契約可</span>`:""}</div></div>`);
  });
- html+=panelHTML("jockey","list",`<p class="small">現役JRA騎手（2025年シーズンの実績ベース）。カードを押すと詳細が見られます。主戦契約は友好度60以上（S・A級）が必要です。</p><div class="hgrid">${pageSlice("jockList",jcards,6).join("")}</div>`+pagerHTML("jockList",jcards.length,6));
+ html+=panelHTML("jockey","list",`<p class="small">現役JRA騎手 全30名（2025年シーズンの実績ベース）。騎手名と「実績」はJRA公式等の公表実績に基づく実データ、総合力・適性・特性はゲーム内の換算値です。カードを押すと詳細が見られます。主戦契約は友好度60以上（S・A級）が必要です。</p><div class="hgrid">${pageSlice("jockList",jcards,6).join("")}</div>`+pagerHTML("jockList",jcards.length,6));
  el.innerHTML=html;
  el.querySelectorAll("[data-jock]").forEach(c=>c.addEventListener("click",e=>{ if(e.target.closest("button"))return; selJockey=+c.dataset.jock; UI.jockey="detail"; renderAll(); }));
  el.querySelectorAll("[data-main]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); if(!hh){alert2("馬がいません","先に馬を選んでください。");return;} if(hh.bondLv>=5&&traitOf(hh,"bondtrait")){ hh.traits=hh.traits.filter(x=>x!=="bondtrait"); hh.bond=0; hh.bondLv=0; } hh.jockey=+b.dataset.main; log(`${hh.name}の主戦を${JOCKEYS[+b.dataset.main].name}に変更`); renderAll(); }));
