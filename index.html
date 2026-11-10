@@ -1981,6 +1981,13 @@ html,body{ height:auto; overflow:visible; }
 .recchip{ display:inline-flex; align-items:baseline; gap:4px; background:var(--panel2); border:1.5px solid var(--line); border-radius:999px; padding:2px 9px; font-size:12px; font-weight:700; color:var(--ink2); }
 .recchip b{ font-size:13.5px; font-weight:900; color:var(--ink); }
 .recchip .winbar{ width:44px; margin:0 0 2px; align-self:center; }
+/* 成長段階チップ（成長期／最盛期／下降期／衰退期）：内部状態から判定し、名前の近くに置く */
+.gstage{ display:inline-block; font-size:11px; font-weight:800; border-radius:999px; padding:2px 9px; vertical-align:middle; white-space:nowrap; }
+.gstage.gs-grow{ background:#d7ecd9; color:#175c2c; }
+.gstage.gs-peak{ background:var(--gold); color:#241a00; }
+.gstage.gs-fade{ background:#f7ead0; color:#7a5410; }
+.gstage.gs-decline{ background:#f6d9d4; color:#8c241a; }
+@media (prefers-color-scheme: dark){ .gstage.gs-grow{ background:#234d2e; color:#a9e2b4; } .gstage.gs-fade{ background:#57451c; color:#f3d67b; } .gstage.gs-decline{ background:#5a2b25; color:#ffb4a6; } }
 .csub{ font-size:12px; font-weight:700; color:var(--ink2); margin-top:1px; }
 .csub b{ color:var(--ink); font-weight:900; }
 .earnbar{ display:block; height:6px; border-radius:3px; background:var(--line); margin-top:3px; overflow:hidden; max-width:130px; }
@@ -4072,6 +4079,28 @@ function growthFactor(age,gt){
   const t=T[gt]||T["早め"];
   return t[age]!==undefined?t[age]:(age<2?0.7:0.8);
 }
+/* 成長段階の判定（内部状態から）：
+   ・成長曲線 growthFactor の傾き（まだ上昇中か／ピークの1.0に到達したか／下降に転じたか）
+   ・年次処理の実ルール（ピーク年齢までは能力が微増し、7歳からは年ごとに能力が下がる）
+   ・潜在能力 pot と現在値の差（伸びしろが尽きていれば、曲線が若くても実質ピーク）
+   の3点を組み合わせ、見た目ではなくその馬の実際の段階を返す */
+function growthStage(h){
+  const age=clamp(Math.round(h.age||2),2,12);
+  const a8=Math.min(age,8);
+  const f=growthFactor(a8,h.growth);
+  const fNext=age<8?growthFactor(age+1,h.growth):f-0.05;
+  let room=null; /* 伸びしろ（主要5能力の pot−現在値 の平均）。pot を持たない馬は null */
+  if(h.pot){ const ks=["spd","sta","pow","bst","gut"].filter(k=>h.pot[k]!=null&&h[k]!=null); if(ks.length) room=ks.reduce((s,k)=>s+Math.max(0,h.pot[k]-h[k]),0)/ks.length; }
+  if(age>=7) return {k:"decline", n:"衰退期", d:"ピークを過ぎ、年齢とともに能力が下がり始めている時期です"};
+  if(f>=0.99) return {k:"peak", n:"最盛期", d:"成長曲線のピークに到達し、能力が最も充実している時期です"};
+  if(fNext>f){
+    if(room!==null&&room<=1) return {k:"peak", n:"最盛期", d:"潜在能力にほぼ到達し、ピークを迎えている時期です"};
+    return {k:"grow", n:"成長期", d:"まだ伸びしろがあり、能力が伸びていく時期です"};
+  }
+  if(room!==null&&room<=1&&f>=0.9) return {k:"peak", n:"最盛期", d:"潜在能力にほぼ到達し、ピークを迎えている時期です"};
+  return {k:"fade", n:"下降期", d:"ピークは過ぎましたが、年次で能力が下がるほどの衰えはまだ出ていない時期です"};
+}
+function growthChipHTML(h){ const s=growthStage(h); return `<span class="gstage gs-${s.k}" title="${s.d}">${s.n}</span>`; }
 function radarSVG(h){
   ensureFullHorse(h);
   const axes=[["スピード",h.spd],["スタミナ",h.sta],["パワー",h.pow],["瞬発力",h.bst],["根性",h.gut],["柔軟性",h.flx],["精神力",h.men],["賢さ",h.smt],["健康",h.hlt]];
@@ -4647,7 +4676,7 @@ function horseCard(h,extraBtns){
   const sel=S.selected===h.id?"sel":"";
   return `<div class="hcard ${sel}" data-hid="${h.id}">
     <div class="art">${horseArt(h)}</div>
-    <div class="top" style="margin-top:8px"><div><div class="hname">${esc(h.name)} <span class="badge">レーティング ${ratingOf(h)}</span></div>
+    <div class="top" style="margin-top:8px"><div><div class="hname">${esc(h.name)} <span class="badge">レーティング ${ratingOf(h)}</span> ${growthChipHTML(h)}</div>
     <div class="hmeta">${h.sex}${h.age}歳・${COATS[h.coat].n}・<span class="badge ${h.wins>=4?"g1":""}">${classLabel(h)}</span><br>
     父 ${esc(h.sire)}／母 ${esc(h.dam)}</div></div></div>
     ${recordTilesHTML(h)}
@@ -4664,7 +4693,7 @@ function horseMini(h){
   const nx= h.entry? `次走：${esc(h.entry.name)}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : h.injured>0? `故障休養中（あと${h.injured}週）` : "次走：未定";
   const wd= h.wPrev? h.weight-h.wPrev : 0;
   const cls= h.races===0? "新馬" : classLabel(h);
-  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${esc(h.name)}のイラスト"><div class="hr-main"><div class="hr-name">${esc(h.name)}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span><span class="cls-badge">${aimLabel(h)}</span></div><div class="hr-stat"><span class="seg">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span></span> <span class="seg"><span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</span></div>${recChipsHTML(h)}<div class="hr-stat">${nx}</div></div></div>`;
+  return `<div class="hrow ${S.selected===h.id?"sel":""}" data-hrow="${h.id}"><img src="${standSrc(h)}" alt="${esc(h.name)}のイラスト"><div class="hr-main"><div class="hr-name">${esc(h.name)}<span class="hr-sex">${h.sex}${h.age}歳</span><span class="cls-badge">${cls}</span><span class="cls-badge">${aimLabel(h)}</span>${growthChipHTML(h)}</div><div class="hr-stat"><span class="seg">馬体重 ${h.weight}kg（${wd>0?"+"+wd:wd}）<span class="wd-arw">${wd>0?"▲":wd<0?"▼":"―"}</span></span> <span class="seg"><span style="color:${cs.c}">●</span>${cs.t}（調子：${condTxt(h.cond)}／疲労：${fatTxt(h.fat)}）</span></div>${recChipsHTML(h)}<div class="hr-stat">${nx}</div></div></div>`;
 }
 /* ============ 次走提案（ベストな次走） ============
    「今週出られるレース」ではなく、今後12週の中からその馬にとってベストな1戦を探す。
@@ -5244,7 +5273,7 @@ function horseDetailHTML(h, sugs){
  }
  if(detailTab==="detail") body+=`<details class="fold"><summary>能力・適性・主戦騎手などをくわしく見る</summary><div class="foldbody">${sumHTML}</div></details><details class="fold"><summary>主戦騎手・脚質・馬名・勝負服を変更する</summary><div class="foldbody">${ctlHTML}</div></details>`;
  return `<h2 class="sec">馬詳細</h2><div class="panel">
- <div class="namebar"><span class="nb-name">${esc(h.name)}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span></div>
+ <div class="namebar"><span class="nb-name">${esc(h.name)}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span>${growthChipHTML(h)}</div>
  <div class="detail-art" style="margin-top:9px">${horseArt(h, true)}</div>
  ${recordTilesHTML(h)}
  <div class="hstat"><div class="hs-row"><span class="statechip"><span class="sdot" style="background:${condState.c}"></span>${condState.t}</span>${nextChipHTML(h)}</div>
