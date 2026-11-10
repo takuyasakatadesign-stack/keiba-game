@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アカウント | 競馬ゲーム</title>
+<style>
+  html,body{margin:0;padding:0;background:#fff;color:#3C3C3C;
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;}
+  .wrap{max-width:420px;margin:0 auto;padding:24px 16px 40px;}
+  h1{font-size:20px;font-weight:800;margin:8px 0 4px;}
+  p.lead{font-size:14px;color:#777;margin:0 0 20px;line-height:1.6;}
+  label{display:block;font-size:14px;font-weight:700;margin:18px 0 6px;}
+  input{display:block;width:100%;box-sizing:border-box;font-size:16px;
+    padding:12px;border:2px solid #E5E5E5;border-radius:12px;background:#fff;color:#3C3C3C;}
+  input:focus{border-color:#1CB0F6;outline:none;}
+  .btn{display:block;width:100%;box-sizing:border-box;margin-top:22px;
+    font-size:16px;font-weight:800;padding:14px 12px;border:none;border-radius:12px;
+    background:#58CC02;color:#fff;border-bottom:4px solid #58A700;cursor:pointer;}
+  .btn.sub{background:#1CB0F6;border-bottom-color:#1899D6;}
+  .btn:disabled{opacity:.5;}
+  .msg{margin-top:16px;font-size:14px;line-height:1.6;min-height:1.6em;}
+  .msg.err{color:#FF4B4B;font-weight:700;}
+  .msg.ok{color:#58A700;font-weight:700;}
+  .back{display:inline-block;margin-top:28px;font-size:15px;font-weight:700;color:#1CB0F6;text-decoration:none;}
+  .tabs{display:flex;gap:8px;margin-bottom:6px;}
+  .tab{flex:1;text-align:center;padding:10px;font-size:15px;font-weight:800;
+    border:2px solid #E5E5E5;border-radius:12px;background:#F7F7F7;cursor:pointer;}
+  .tab.on{background:#fff;border-color:#58CC02;color:#58A700;}
+  .note{font-size:12px;color:#999;margin-top:24px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>アカウント</h1>
+  <p class="lead">名前とパスワードで登録／ログインすると、どの端末でも同じセーブで続けられます。</p>
+
+  <div class="tabs">
+    <div class="tab on" id="tabReg">新規登録</div>
+    <div class="tab" id="tabLogin">ログイン</div>
+  </div>
+
+  <form id="f" autocomplete="on">
+    <label for="name">名前</label>
+    <input id="name" name="username" type="text" autocomplete="username"
+           autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="32">
+    <label for="pass">パスワード</label>
+    <input id="pass" name="password" type="password" autocomplete="new-password"
+           autocorrect="off" autocapitalize="none" spellcheck="false" maxlength="128">
+    <button class="btn" id="submit" type="submit">登録する</button>
+  </form>
+  <div class="msg" id="msg"></div>
+
+  <a class="back" href="/">← ゲームに戻る</a>
+  <p class="note">このページは軽量な専用ページです。登録／ログインが終わると自動でゲームに戻ります。</p>
+</div>
+<script>
+(function(){
+  var mode='register';
+  var tabReg=document.getElementById('tabReg'), tabLogin=document.getElementById('tabLogin');
+  var submit=document.getElementById('submit'), pass=document.getElementById('pass');
+  var nameEl=document.getElementById('name'), msg=document.getElementById('msg');
+  function trace(s){ try{ var i=new Image(); i.src='/api/trace?s='+encodeURIComponent(s)+'&_='+Date.now(); }catch(e){} }
+  function setMode(m){
+    mode=m;
+    tabReg.className='tab'+(m==='register'?' on':'');
+    tabLogin.className='tab'+(m==='login'?' on':'');
+    submit.textContent=(m==='register'?'登録する':'ログインする');
+    submit.className='btn'+(m==='login'?' sub':'');
+    pass.setAttribute('autocomplete', m==='register'?'new-password':'current-password');
+    msg.textContent=''; msg.className='msg';
+  }
+  tabReg.addEventListener('click',function(){ setMode('register'); });
+  tabLogin.addEventListener('click',function(){ setMode('login'); });
+  trace('acctpage_open');
+  document.getElementById('f').addEventListener('submit',function(ev){
+    ev.preventDefault();
+    var name=nameEl.value.trim(), pw=pass.value;
+    if(!name){ msg.textContent='名前を入力してください'; msg.className='msg err'; return; }
+    if(pw.length<4){ msg.textContent='パスワードは4文字以上にしてください'; msg.className='msg err'; return; }
+    submit.disabled=true; msg.textContent='送信中…'; msg.className='msg';
+    trace(mode==='register'?'submit_register':'submit_login');
+    fetch('/api/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:name,password:pw})})
+    .then(function(r){ return r.json().then(function(j){ return {status:r.status,j:j}; }); })
+    .then(function(res){
+      if(res.status>=200&&res.status<300&&res.j&&res.j.token){
+        trace('done');
+        try{
+          localStorage.setItem('kmg_token',res.j.token);
+          localStorage.setItem('kmg_name',res.j.name||name);
+          localStorage.setItem('kmg_acct_done','1');
+        }catch(e){}
+        msg.textContent='完了しました。ゲームに戻ります…'; msg.className='msg ok';
+        setTimeout(function(){ location.replace('/'); },400);
+      }else{
+        submit.disabled=false;
+        var e=(res.j&&res.j.error)||('エラー（'+res.status+'）');
+        msg.textContent=e; msg.className='msg err';
+        trace('acctpage_error');
+      }
+    })
+    .catch(function(){
+      submit.disabled=false;
+      msg.textContent='通信に失敗しました。電波の良い場所でもう一度お試しください';
+      msg.className='msg err';
+      trace('acctpage_error');
+    });
+  });
+})();
+</script>
+</body>
+</html>

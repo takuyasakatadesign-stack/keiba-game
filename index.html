@@ -2967,6 +2967,33 @@ function facRecommend(){
   });
   return out.sort((a,b)=>b.score-a.score||a.f.cost-b.f.cost);
 }
+/* 拡張のおすすめ：建設済みで最大Lv未満・工事中でなく、今の資金で拡張できる
+   施設から、効果カテゴリが一番弱い分野→費用が安い順で最優先を1件返す。
+   建設おまかせ（オート）と拡張の提案カードで共用する */
+function facUpCandidate(){
+  if(typeof S==="undefined"||!S) return null;
+  const cats=facCatTotals();
+  const cand=FACILITIES.filter(f=>{ const lv=facLv(f.id); return lv>0&&lv<(f.maxLv||2)&&facBuilding(f.id)===0&&S.funds>=f.upCost*lv; })
+    .sort((a,b)=>((cats[a.cat]||0)-(cats[b.cat]||0))||(a.upCost*facLv(a.id)-b.upCost*facLv(b.id)))[0];
+  return cand? {f:cand, lv:facLv(cand.id), cost:cand.upCost*facLv(cand.id)} : null;
+}
+/* オートの建設おまかせ実行：牧場長の推薦（facRecommend の最優先）で新規建設し、
+   候補が無ければ拡張のおすすめを拡張する。資金不足ならどちらも候補に
+   入らないため建てない。実行したら true、建てるものが無ければ false。
+   何を建てたかは log（記録・週報）に残す */
+function autoBuildFacility(){
+  const rec=facRecommend()[0];
+  if(rec){ const f=rec.f; if(S.funds<f.cost) return false;
+    S.funds-=f.cost; ledOut("build",f.cost); S.facilities[f.id]=1; S.building[f.id]=f.weeks;
+    log(`🤖 オート（建設おまかせ）：牧場長の推薦で施設「${f.n}」の建設を開始しました（${fmt(f.cost)}万円・${f.weeks}週）― ${rec.reasons[0]||""}`);
+    AUTO.label=`施設「${f.n}」を建設（おまかせ）`; return true; }
+  const up=facUpCandidate();
+  if(up){ const f=up.f; if(S.funds<up.cost) return false;
+    S.funds-=up.cost; ledOut("build",up.cost); S.facilities[f.id]=up.lv+1; S.building[f.id]=f.weeks;
+    log(`🤖 オート（建設おまかせ）：施設「${f.n}」を Lv.${up.lv+1} に拡張しました（${fmt(up.cost)}万円・${f.weeks}週）`);
+    AUTO.label=`施設「${f.n}」を拡張（おまかせ）`; return true; }
+  return false;
+}
 /* 経営の見通し：収入なし（賞金・売却なし）の保守試算で、週あたり支出
    （馬の維持費＋調教師費＋施設費＋融資返済）から n 週間後の資金と、
    資金ショートまでの週数を返す。雇用・建設の確認表示に使う */
@@ -10007,7 +10034,7 @@ const ACCT_KEY="keibaGemu_account";
    設定画面のアカウント欄に「前回は『○○』の段階で終了しました」と表示する。
    マーカーは危険な操作の直前に書く（フォーカスは focus イベントの先頭） */
 const ACCT_TRACE_KEY="keibaGemu_acctTrace";
-const ACCT_TRACE_LABELS={boot:"起動",settings_press:"設定ボタン押下",settings_open:"設定を開いた",acct_open:"アカウント画面を開いた",touch_name:"名前欄にタッチ",touch_pass:"パスワード欄にタッチ",focus_name:"名前欄にフォーカス",focus_pass:"パスワード欄にフォーカス",kbd_open:"キーボード表示",input_start:"入力開始",dialog_start:"ダイアログ入力開始",dialog_name:"ダイアログで名前を入力",dialog_pass:"ダイアログでパスワードを入力",dialog_cancel:"ダイアログをやめた",step_name:"1項目入力：名前を確定",step_pass:"1項目入力：パスワード表示",step_submit:"1項目入力で送信",submit_register:"登録ボタン押下",submit_login:"ログインボタン押下",sending:"送信",response:"応答受信",applied:"ログイン反映",cloud_push:"クラウド保存開始",done:"完了"};
+const ACCT_TRACE_LABELS={boot:"起動",settings_press:"設定ボタン押下",settings_open:"設定を開いた",acct_open:"アカウント画面を開いた",to_external:"別ページへ移動",ext_return:"別ページから復帰（ログイン）",touch_name:"名前欄にタッチ",touch_pass:"パスワード欄にタッチ",focus_name:"名前欄にフォーカス",focus_pass:"パスワード欄にフォーカス",kbd_open:"キーボード表示",input_start:"入力開始",dialog_start:"ダイアログ入力開始",dialog_name:"ダイアログで名前を入力",dialog_pass:"ダイアログでパスワードを入力",dialog_cancel:"ダイアログをやめた",step_name:"1項目入力：名前を確定",step_pass:"1項目入力：パスワード表示",step_submit:"1項目入力で送信",submit_register:"登録ボタン押下",submit_login:"ログインボタン押下",sending:"送信",response:"応答受信",applied:"ログイン反映",cloud_push:"クラウド保存開始",done:"完了"};
 let acctLastCrashStage="";
 /* マーカーは localStorage と Cookie の二重記録にする。iOS WebKit の
    localStorage はディスクへの書き戻しが非同期で、プロセスが即死すると
@@ -10108,6 +10135,10 @@ function liteMemoryRestore(){
   try{ loadHorseGLB(); }catch(e){} /* 解放した GLB は裏で読み直す。読み直し中・失敗時はプリミティブモデル→2Dに落ちる */
 }
 function openAcctScreen(){
+  /* 本番では未ログイン時の入口を軽量な別ページへ完全遷移させる（根本対策）。
+     ログイン済み画面（保存・読み込み・ログアウト）には入力欄が無く対象外。
+     遷移に失敗した場合のみ、従来の同一文書内の専用画面へフォールバックする */
+  if(acctIsProdHost()&&!acctGet()){ if(acctGoExternal()) return; }
   acctTrace("acct_open");
   acctVVArm();
   liteMemoryRelease();
@@ -10127,7 +10158,7 @@ function closeAcctScreen(){
 function renderAcctLauncher(){ const box=$("#acct-box"); if(!box) return; const a=acctGet();
   box.innerHTML=`<div class="panel" style="text-align:left"><b>☁️ アカウント（クラウド保存）</b>${acctCrashNoteHTML()}
   <p class="small" style="margin:6px 0">${a? `ログイン中：<b>${esc(a.name)}</b> さん。保存・読み込み・ログアウトは専用のアカウント画面で行います。` : "名前とパスワードで登録・ログインすると、セーブがサーバーに保存され、どの端末でも続きから遊べます。"}</p>
-  <button class="btn gold" id="acct-open" style="width:100%;min-height:52px">アカウント画面を開く</button>
+  <button class="btn gold" id="acct-open" style="width:100%;min-height:52px">${(!a&&acctIsProdHost())?"アカウント画面を開く（軽量ページへ移動）":"アカウント画面を開く"}</button>
   <p class="small" id="acct-launcher-msg" style="color:#ff4b4b;font-weight:700;margin:6px 0 0">${esc(acctMsg)}</p></div>`;
   const b=$("#acct-open"); if(b){ b.addEventListener("pointerdown",()=>acctTrace("acct_open"),{passive:true}); b.addEventListener("click",()=>openAcctScreen()); } }
 const acctBackBtn=$("#acct-back"); if(acctBackBtn) acctBackBtn.addEventListener("click",()=>closeAcctScreen());
@@ -10158,6 +10189,70 @@ function acctWaitSafe(){ return new Promise(res=>{ let n=0; const chk=()=>{ if(!
 document.addEventListener("focusout",()=>{ if(acctPendingRender) scheduleAcctRender(); });
 function acctGet(){ try{ const a=JSON.parse(localStorage.getItem(ACCT_KEY)||"null"); return (a&&a.name&&a.token)?a:null; }catch(e){ return null; } }
 function acctSet(a){ try{ if(a) localStorage.setItem(ACCT_KEY, JSON.stringify(a)); else localStorage.removeItem(ACCT_KEY); }catch(e){} }
+/* ============ 別文書（軽量ページ /account.html）への完全遷移 ============
+   iPad Safari で名前欄フォーカスの瞬間にアプリが終了する事象は、メモリ上限
+   （jetsam）が本命で、同一文書内での WebGL 破棄・DOM 非表示ではメモリを
+   取り戻しきれないことが分かった。根本対策として、本番（Vercel）では
+   登録／ログインを同一文書内の専用画面ではなく、軽量な別文書
+   /account.html へ通常の画面遷移（location 遷移）で移動する。ゲーム本体の
+   文書ごと破棄されるため、入力欄フォーカス時点のメモリは軽量ページ単体分
+   だけで済む。/account.html が存在しない環境（Museカード内など）では
+   従来の同一文書内の専用画面をフォールバックとして使う。
+   契約：account.html は認証成功時に localStorage へ
+   kmg_token / kmg_name / kmg_acct_done=1 を保存してからゲーム（/）へ戻る。
+   ゲーム起動時にそれを取り込み、ログイン直後の処理を通常どおり行う */
+function acctIsProdHost(){ try{ const h=(location.hostname||""); return h==="keiba-game-takuyasakatadesign-6073s-projects.vercel.app"||/\.vercel\.app$/.test(h); }catch(e){ return false; } }
+function acctGoExternal(){
+  /* 未保存の変更があれば先にローカル保存してから遷移する（セーブ本体は
+     ローカル保存済みのものを使うため、追加の退避は不要） */
+  try{ if(typeof booted!=="undefined"&&booted) saveAuto(true); }catch(e){}
+  try{ acctTrace("to_external"); }catch(e){}
+  try{ localStorage.setItem("kmg_acct_flow","1"); }catch(e){}
+  try{ location.assign("/account.html"); return true; }catch(e){ return false; }
+}
+let acctExtLoginPending=false;
+/* 起動時：別ページ認証からの復帰を取り込む。認証情報があれば従来の内部
+   保存キー（ACCT_KEY）へ移し、受け渡し用キーは消す。kmg_acct_flow だけが
+   残っていて認証情報が無い場合は、認証せずに戻ってきたものとして旗だけ消す */
+function acctImportExternalSession(){
+  let done=null, token=null, name=null, flow=null;
+  try{ done=localStorage.getItem("kmg_acct_done"); token=localStorage.getItem("kmg_token"); name=localStorage.getItem("kmg_name"); flow=localStorage.getItem("kmg_acct_flow"); }catch(e){ return false; }
+  if(done==="1"&&token){
+    acctSet({name:name||"アカウント", token:token});
+    try{ localStorage.removeItem("kmg_acct_done"); localStorage.removeItem("kmg_acct_flow"); localStorage.removeItem("kmg_token"); localStorage.removeItem("kmg_name"); }catch(e){}
+    try{ acctTrace("ext_return"); acctTrace("applied"); }catch(e){}
+    acctExtLoginPending=true;
+    return true;
+  }
+  if(flow||done){ try{ localStorage.removeItem("kmg_acct_flow"); localStorage.removeItem("kmg_acct_done"); }catch(e){} }
+  return false;
+}
+/* 別ページでログインして戻ってきた直後の処理（同一文書内ログインの
+   acctDoAuth と同じ流れ）：クラウドにセーブがあれば読み込みを提案し、
+   無ければ今のデータをクラウドへ保存する */
+async function acctPostExternalLogin(){
+  const a=acctGet(); if(!a) return;
+  acctMsg="";
+  try{
+    const r=await acctApi("/api/load",{},a.token);
+    if(r.status===401){ acctSet(null); acctMsg="ログインが切れました。もう一度ログインしてください"; toast(acctMsg); return; }
+    cloudAvail=true;
+    const acc=acctGet(); if(acc&&r.data&&r.data.updatedAt){ acc.cloudAt=r.data.updatedAt; acctSet(acc); }
+    const sv=acctParseSave(r.data&&r.data.save);
+    if(sv){ confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ try{ acctTrace("done"); acctLastCrashStage=""; }catch(e){} try{ renderAcctLauncher(); }catch(e){} }); }
+    else { toast("ログインしました"); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; } }); }
+  }catch(e){ cloudAvail=false; toast("ログインしました（クラウドには接続できませんでした）"); }
+}
+/* 起動直後の「つづきから」画面などが閉じてから、ログイン直後処理を始める */
+function acctScheduleExternalLogin(){ if(!acctExtLoginPending) return; let n=0;
+  const chk=()=>{ if(!acctExtLoginPending) return;
+    const ov=$("#overlay"); const open=!!(ov&&ov.style.display!=="none"&&ov.style.display!=="");
+    let ready=false; try{ ready=!!booted&&!open; }catch(e){}
+    if(ready){ acctExtLoginPending=false; acctPostExternalLogin(); return; }
+    if(++n>150){ acctExtLoginPending=false; return; }
+    setTimeout(chk,800); };
+  setTimeout(chk,600);
+}
 async function acctApi(path, body, token){
   const ctl=("AbortController" in window)? new AbortController():null;
   const to=ctl? setTimeout(()=>ctl.abort(), 9000):null;
@@ -10968,6 +11063,11 @@ function buildGuide(){
   const buildable=recG? recG.f : FACILITIES.filter(f=>facLv(f.id)===0&&facBuilding(f.id)===0&&f.cost<=S.funds).sort((a,b)=>a.cost-b.cost)[0];
   if(sp.free>0&&buildable){
     cards.push({key:"fac"+buildable.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースに空きがあります。⭐おすすめは「${buildable.n}」（${fmt(buildable.cost)}万円・${buildable.cat}効果）：${recG? recG.reasons[0] : ""}`, btn:"施設を見る", act:"facility", fid:buildable.id});
+  } else if(sp.free>0&&facUpCandidate()){
+    /* 新規建設の候補が無いときは拡張のおすすめを提案する（オートの建設
+       おまかせがこのカード経由で拡張も実行できるようにするため） */
+    const upc=facUpCandidate();
+    cards.push({key:"facup"+upc.f.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`拡張のおすすめは「${upc.f.n}」を Lv.${upc.lv+1} に拡張（${fmt(upc.cost)}万円・${upc.f.cat}効果）`, btn:"施設を見る", act:"facility", fid:upc.f.id, up:true});
   } else if(sp.free<=0){
     /* 満杯のときの提案：基本施設（面積）が未建設ならそれを勧め、
        建設済みなら名声を上げる道を示す（名声5ごとに+1で必ず広がる） */
@@ -11240,6 +11340,10 @@ function autoCfg(){
      開催週で止まる、と一致させる） */
   const saleLegacy = typeof S.autoCfg.stopSale==="boolean" ? S.autoCfg.stopSale : true;
   ["stopSaleYoung","stopSaleMare","stopSaleOverseas"].forEach(k=>{ if(typeof S.autoCfg[k]!=="boolean") S.autoCfg[k]=saleLegacy; });
+  /* 建設おまかせ（facOmakase）：ONのときオート中は施設で止まらず、牧場長の
+     推薦どおりに建設・拡張を自動実行する。旧セーブには無いので既定はOFF
+     （従来どおり停止条件・施設に従う） */
+  if(typeof S.autoCfg.facOmakase!=="boolean") S.autoCfg.facOmakase=false;
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12,24,36,48].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
@@ -11433,6 +11537,9 @@ function autoCardAction(c,cfg){
     return {type:"stop", reason:"出走週です。作戦を決めてレースへ進んでください"};
   }
   if(c.act==="facility"){
+    /* 建設おまかせONのときは、停止条件（施設）より優先して止まらずに、
+       牧場長の推薦どおり建設・拡張を自動実行する（資金不足なら建てない） */
+    if(cfg.facOmakase){ return {type:"run", label:"施設の建設・拡張（おまかせ）", run:()=>{ if(!autoBuildFacility()) AUTO.skip[c.key+"@"+S.week]=1; }}; }
     /* 停止条件ONのときだけ止まってプレイヤーの判断を待つ */
     if(cfg.stopFacility){ const rt=facRecommend()[0]; return {type:"stop", reason: rt? `施設の建設提案があります（停止条件：施設）。⭐おすすめは「${rt.f.n}」（${fmt(rt.f.cost)}万円・${rt.f.cat}効果）：${rt.reasons[0]||""}` : "施設の建設提案があります（停止条件：施設）。内容を確認してください"}; }
     /* 停止条件OFFの場合は、止まらないだけでなく建設もしない：
@@ -11624,10 +11731,12 @@ function showAutoSettings(){
   ${tog("stopSaleMare","10月第1週・繁殖牝馬セールで止まる")}
   ${tog("stopSaleOverseas","12月第3週・海外トレーニングセールで止まる")}
   <p class="small mt">🌱 種付け（5〜6月）は停止条件の対象外です：オート中は止まらず、調教師の配合提案（相馬眼が高い調教師ほど評価の高い配合を提案）どおりに自動で種付けを登録して、そのまま進行します。</p>
-  ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します）")}
+  ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します。建設おまかせONのときはそちらが優先されます）")}
+  <div class="ticket"><b>オート中は建設をおまかせにする</b><div class="mt"><label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="auto-fac-omakase" ${cfg.facOmakase?"checked":""} style="width:22px;height:22px;flex:none;margin:0"> <span>ONにすると、オート中は施設で止まらず、牧場長の推薦どおりに建設・拡張を自動で実行します（資金が不足する場合は建てません）。何を建てたかは記録に残ります</span></label></div></div>
   ${tog("stopFinance","資金繰りの相談（融資・スポンサー）で止まる（OFFの場合はスキップして続行）")}
   </div></div><div class="ov-foot"><button class="btn ghost" id="auto-set-close">閉じる</button><button class="btn gold" id="auto-set-start">この条件でオート開始</button></div>`);
   document.querySelectorAll("[data-autog]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.autog; S.autoCfg[k]=!autoCfg()[k]; saveAuto(true); showAutoSettings(); }));
+  const fo=$("#auto-fac-omakase"); if(fo) fo.addEventListener("change",e=>{ S.autoCfg.facOmakase=!!e.target.checked; saveAuto(true); });
   const aw=$("#auto-weeks"); if(aw) aw.addEventListener("change",e=>{ S.autoCfg.weeks=+e.target.value; saveAuto(true); });
   const ar=$("#auto-racestop"); if(ar) ar.addEventListener("change",e=>{ S.autoCfg.raceStop=e.target.value; S.autoCfg.stopRace=e.target.value!=="none"; saveAuto(true); });
   const af=$("#auto-funds"); if(af) af.addEventListener("change",e=>{ S.autoCfg.fundsMin=+e.target.value; saveAuto(true); });
@@ -11783,11 +11892,14 @@ window.addEventListener("resize",()=>{ if(raceState.phase==="run"&&raceState.sim
 log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月開始なので、デビューは6月の新馬戦から。それまでは調教で仕上げよう");
 /* 起動：セーブがあれば「つづきから／はじめから」を選ぶ */
 (function boot(){
+  /* 別ページ（/account.html）で認証して戻ってきた場合は、まずセッションを
+     取り込む。「別ページへ移動」は正常な遷移なので、落ちた段階としては扱わない */
+  try{ acctImportExternalSession(); }catch(e){}
   /* 前回のアカウント操作が未完了のまま終わっていたら（＝途中でアプリが
      落ちた可能性）、落ちた段階を覚えておき、設定画面で表示する */
   try{ let t=null; try{ t=window.__prevAcctTrace||null; }catch(e){}
     if(!t){ const r=acctTraceRead(); if(r&&r.stage&&r.stage!=="boot") t=r; } /* 先行スクリプトが書いた今回の boot は前回分ではない */
-    if(t&&t.stage&&t.stage!=="done") acctLastCrashStage=t.stage; }catch(e){}
+    if(t&&t.stage&&t.stage!=="done"&&!(acctExtLoginPending&&t.stage==="to_external")) acctLastCrashStage=t.stage; }catch(e){}
   /* モーダルの開閉を監視し、表示中は body.ov-open を付ける（CSS 側で背後の
      アプリ全体を不可視にし、合成・アニメーションを止める）。閉じ方は
      呼び出し側ごとに異なる（style.display の直接変更）ため、属性監視で
@@ -11848,6 +11960,9 @@ log("厩舎を開業。新馬アオイソラ1頭でスタート。2歳戦は6月
     $("#boot-new").addEventListener("click",()=>{ booted=true; $("#overlay").style.display="none"; renderAll(); });
     renderAll();
   } else { booted=true; renderAll(); }
+  /* 別ページ認証から復帰した場合は、ログイン直後の処理（クラウドセーブの
+     読み込み提案・以降のクラウド保存）を通常どおり行う */
+  try{ acctScheduleExternalLogin(); }catch(e){}
   /* 前回セッションが途中で終了していたら、設定を開かなくても分かるよう、
      起動直後の厩舎画面の上部に落ちた段階をバナー表示する */
   if(acctLastCrashStage){ try{ const lb=ACCT_TRACE_LABELS[acctLastCrashStage]||acctLastCrashStage;
