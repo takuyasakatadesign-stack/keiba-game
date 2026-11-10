@@ -8075,9 +8075,17 @@ function poseGLBHorse(P, cyc, push){
   if(P.torsoG){ P.torsoG.rotation.z=(push?-0.90:-0.80)+0.045*Math.sin(cyc*Math.PI*2-0.9); }
 }
 loadHorseGLB();
+/* iPad級（タッチ＋大画面）判定：acctIsIPadClass と同じ基準（UA・タッチ点数・画面短辺）。
+   該当端末では描画解像度とシャドウマップを抑え、GPUメモリと負荷を削減する */
+function glIsIPadClass(){ try{ if(typeof acctIsIPadClass==="function") return acctIsIPadClass(); }catch(e){}
+  try{ if(/iPad/.test(navigator.userAgent||"")) return true;
+    const mt=navigator.maxTouchPoints||0; const mn=Math.min(screen.width||9999, screen.height||9999);
+    return mt>1 && mn>=600; }catch(e){ return false; } }
 function buildGL(cv){
+  const ipadCls=glIsIPadClass();
   const renderer=new THREE.WebGLRenderer({canvas:cv, antialias:true});
-  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  /* pixelRatio上限：iPad級は1.5（Retina実解像度2.0比でフレームバッファ系メモリ約44%減）、その他は従来どおり2 */
+  renderer.setPixelRatio(Math.min(ipadCls?1.5:2,window.devicePixelRatio||1));
   renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
   renderer.outputEncoding=THREE.sRGBEncoding;
   const scene=new THREE.Scene();
@@ -8086,7 +8094,7 @@ function buildGL(cv){
   const camera=new THREE.PerspectiveCamera(42, 1.6, 0.1, 600);
   const hemi=new THREE.HemisphereLight(0xd6ecff, 0x527a3c, 0.8); scene.add(hemi);
   const sun=new THREE.DirectionalLight(0xfff1d6, 1.1);
-  sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+  sun.castShadow=true; sun.shadow.mapSize.set(ipadCls?1024:2048,ipadCls?1024:2048);
   sun.shadow.camera.left=-46; sun.shadow.camera.right=46; sun.shadow.camera.top=34; sun.shadow.camera.bottom=-20; sun.shadow.camera.far=140;
   sun.shadow.bias=-0.0006;
   scene.add(sun); scene.add(sun.target);
@@ -8137,15 +8145,24 @@ function buildGL(cv){
   const points=new THREE.Points(pGeo,pMat); points.frustumCulled=false; scene.add(points);
   GL={cv, renderer, scene, camera, sun, ground, grassTex, dirtTex, groundGrassTex, groundDirtTex, trackGrassTex, trackDirtTex, backdrop, farTex, courseG, horses:new Map(), key:"", camPos:new THREE.Vector3(-8,3.2,11), parts:[], pPos, pGeo, pMat, fpsEMA:60, tier:0, lowT:0, lastFpsUp:0,
       detail:(cv.clientWidth<520?12:18)};
+  try{ const st=(window.__GLSTAT=window.__GLSTAT||{created:0,disposed:0}); st.created++; st.lastInfo={geo:0,tex:0,prog:0}; }catch(e){}
   return GL;
 }
 function ensureGL(){
   const cv=$("#racegl"); if(!cv||!window.THREE||GLbroken) return false;
   if(GL&&GL.cv===cv) return true;
+  /* キャンバス要素が差し替わっていたら、旧レンダラー（旧キャンバスに紐づき破棄されないと
+     GPU側に残り続ける）を先に完全破棄してから作り直す（レースごとの積み上がり対策） */
+  if(GL){ try{ teardownGL(true); }catch(e){ GL=null; } }
   try{ buildGL(cv); return !!GL; }catch(e){ GL=null; return false; }
 }
 function rebuildGLCourse(r){
-  const g=GL.courseG; while(g.children.length) g.remove(g.children[0]);
+  const g=GL.courseG;
+  /* 旧コースのジオメトリ／マテリアル／Canvasテクスチャを破棄してから外す。
+     外すだけではGPU側に残り、レースごとに積み上がる。共有テクスチャ
+     （馬場・地面など buildGL で作る常駐分）は disposeObj3D の skip で守る */
+  try{ disposeObj3D(g, glSharedTexSet(GL), null); }catch(e){}
+  while(g.children.length) g.remove(g.children[0]);
   const P=buildRacePath(r);
   const postMat=new THREE.MeshStandardMaterial({color:0xe8e8e2, roughness:0.5});
   const redMat=new THREE.MeshStandardMaterial({color:0xc22f24, roughness:0.5});
@@ -8401,7 +8418,13 @@ function rebuildGLCourse(r){
   }
 }
 function rebuildGLHorses(){
-  GL.horses.forEach(P=>GL.scene.remove(P.root)); GL.horses.clear();
+  /* 前レースの馬モデルを破棄してから外す（外すだけではジオメトリ／マテリアル／
+     ゼッケンCanvasテクスチャがGPU側に残る）。GLB原典と共有するジオメトリは守る */
+  const skipG=glbSourceGeos();
+  GL.horses.forEach(P=>{ try{ if(P.mixer){ P.mixer.stopAllAction(); if(P.mixer.uncacheRoot) P.mixer.uncacheRoot(P.root); } }catch(e){}
+    try{ disposeObj3D(P.root, glSharedTexSet(GL), skipG); }catch(e){}
+    GL.scene.remove(P.root); });
+  GL.horses.clear();
   const r=raceState.race; if(!r) return;
   raceState.sim.all.forEach(h=>{
     let P=null;
@@ -9139,13 +9162,24 @@ function spriteKey(h,frame,push,dirt){
   const sk=silkOf(h);
   return [h.coat, sk.c1, sk.c2, sk.pat, h._gate, frame, push?1:0, dirt?1:0].join("|");
 }
+/* スプライトキャンバスは1枚約0.6MBのバックストアを持つため、レースを跨いで
+   溜め続けるとキャンバスメモリ上限に近づく。前レース分はレース開始時に解放する
+   （幅・高さを0にしてバックストアも手放す） */
+function clearSpriteCache(){
+  spriteCache.forEach(cv=>{ try{ if(cv){ cv.width=0; cv.height=0; } }catch(e){} });
+  spriteCache.clear();
+}
 function getHorseSprite(h,frame,push,dirt){
   const key=spriteKey(h,frame,push,dirt);
   let cv=spriteCache.get(key);
-  if(!cv){ cv=composeSheetSprite(h,frame)||renderHorseSprite(h,frame,push,dirt); spriteCache.set(key,cv); }
+  if(!cv){ cv=composeSheetSprite(h,frame)||renderHorseSprite(h,frame,push,dirt); spriteCache.set(key,cv);
+    /* 安全網：想定を超えて増えたら古いものから解放する（1レース最大288枚＋予備） */
+    if(spriteCache.size>384){ let n=spriteCache.size-384;
+      for(const [k2,c2] of spriteCache){ if(n--<=0) break; try{ if(c2){ c2.width=0; c2.height=0; } }catch(e){} spriteCache.delete(k2); } } }
   return cv;
 }
 function preRenderRaceSprites(all,dirt){
+  clearSpriteCache();
   all.forEach(h=>{ for(let f=0;f<8;f++){ getHorseSprite(h,f,false,dirt); getHorseSprite(h,f,true,dirt); } });
 }
 function renderHorseSprite(h,frame,push,dirt){
@@ -9492,6 +9526,10 @@ function gainGauge(h, amt, fromRace){
 }
 function finishRace(){
   if(raceState.done)return; raceState.done=true; raceState.phase="done";
+  /* レース終了：3Dは結果画面では使わないため、ここでレンダラーごと完全破棄する
+     （旧仕様では破棄されず、レースごとにGPU側の保持が積み上がっていた）。
+     精算（賞金・記録・エントリー消化）を止めないよう、失敗しても握り潰す */
+  try{ teardownGL(); }catch(e){}
   /* 二重発生防止：同じレース（週＋レースID＋出走馬）が既に精算済みなら
      再実行しない（レース中断→再読み込み→再観戦でも賞金・払戻は1回だけ）。
      ただしキーは「今回の startRace 実行」単位にする：条件戦のレースIDは週内で
@@ -10108,17 +10146,62 @@ function acctCrashNoteHTML(){ if(!acctLastCrashStage) return "";
    開く時点で (1) WebGL コンテキストを破棄し (2) GLB モデルを解放し
    (3) 全画像のデコードを解放し (4) BGM を止め (5) #app を display:none
    にして描画ツリーから外す。閉じれば元に戻る（GLB は再読み込みする） */
-function teardownGL(){ try{
-  if(typeof raceState!=="undefined"&&raceState&&raceState.phase==="run") return; /* レース中は触らない */
+/* ============ 3Dリソース破棄（レースごとの保持量ラチェット対策） ============
+   Three.js の GPU リソースは GC では解放されない。scene から外すだけ・
+   material.dispose() だけでは足りず、ジオメトリ／全テクスチャスロット／
+   レンダーターゲットを個別に破棄する必要がある。 */
+/* buildGL で作る常駐テクスチャ（レースを跨いで使い回す分）の集合 */
+function glSharedTexSet(g){ const s=new Set(); if(!g) return s;
+  [g.grassTex,g.dirtTex,g.groundGrassTex,g.groundDirtTex,g.trackGrassTex,g.trackDirtTex,g.farTex].forEach(t=>{ if(t) s.add(t); });
+  if(g.pMat&&g.pMat.map) s.add(g.pMat.map);
+  return s; }
+/* GLB原典（クローン元の共有ジオメトリ）の集合。馬クローン破棄時に原典を壊さないため */
+function glbSourceGeos(){ const s=new Set();
+  try{ const vs=(typeof GLB_STATE!=="undefined"&&GLB_STATE.variants)||{};
+    Object.keys(vs).forEach(k=>{ const st=vs[k]; if(st&&st.scene) st.scene.traverse(o=>{ if(o.geometry) s.add(o.geometry); }); });
+  }catch(e){}
+  return s; }
+/* サブツリー内の全リソースを破棄する。skipTex / skipGeo に入れた共有リソースは守る。
+   テクスチャはマテリアルの全スロット（map 以外の envMap 等も含む）を走査する */
+function disposeObj3D(root, skipTex, skipGeo){ if(!root) return;
+  const seenG=new Set(), seenM=new Set(), seenT=new Set();
+  root.traverse(o=>{ try{
+    if(o.geometry&&!seenG.has(o.geometry)){ seenG.add(o.geometry);
+      if(!(skipGeo&&skipGeo.has(o.geometry))){ try{ o.geometry.dispose(); }catch(e){} } }
+    if(o.isInstancedMesh&&typeof o.dispose==="function"){ try{ o.dispose(); }catch(e){} }
+    const ms=Array.isArray(o.material)? o.material : (o.material? [o.material] : []);
+    ms.forEach(m=>{ if(!m||seenM.has(m)) return; seenM.add(m);
+      try{ Object.keys(m).forEach(k=>{ const v=m[k]; if(v&&v.isTexture&&!seenT.has(v)){ seenT.add(v);
+        if(!(skipTex&&skipTex.has(v))){ try{ v.dispose(); }catch(e){}
+          /* ImageBitmap が裏にあるテクスチャは close() までしないと解放されない */
+          if(v.image&&typeof v.image.close==="function"){ try{ v.image.close(); }catch(e){} } } } }); }catch(e){}
+      try{ m.dispose(); }catch(e){}
+    });
+  }catch(e){} });
+}
+/* レンダラーごと完全破棄する。force=true の時だけレース中でも実行する
+   （キャンバス差し替え時：旧キャンバスは既に画面から外れており残す意味がない）。
+   本体シーンの破棄に加え、シャドウマップ等のレンダーターゲット、レンダーリスト、
+   プログラムキャッシュを解放し、最後にコンテキスト喪失で GPU 側を手放す */
+function teardownGL(force){ try{
+  if(!force&&typeof raceState!=="undefined"&&raceState&&raceState.phase==="run") return; /* レース中は触らない */
   if(!GL) return; const g=GL; GL=null;
-  try{ if(g.scene) g.scene.traverse(o=>{ try{ if(o.geometry) o.geometry.dispose(); const ms=Array.isArray(o.material)? o.material : (o.material? [o.material] : []); ms.forEach(m=>{ try{ Object.keys(m).forEach(k=>{ const v=m[k]; if(v&&v.isTexture) v.dispose(); }); m.dispose(); }catch(e){} }); }catch(e){} }); }catch(e){}
+  try{ const st=(window.__GLSTAT=window.__GLSTAT||{created:0,disposed:0});
+    if(g.renderer&&g.renderer.info) st.lastInfo={geo:g.renderer.info.memory.geometries, tex:g.renderer.info.memory.textures, prog:(g.renderer.info.programs||[]).length};
+    st.disposed++; }catch(e){}
+  try{ if(g.horses) g.horses.forEach(P=>{ try{ if(P.mixer){ P.mixer.stopAllAction(); if(P.mixer.uncacheRoot) P.mixer.uncacheRoot(P.root); } }catch(e){} }); }catch(e){}
+  try{ if(g.scene) disposeObj3D(g.scene, null, glbSourceGeos()); }catch(e){}
+  try{ if(g.sun&&g.sun.shadow&&g.sun.shadow.map){ g.sun.shadow.map.dispose(); g.sun.shadow.map=null; } }catch(e){}
+  try{ if(g.renderer&&g.renderer.renderLists) g.renderer.renderLists.dispose(); }catch(e){}
   try{ if(g.horses) g.horses.clear(); }catch(e){}
   try{ g.renderer.dispose(); }catch(e){}
-  try{ const c2=g.renderer.getContext(); const ext=c2&&c2.getExtension("WEBGL_lose_context"); if(ext) ext.loseContext(); }catch(e){}
+  try{ if(typeof g.renderer.forceContextLoss==="function") g.renderer.forceContextLoss();
+    else { const c2=g.renderer.getContext(); const ext=c2&&c2.getExtension("WEBGL_lose_context"); if(ext) ext.loseContext(); } }catch(e){}
+  try{ if(g.cv){ g.cv.width=0; g.cv.height=0; } }catch(e){} /* キャンバスのバックストアも手放す */
 }catch(e){ try{ GL=null; }catch(e2){} } }
 function releaseGLBAssets(){ try{
   const vs=(typeof GLB_STATE!=="undefined"&&GLB_STATE.variants)||{};
-  Object.keys(vs).forEach(k=>{ const st=vs[k]; if(st&&st.scene){ try{ st.scene.traverse(o=>{ try{ if(o.geometry) o.geometry.dispose(); const ms=Array.isArray(o.material)? o.material : (o.material? [o.material] : []); ms.forEach(m=>{ try{ if(m.map) m.map.dispose(); m.dispose(); }catch(e){} }); }catch(e){} }); }catch(e){} } });
+  Object.keys(vs).forEach(k=>{ const st=vs[k]; if(st&&st.scene){ try{ disposeObj3D(st.scene, null, null); }catch(e){} } });
   if(typeof GLB_STATE!=="undefined"){ GLB_STATE.variants={}; GLB_STATE.anyReady=false; }
 }catch(e){} }
 let liteStrippedImgs=[];
