@@ -2031,12 +2031,12 @@ html,body{ height:auto; overflow:visible; }
 .aw-info dl{ margin:0; }
 .aw-info .aw-row{ display:flex; gap:10px; padding:4.5px 0; border-bottom:1px solid rgba(243,233,210,.12); font-size:13.5px; }
 .aw-info .aw-row:last-child{ border-bottom:none; }
-.aw-info dt{ flex:0 0 86px; color:#e8cf8a; font-weight:800; }
+.aw-info dt{ flex:0 0 86px; color:#e8cf8a; font-weight:800; white-space:nowrap; }
 .aw-info dd{ margin:0; flex:1; }
 .aw-nav{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
 .aw-votes{ margin-top:8px; border-top:1.5px solid rgba(201,162,39,.5); padding-top:6px; }
 .aw-people{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
-@media (max-width:560px){ .aw-hname{ font-size:20px; } .aw-info dt{ flex-basis:74px; } }
+@media (max-width:560px){ .aw-hname{ font-size:20px; } .aw-info .aw-row{ font-size:12.5px; } .aw-info dt{ flex-basis:78px; } }
 .gstage.gs-grow{ background:#d7ecd9; color:#175c2c; }
 .gstage.gs-peak{ background:var(--gold); color:#241a00; }
 .gstage.gs-fade{ background:#f7ead0; color:#7a5410; }
@@ -5257,6 +5257,12 @@ function traitChipsHTML(h){
    const ev=EVO[id]; const prog=ev&&!traitOf(h,ev.up)?` 進化 ${Math.min(3,h.evoProg[id]||0)}/3`:"";
    return `<span class="${cls}" title="${d.d}">${d.n}${prog}</span>`; }).join(" ") || "なし";
 }
+/* 上位進化の「次に必要な行動」の見える化（UX低-3）：進化先・手段・進捗を馬詳細に出す */
+function evoHintsHTML(h){
+  if(!h||!h.evoProg) return "";
+  const rows=(h.traits||[]).filter(id=>EVO[id]&&!traitOf(h,EVO[id].up)).map(id=>{ const ev=EVO[id]; const tr=(TRAINS.find(x=>x.id===ev.train)||{}).n||ev.train; const prog=Math.min(3,h.evoProg[id]||0); return `<div class="small">⬆ <b>${traitName(id)}</b> → <b>${traitName(ev.up)}</b>：${tr}の実施、または特性が活きるレースでの勝利で進化（進捗 ${prog}/3・あと${3-prog}）</div>`; });
+  return rows.length? `<div class="mt">${rows.join("")}</div>` : "";
+}
 const ABS9=[["spd","スピード"],["sta","スタミナ"],["pow","パワー"],["bst","瞬発力"],["gut","勝負根性"],["flx","柔軟性"],["men","精神力"],["smt","賢さ"],["hlt","健康"]];
 function condTxt(c){ return c>=75?"絶好調":c>=55?"好調":c>=40?"普通":"不調"; }
 /* ============ 馬体重パラメーター ============
@@ -5377,7 +5383,7 @@ function horseDetailHTML(h, sugs){
    body=`<div class="radarwrap"><h3 style="margin:0 0 4px">能力レーダー（ランク付き）</h3>${radarSVG(h)}</div>
    <details class="fold"><summary>能力の数値・特性をくわしく見る</summary><div class="foldbody"><div class="mt">${ABS9.map(([k,n])=>`<div class="stat"><span class="lb">${n}</span><span class="bar"><i style="width:${h[k]}%"></i></span><b>${h[k]}</b><span class="rankmark rank${statRank(h[k])}">${statRank(h[k])}</span><span>${shoeHTML(h.gauges?h.gauges[k]||0:0)} <span class="small">${Math.round(h.gauges?h.gauges[k]||0:0)}%</span></span></div>`).join("")}
    <p class="small">蹄鉄アイコンは育成度（5つ満タンで能力+1）。上位特性 ${countUpper(h)}/${upperCap()}（信頼で変動）／特性 合計 ${h.traits.length}/${TRAIT_MAX}</p></div>
-   <h3 style="margin:8px 0 4px">特性（固有特性は金枠）</h3><div>${traitChipsHTML(h)}</div>
+   <h3 style="margin:8px 0 4px">特性（固有特性は金枠）</h3><div>${traitChipsHTML(h)}</div>${evoHintsHTML(h)}
    <p class="small">${h.traits.map(id=>traitName(id)+"："+traitDesc(id)).join(" ／ ")}</p>
    ${h.traits.length>=TRAIT_MAX?`<p class="small">⚠ 特性が上限（8個）に達しています。新規習得はできず、上位進化のみ可能です。</p>`:""}
    <h3 style="margin:8px 0 4px">レース傾向への適応（星評価）</h3>${trendStars}
@@ -6823,8 +6829,11 @@ function omakaseFinalAdjust(h){
      優秀な調教師＋おまかせなら従来どおり全馬が好調以上で迎えられる */
   const target=58+peak*3;                 /* 目標値 S:73 A:70 B:67 C:64 D:61 E:58 */
   const cap=3+peak;                       /* 当日の引き上げ上限 S:8 A:7 B:6 C:5 D:4 E:3 */
+  const c0=h.cond, f0=h.fat;
   h.fat=clamp(h.fat-(8+peak),0,100);      /* 疲労の抜きも S:13 まで（相手の低疲労分布と揃える） */
   if(h.cond<target) h.cond=clamp(h.cond+Math.min(cap,target-h.cond),15,100);
+  /* 調整の事実と量を作戦画面で見せるための記録（UX中-1：無言で状態を変えない） */
+  h._finalAdj={key, dc:Math.round(h.cond-c0), df:Math.round(f0-h.fat)};
   return true;
 }
 /* 調教師への指示「得意作戦を極める」が有効か（オート／おまかせ時のみ効く） */
@@ -7679,6 +7688,18 @@ function updateStartReady(){
   const owns=ownHorsesInCard();
   ["btn-start","btn-start2","btn-cardstart"].forEach(id=>{ const b=document.getElementById(id); if(b){ b.disabled=false; b.classList.toggle("glow",!!owns.length); } });
 }
+/* 最終調整の見える化（UX中-1）：作戦画面で「調整が入る予定／入った量」を出す */
+function finalAdjHTML(h){
+  const live=(S.horses||[]).find(x=>x.id===h.id)||h;
+  if(!S.omakase) return "";
+  if(live.planFixed) return `<div class="small" style="margin:4px 0 0">🔒 指示固定中のため、おまかせ最終調整は入りません</div>`;
+  let covered=false; try{ covered=omakaseCovered(live); }catch(e){}
+  if(!covered) return `<div class="small" style="margin:4px 0 0">🤝 担当調教師の上限外のため、おまかせ最終調整は入りません</div>`;
+  const fa=live._finalAdj, key=live.entry? live.entry.absWeek : null;
+  if(fa&&key!=null&&fa.key===key) return `<div class="small" style="margin:4px 0 0">🤝 <b>最終調整済み</b>（調子${fa.dc>=0?"+":""}${fa.dc}／疲労−${fa.df}）― レース当日に担当調教師が状態を合わせました</div>`;
+  let pk=3; try{ pk=rankVal(trainerOf(live).ranks.cond); }catch(e){}
+  return `<div class="small" style="margin:4px 0 0">🤝 おまかせ最終調整：レース開始時に、担当調教師が調子を目標${58+pk*3}まで引き上げます（最大+${3+pk}／疲労−${8+pk}まで）</div>`;
+}
 function renderOwnSettings(r){
   const box=$("#own-settings"); if(!box)return;
   const owns=ownHorsesInCard();
@@ -7689,6 +7710,7 @@ function renderOwnSettings(r){
     const jockOpts=JOCKEYS.map(j=>{ let note; if(j.id===h.jockey) note="主戦"; else { const chk=requestCheck(h,r,j.id); note=chk.ok?"依頼可":"依頼不可："+chk.why; } return `<option value="${j.id}" ${j.id===(h.reqJockey!=null?h.reqJockey:h.jockey)?"selected":""}>${j.name}（${j.tier}級・友好度${friendshipOf(j.id)}・${j.fee}万円・${note}）</option>`; }).join("");
     return `<div class="ownset" data-ownset="${h.id}">
     <div class="os-head"><img src="${standSrc(h)}" alt="${esc(h.name)}（${COATS[h.coat].n}）"><div style="flex:1;min-width:150px"><b style="font-size:16px">${h._gate}番 ${esc(h.name)}</b><br><span class="small">騎乗：${rider.name}／脚質 ${h.style}</span></div><span class="os-ready ok" data-osready="${h.id}">設定は即時反映</span></div>
+    ${finalAdjHTML(h)}
     <div class="os-grid">
       <div><label>通常作戦（脚質指示）</label><div class="tacbtns">${TACTICS.map(t=>`<button type="button" data-ostac="${t.id}" data-hid="${h.id}" class="${t.id===tacOf(h).id?"on":""}" title="${t.d}">${t.n}</button>`).join("")}</div><div data-ospos="${h.id}">${posBarHTML(h,true)}</div></div>
       <div><label>ペース指示<select data-os="tac2" data-hid="${h.id}">${TACTIC2.map(t=>`<option value="${t.id}" ${t.id===(h.tactic2||"normal")?"selected":""}>${t.n}${t.d?" ― "+t.d:""}</option>`).join("")}</select></label><div class="tacfit" data-osfit="${h.id}"></div><div class="small" data-osdet="${h.id}"></div></div>
@@ -11619,6 +11641,8 @@ function saleBuy(i, instant){
 let rankFilter="all", rankOpen=null;
 function worldPanelsHTML(){
   let h="";
+  /* 収支・資金繰りの入口（UX中-5：設定画面の中だけに置かない） */
+  h+=`<div class="panel"><h2 class="sec" style="margin-top:0">💰 収支・資金繰り</h2><div class="flex"><button class="btn sm" data-money="fin">💰 資金繰り（融資・スポンサー支援）</button><button class="btn sm" data-money="led">📒 月次明細（収支の内訳）</button></div><p class="small" style="margin-top:4px">現在の資金 ${fmt(S.funds)}万円${S.loan?`／借入残高 ${fmt(loanOutstanding())}万円`:""}。設定画面からも開けます。</p></div>`;
   const news=S.news||[];
   if(news.length){
     h+=`<div class="panel"><h2 class="sec" style="margin-top:0">📰 競馬新聞 <span class="tag">世界の動き</span></h2>${news.slice(0,6).map(n=>`<div class="ticket"><b>${esc(n.title)}</b> <span class="small">${n.y}年${n.m}月</span><br><span class="small">${esc(n.body)}</span></div>`).join("")}</div>`;
@@ -11674,6 +11698,7 @@ function renderRank(){
   + `<div class="ranktabs">${[["all","すべて"],["legend","歴代名馬"],["current","現役実在馬"],["mine","自厩舎"]].map(([k,n])=>`<button data-rf="${k}" class="${rankFilter===k?"on":""}">${n}</button>`).join("")}</div>`
   + panelHTML("rank","earn",`<h2 class="sec">獲得賞金順 <span class="tag">実額・生年併記</span></h2><p class="small">歴代名馬は行を押すと血統・主戦・主な勝鞍が見られます。自厩舎馬が歴代名馬の賞金を抜くと「○○超え」の印が付きます。自厩舎馬は、獲得賞金 ${fmt(hallThresholds().earn)}万円以上／レーティング ${hallThresholds().rating}以上／G1 2勝以上のいずれかに達すると「殿堂入り」し、歴代名馬タブにも実在馬と並んで表示されます（引退・繁殖入りした後も残ります）。</p>${table(byEarn,"earn",`<th class="r">獲得賞金</th><th class="num">レーティング</th>`,"rankEarn")}`)
   + panelHTML("rank","rating",`<h2 class="sec">レーティング順 <span class="tag">歴代名馬は当ゲーム換算</span></h2><p class="small">自厩舎馬のレーティングは、能力素地（最大約59点）に、通算勝率（最大22点）、G1勝利（1勝9点・最大26点）、重賞勝利（最大9点）、G1複勝率（最大8点）、獲得賞金（最大7点）を加えて算出します。G1の帯域を分けるため、G1未勝利の馬は上限85点、G1勝ち馬は下限86点とし、G1未勝利の馬がG1勝ち馬の帯域を上回ることはありません。出走数や勝利数の多さだけでは上がらず、殿堂入りライン（${hallThresholds().rating}点）は複数のG1を勝つ歴史的名馬クラスが届く水準です。</p>${table(byRating,"rating",`<th class="num">レーティング</th><th class="r">獲得賞金</th>`,"rankRate")}<p class="small mt">出典：戦績・獲得賞金・主な勝鞍・血統は JRA公式（競馬の殿堂／競走馬情報）、netkeiba、JBIS の公開情報に基づく実データ。獲得賞金は海外・地方分を含む生涯総額の実額で、時代により賞金水準が異なるため生年を併記しています（換算調整はしていません）。歴代名馬のレーティングと脚質・距離帯は当ゲーム内の換算・解釈です。</p>`);
+  el.querySelectorAll("[data-money]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.money==="fin") showFinance(); else showLedger(); }));
   el.querySelectorAll("[data-rf]").forEach(b=>b.addEventListener("click",()=>{ rankFilter=b.dataset.rf; renderAll(); }));
   el.querySelectorAll("[data-leg]").forEach(r=>r.addEventListener("click",()=>{ rankOpen= rankOpen===r.dataset.leg? null : r.dataset.leg; renderAll(); }));
 }
@@ -11735,7 +11760,7 @@ function showSettings(){
   <label class="small">観戦方法の既定値（上のマトリクスで種別ごとに決めた場合はそちらが優先されます）<br><select id="set-watch" style="width:100%"><option value="full" ${S.watchMode==="full"?"selected":""}>フル観戦</option><option value="digest" ${S.watchMode==="digest"?"selected":""}>ダイジェスト</option><option value="result" ${S.watchMode==="result"?"selected":""}>結果だけ</option></select></label></div></details><details class="fold"><summary>馬券の基本設定</summary><div class="foldbody">
   <label class="small">自厩舎馬の単勝 自動購入（レース開始時に、所有資金の下記割合で自厩舎の出走馬の単勝を自動で買います。すでに単勝を買っている馬には買いません）<br><select id="set-betpct" style="width:100%"><option value="0" ${!S.betPct?"selected":""}>買わない</option>${[1,3,5,10].map(p=>`<option value="${p}" ${S.betPct===p?"selected":""}>資金の${p}%</option>`).join("")}</select></label>
   <label class="small">自動購入の総予算上限（1レースあたり・全頭合計。0=上限なし）<br><select id="set-betcap" style="width:100%"><option value="0" ${!S.betCapAuto?"selected":""}>上限なし</option>${[100,300,500,1000].map(p=>`<option value="${p}" ${S.betCapAuto===p?"selected":""}>${p}万円まで</option>`).join("")}</select></label>
-  <p class="small mt">購入金額は100円単位に切り捨てます。複数頭が出走する場合は1頭ごとに、その時点の資金の割合で買います。オートで消化されるレースにも適用されます。</p></div></details><details class="fold"><summary>エントリー方針</summary><div class="foldbody">
+  <p class="small mt">購入金額は100円単位に切り捨てます。複数頭が出走する場合は1頭ごとに、その時点の資金の割合で買います。オートで消化されるレースにも適用されます。ただし購入は1レース合計で資金の${BET_CAP_PCT}%・最大${fmt(BET_CAP_ABS)}万円まで（自動購入の総予算上限を設定した場合はその範囲内）に制限されるため、複数頭出走時などは設定した割合より少なく買われる場合があります。自動購入の券種は単勝のみです（手動の馬券画面では複勝・馬連・馬単・三連複・三連単も買えます）。</p></div></details><details class="fold"><summary>エントリー方針</summary><div class="foldbody">
   <label class="small">優先する方針（次走提案とオートのエントリー判断に反映されます）<br><select id="set-policy" style="width:100%">${ENTRY_POLICIES.map(p=>`<option value="${p.id}" ${entryPolicy().id===p.id?"selected":""}>${p.n}</option>`).join("")}</select></label>
   <p class="small" id="set-policy-d" style="margin:6px 0">${esc((ENTRY_POLICIES.find(p=>p.id===entryPolicy().id)||ENTRY_POLICIES[0]).d)}</p>
   <label class="small">追加条件<br><select id="set-policy-fat" style="width:100%"><option value="0" ${!entryPolicy().minFatRest?"selected":""}>追加条件なし</option><option value="1" ${entryPolicy().minFatRest?"selected":""}>疲労が35以下まで抜ける週を優先する</option></select></label>
@@ -12786,9 +12811,10 @@ function renderAutoBar(){
     const sb=$("#ab-auto-stop"); if(sb) sb.addEventListener("click",()=>autoStop("手動で停止しました"));
     return;
   }
-  bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート（提案どおり）</span>${AUTO.stopReason? "前回："+esc(AUTO.stopReason) : "提案どおりに進めます。調教は定常指示に設定し、週送りで自動実行されます"}</div><button class="ab-btn btn ghost" id="ab-auto-cfg">停止条件</button><button class="ab-btn btn gold" id="ab-auto-start">▶ オート開始</button>`;
+  bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート（提案どおり）</span>${AUTO.stopReason? "前回："+esc(AUTO.stopReason) : "提案どおりに進めます。調教は定常指示に設定し、週送りで自動実行されます"}</div>${(S.sale&&AUTO.stopReason&&AUTO.stopReason.includes("セール"))?`<button class="ab-btn btn" id="ab-goto-sale">セールを見る</button>`:""}<button class="ab-btn btn ghost" id="ab-auto-cfg">停止条件</button><button class="ab-btn btn gold" id="ab-auto-start">▶ オート開始</button>`;
   const st=$("#ab-auto-start"); if(st) st.addEventListener("click",autoStart);
   const cf=$("#ab-auto-cfg"); if(cf) cf.addEventListener("click",showAutoSettings);
+  const gs=$("#ab-goto-sale"); if(gs) gs.addEventListener("click",()=>{ UI.farm="sale"; switchView("farm"); renderAll(); const t=document.getElementById("farm-sale"); if(t) t.scrollIntoView({block:"start"}); });
 }
 function showAutoSettings(){
   const cfg=autoCfg();
@@ -12818,7 +12844,7 @@ function showAutoSettings(){
   <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${cfg.buyYoungOmakase?"ON":"OFF"}</b>／繁殖牝馬 <b>${cfg.buyMareOmakase?"ON":"OFF"}</b>）は調教師への指示で決めます。ONのセール種別は、止まらず通過する時に調教師評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
   <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${cfg.mateOmakase?"おまかせ種づけする（代行する）":"代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
   <label class="small" style="display:block;margin-top:10px">代行種付けのシーズン予算上限（5〜6月の合計金額。手動の種付けには適用されません）<br><select id="auto-mate-budget" style="width:100%">${[[0,"上限なし"],[1000,"1,000万円まで"],[2000,"2,000万円まで"],[3000,"3,000万円まで"],[5000,"5,000万円まで"],[10000,"1億円まで"]].map(([v,l])=>`<option value="${v}" ${cfg.mateBudgetSeason===v?"selected":""}>${l}</option>`).join("")}</select></label><p class="small" style="margin-top:4px">今シーズンの代行種付けの使用済み：${fmt(mateSeasonSpent())}万円</p></div>
-  ${tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します。建設おまかせONのときはそちらが優先されます）")}
+  ${cfg.facOmakase? `<div class="ticket" style="opacity:.55"><b>施設の建設提案で止まる</b><div class="mt"><button class="btn sm ghost" disabled>おまかせ中は止まりません</button></div><p class="small" style="margin-top:4px">建設おまかせがONのため、この停止条件は無効です。止めたい場合は、先に下の「オート中は建設をおまかせにする」をOFFにしてください。</p></div>` : tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します）")}
   <div class="ticket"><b>オート中は建設をおまかせにする</b><div class="mt"><label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="auto-fac-omakase" ${cfg.facOmakase?"checked":""} style="width:22px;height:22px;flex:none;margin:0"> <span>ONにすると、オート中は施設で止まらず、牧場長の推薦どおりに建設・拡張を自動で実行します（資金が不足する場合は建てません）。何を建てたかは記録に残ります</span></label></div></div>
   ${tog("stopFinance","資金繰りの相談（融資・スポンサー）で止まる（OFFの場合はスキップして続行）")}
   </div></div><div class="ov-foot"><button class="btn ghost" id="auto-set-close">閉じる</button><button class="btn gold" id="auto-set-start">この条件でオート開始</button></div>`);
@@ -12938,17 +12964,27 @@ function hireTrainer(id){
   saveAuto(true); $("#overlay").style.display="none"; renderAll();
   toast(`${d.name} を調教師に迎えました（担当上限 ${trainerCap(d)}頭）`);
 }
-const TRUI={region:"jp", page:0};
+const TRUI={region:"jp", page:0, q:"", sort:"tot", dist:"", band:""};
 function showTrainers(){
   const cur=trainerData();
   const overseasOK=!!(S.overseasFarm||S.clubFarm);
   const tot=d=>["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0);
-  const list=TRAINER_ROSTER.filter(d=>d.region===TRUI.region).slice().sort((a,b)=>tot(b)-tot(a));
+  const allRegion=TRAINER_ROSTER.filter(d=>d.region===TRUI.region);
+  let list=allRegion.slice();
+  /* 探索手段（UX中-4）：名前・フリガナ検索／並び替え／距離適性・雇用費帯の絞り込み */
+  if(TRUI.q){ const q=TRUI.q.trim(); if(q) list=list.filter(d=>(d.name||"").includes(q)||(d.kana||"").includes(q)); }
+  if(TRUI.dist) list=list.filter(d=>rankVal(d.dist[TRUI.dist])>=3);
+  if(TRUI.band) list=list.filter(d=>{ const c=trainerCost(d).hire; return TRUI.band==="a"? c<1000 : TRUI.band==="b"? (c>=1000&&c<5000) : c>=5000; });
+  if(TRUI.sort==="hire") list.sort((a,b)=>trainerCost(a).hire-trainerCost(b).hire);
+  else if(TRUI.sort==="upkeep") list.sort((a,b)=>trainerCost(a).upkeep-trainerCost(b).upkeep);
+  else if(TRUI.sort==="cap") list.sort((a,b)=>trainerCap(b)-trainerCap(a)||tot(b)-tot(a));
+  else list.sort((a,b)=>tot(b)-tot(a));
   const items=list; /* 全員をスクロールで表示（ページ送りなし） */
   const rankRow=(obj,labels)=>labels.map(([k,n])=>`${n} <b class="rankmark rank${obj[k]}">${obj[k]}</b>`).join("／");
   const locked=TRUI.region!=="jp"&&!overseasOK;
   showOverlay(`<h2>調教師の雇用</h2><div class="ov-body"><div style="text-align:left">
   <div class="flex">${[["jp","日本"],["eu","欧州"],["us","米国"]].map(([k,n])=>`<button class="btn sm ${TRUI.region===k?"gold":"ghost"}" data-trregion="${k}">${n}</button>`).join("")}<span class="small">現在：<b>${esc(cur.name)}</b>／能力が高いほど雇用費・維持費は大きく跳ね上がります</span></div>
+  <div class="flex" style="margin-top:8px;flex-wrap:wrap;gap:6px"><input type="search" id="tr-q" placeholder="名前・フリガナで検索" value="${esc(TRUI.q||"")}" style="flex:1;min-width:140px;min-height:40px" aria-label="調教師を検索"><select id="tr-sort" style="min-height:40px" aria-label="並び替え">${[["tot","能力順"],["hire","雇用費が安い順"],["upkeep","維持費が安い順"],["cap","担当上限が多い順"]].map(([v,n])=>`<option value="${v}" ${TRUI.sort===v?"selected":""}>${n}</option>`).join("")}</select><select id="tr-dist" style="min-height:40px" aria-label="距離適性で絞り込み"><option value="" ${!TRUI.dist?"selected":""}>距離適性で絞らない</option>${[["sprint","短距離"],["mile","マイル"],["middle","中距離"],["long","長距離"]].map(([v,n])=>`<option value="${v}" ${TRUI.dist===v?"selected":""}>${n}がB以上</option>`).join("")}</select><select id="tr-band" style="min-height:40px" aria-label="雇用費で絞り込み"><option value="" ${!TRUI.band?"selected":""}>雇用費で絞らない</option>${[["a","雇用費 1,000万円未満"],["b","雇用費 1,000万〜5,000万円"],["c","雇用費 5,000万円以上"]].map(([v,n])=>`<option value="${v}" ${TRUI.band===v?"selected":""}>${n}</option>`).join("")}</select></div>
   ${locked?`<p class="small mt">欧州・米国の調教師は、海外牧場（またはクラブ牧場）を開設すると雇えるようになります。</p>`:""}
   <div class="ticket" style="text-align:left"><b>費用カーブの調整（2026-11-10）</b><div class="small">旧カーブ（維持費＝能力合計³÷40）は中位で跳ね上がり、中位の調教師だけ割に合いませんでした。新カーブ（維持費＝0.22×合計²＋0.8×合計）は、1頭あたり費用と効果÷費用が単調になるよう滑らかにしています。効果は調教倍率（全ランク平均の目安）です。</div>
   <table class="costtable"><tr><th>能力合計の目安</th><th>担当上限</th><th>調教倍率</th><th>旧・維持費/週</th><th>新・維持費/週</th><th>新・1頭あたり</th><th>新・雇用費</th></tr>
@@ -12960,8 +12996,12 @@ function showTrainers(){
     <span class="small">特性：${d.traits.length? d.traits.map(t=>`<span class="trait plus">${esc(t)}</span>`).join(" ") : "なし"}／雇用費 ${fmt(cost.hire)}万円・維持費 ${fmt(cost.upkeep)}万円/週／<b>担当上限 ${trainerCap(d)}頭</b>${isEmp?`（現在 ${assignedHorses(d.id).length}頭を担当）`:""}</span>
     ${!isEmp?`<div class="small">雇用後の資金見通し：12週 約${fmt((S.funds-cost.hire)-(fundsForecast(12).perWeek+cost.upkeep)*12)}万円／1年 約${fmt((S.funds-cost.hire)-(fundsForecast(48).perWeek+cost.upkeep)*48)}万円（収入なし試算・維持費は人数分かかります）</div>`:""}
     <div class="mt">${isEmp?`<button class="btn sm" disabled>${isPrimary?"雇用中（主任）":"雇用中"}</button>`:`<button class="btn gold sm" data-hire="${d.id}" ${dis?"disabled":""}>この調教師を雇う（${fmt(cost.hire)}万円）</button>${locked?` <span class="small">海外牧場が必要</span>`:(S.funds<cost.hire?` <span class="small">資金不足</span>`:"")}`}</div></div>`; }).join("")}
-  <div class="small mt">全${list.length}名を表示しています</div>
+  <div class="small mt">${list.length===allRegion.length? `全${list.length}名を表示しています` : `条件に合う ${list.length}名を表示しています（この地域の全員は ${allRegion.length}名）`}</div>
   </div></div><div class="ov-foot"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
+  const tq=document.getElementById("tr-q"); if(tq) tq.addEventListener("input",()=>{ TRUI.q=tq.value; const pos=tq.selectionStart; showTrainers(); const nq=document.getElementById("tr-q"); if(nq){ nq.focus(); try{ nq.setSelectionRange(pos,pos); }catch(e){} } });
+  const ts2=document.getElementById("tr-sort"); if(ts2) ts2.addEventListener("change",()=>{ TRUI.sort=ts2.value; showTrainers(); });
+  const td3=document.getElementById("tr-dist"); if(td3) td3.addEventListener("change",()=>{ TRUI.dist=td3.value; showTrainers(); });
+  const tb2=document.getElementById("tr-band"); if(tb2) tb2.addEventListener("change",()=>{ TRUI.band=tb2.value; showTrainers(); });
   document.querySelectorAll("[data-hire]").forEach(b=>b.addEventListener("click",()=>hireTrainer(b.dataset.hire)));
   document.querySelectorAll("[data-trregion]").forEach(b=>b.addEventListener("click",()=>{ TRUI.region=b.dataset.trregion; TRUI.page=0; showTrainers(); }));
   document.querySelectorAll("[data-trpage]").forEach(b=>b.addEventListener("click",()=>{ TRUI.page+=+b.dataset.trpage; showTrainers(); }));
