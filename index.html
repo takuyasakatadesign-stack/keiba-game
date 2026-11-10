@@ -153,6 +153,33 @@ tr.win td{font-weight:800;}
 .causelist{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px;}
 .causelist li{background:var(--panel2); border-radius:10px; padding:8px 10px; font-size:13px; text-align:left; line-height:1.5;}
 .causelist .cv-adv{display:block; margin-top:3px; color:var(--ink2); font-size:12px;}
+/* 敗因・勝因カード（2026-11-10）：要因ごとにカード化し、根拠の数値はチップで並べる */
+.factorgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:8px; margin-top:8px; text-align:left;}
+.fcard{background:var(--panel2); border:1.5px solid var(--line); border-radius:12px; padding:9px 11px; font-size:13px; line-height:1.55; min-width:0;}
+.fcard .fhead{display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:5px;}
+.fcard .ftitle{font-weight:900; font-size:13.5px;}
+.fsev{font-size:10.5px; font-weight:900; border-radius:999px; padding:1px 8px; color:#fff; white-space:nowrap;}
+.fsev.s9,.fsev.s8{background:#b3362b;} .fsev.s7,.fsev.s6{background:#c07a10;} .fsev.s5,.fsev.s4,.fsev.s3,.fsev.s2{background:#5b7a5e;}
+.fevs{display:flex; gap:5px; flex-wrap:wrap; margin:5px 0;}
+.fev{display:inline-flex; align-items:baseline; gap:4px; background:var(--panel); border:1.5px solid var(--line); border-radius:999px; padding:1px 9px; font-size:11.5px; font-weight:700; color:var(--ink2);}
+.fev b{font-size:13px; font-weight:900; color:var(--ink);}
+.fcard .fadv{display:block; margin-top:5px; color:var(--ink2); font-size:12px; border-top:1px dashed var(--line); padding-top:5px;}
+.dataline{display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; text-align:left;}
+/* 実画面確認での崩れ対策（390px）：表彰式の表・調教師の付け替え・年末チップ・海外移動ブロック */
+.travelblock{display:flex; gap:5px; flex-wrap:wrap; margin-top:5px;}
+.travelblock .tb{font-size:11.5px; font-weight:800; border-radius:8px; padding:3px 9px; background:var(--chip); border:1.5px solid var(--line);}
+.travelblock .tb.race{background:var(--gold); color:#241a00; border-color:#8a6d10;}
+.costtable{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px;}
+.costtable th,.costtable td{padding:5px 6px; border-bottom:1px solid var(--line); text-align:right;}
+.costtable th:first-child,.costtable td:first-child{text-align:left;}
+@media (max-width:560px){
+ .aw-table{font-size:11.8px;} .aw-table th,.aw-table td{padding:4px 4px; overflow-wrap:anywhere;}
+ .aw-info{min-width:0; flex-basis:100%;} .aw-left{min-width:0; flex-basis:100%;}
+ .ye-chip{white-space:normal; line-height:1.5;}
+ .factorgrid{grid-template-columns:1fr;}
+ #v-train .panel select{max-width:100%;}
+ .costtable{font-size:11.5px;} .costtable th,.costtable td{padding:4px 3px;}
+}
 .tacfit{font-size:11.5px; font-weight:700;}
 /* 大型アップデート追加 */
 .trait{display:inline-block; font-size:11px; font-weight:800; border-radius:999px; padding:2px 8px; background:#e8f0e6; border:1px solid var(--line); margin:2px 2px 0 0;}
@@ -5729,14 +5756,34 @@ const TRAINER_ROSTER=TRAINER_RAW.map(a=>{ const d={id:a[0], name:a[1], kana:a[2]
   d.policy=trainerPolicy(d);
   d.desc= d.region==="jp"? `${d.base}所属・${d.debut}年デビュー（現役）` : `${d.kana}拠点の調教師`;
   return d; });
+function trainerTotal(d){ return ["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0); }
+/* 旧・三次カーブ（比較表示用に残す）：維持費 total^3/40。実測では
+   合計5→週3万円（1頭あたり0.3万円）とほぼ無料なのに、合計10→25万円、
+   合計15→84万円と中位で一気に跳ね上がり、中位の調教師だけ費用対効果が
+   谷になっていた（効果/費用：合計5で1.67→合計10で0.40→合計15で0.18） */
+function trainerCostOld(d){
+  if(d.id===TRAINER_DEFAULT_ID) return {hire:0, upkeep:0};
+  const total=trainerTotal(d); const cube=total*total*total;
+  return {hire:Math.round(cube*0.9/50)*50, upkeep:Math.max(1,Math.round(cube/40))};
+}
+/* 新・費用カーブ（2026-11-10調整）：維持費＝0.22×total²＋0.8×total の
+   二次＋線形にし、上限の跳ね上がりを滑らかにした。雇用費は維持費×44週分。
+   実測（合計→維持費/週・担当上限・1頭あたり・効果÷費用）：
+   5→10万円・11頭・0.9万円・0.50／10→30万円・16頭・1.9万円・0.33／
+   15→62万円・21頭・3.0万円・0.24／20→104万円・26頭・4.0万円・0.19／
+   25→158万円・31頭・5.1万円・0.16 ― 効果÷費用は単調に下がり（上位は
+   プレミアム価格）、中位の谷が消える。1頭あたり費用も単調に上がる */
 function trainerCost(d){
   if(d.id===TRAINER_DEFAULT_ID) return {hire:0, upkeep:0};
-  const total=["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0);
-  /* 三次式でメリハリ：能力合計 total（0〜25）に対し、維持費は total^3/40
-     （合計22→週266万円／合計15→週84万円／合計10→週25万円／合計5→週3万円）、
-     雇用費は total^3×0.9（合計22→約9,600万円／合計10→900万円／合計5→約100万円） */
-  const cube=total*total*total;
-  return {hire:Math.round(cube*0.9/50)*50, upkeep:Math.max(1,Math.round(cube/40))};
+  const total=trainerTotal(d);
+  const upkeep=Math.max(2,Math.round(total*total*0.22+total*0.8));
+  return {hire:Math.round(upkeep*44/10)*10, upkeep};
+}
+/* 調教師の効果の要約（費用対効果の比較表示用）：調教倍率（doTrain の式と同一）、
+   担当上限、能力合計を返す */
+function trainerEffectInfo(d){
+  const total=trainerTotal(d);
+  return {total, cap:6+total, mul:0.9+rankVal(d.ranks.train)*0.04, condBonus:rankVal(d.ranks.cond)-3};
 }
 const TRAINER_TRAIT_FX={"スパルタ":1,"軽め調教":1,"気性難":1};
 function trainerSuggest(h){
@@ -6128,6 +6175,7 @@ function renderBreed(){
   </div>${panelClose()+panelOpen("breed","lines")}<div class="panel"><div class="mt"><b>系統一覧（支配率）</b>${lineDominance().map(d=>`<div class="stat"><span style="min-width:118px">${d.line}</span><span class="facbar"><i class="base" style="width:${Math.min(100,d.pct)}%"></i></span><b>${d.pct}%</b><span class="small">${lineStatus(d.line)}</span><span class="small">種付け料・セール・売却価格 ×${trendHeat(d.line).toFixed(2)}</span></div>`).join("")||'<div class="small">まだデータがありません</div>'}</div>
   <div class="mt"><b>ニックス表</b><table class="mt"><tr><th>父 × 母父</th><th>評価</th></tr>${Object.keys(NICKS).map(k=>`<tr><td>${k}</td><td><b>${NICKS[k]}級</b> ニックス</td></tr>`).join("")||'<tr><td colspan="2">登録なし</td></tr>'}</table></div>
   <p class="small mt">種付けは5〜6月のみ。受胎は月末に判明（不受胎なら6月に再種付け可）、受胎した牝馬から翌年4月に幼駒が誕生し、牧場で自動育成されます。配合理論（インブリード／ラインブリード／ニックス／昇華など）は評価に反映され、仔馬の素質・危険度・競走寿命に効きます。</p>
+  <div class="mt"><b>系統シェアと価格倍率の推移（直近6年）</b><br><span class="small">価格倍率は平滑化したシェアに連動し、上限 ×1.28・年間の変化 ±0.06 までに抑えています（流行→高価格→集中→さらに流行 の暴走を防ぐ減衰つき）。</span>${(()=>{ const hist=(S.lineTrendHist||[]).slice(-6); if(hist.length<2) return `<div class="small">年を重ねると、ここに首位系統のシェア（実績／平滑）と価格倍率の推移が並びます。</div>`; return `<table class="costtable"><tr><th>年</th><th>首位系統</th><th>実シェア</th><th>平滑シェア</th><th>価格倍率</th></tr>${hist.map(rw=>{ const t0=(rw.top||[])[0]; if(!t0) return ""; return `<tr><td>${rw.y}年</td><td>${esc(lineDisp(t0.line))}</td><td>${t0.pct}%</td><td>${t0.smooth!=null?t0.smooth+"%":"―"}</td><td>×${t0.heat!=null?t0.heat.toFixed(2):"―"}</td></tr>`; }).join("")}</table>`; })()}</div>
   <div class="mt"><b>血統支配率（系統の広がり）</b><br>${lineDominance().map(d=>`<span class="small">${d.line} ${d.pct}%（${lineStatus(d.line)}）</span>`).join(" ／ ")||'<span class="small">まだデータがありません</span>'}<br><span class="small">支配率が上がると子系統→親系統→世界系統へ昇格し、理論が成立しやすくなります（世界系統では芝質適性の幅も広がります）。</span></div></div>${panelClose()}`;
   html+=(()=>{ const s4=ownSt[breedSel.s||0], m4=mares[breedSel.m||0]; if(!s4||!m4) return ""; return `<div class="actionbar"><span class="ab-name">🌱 ${esc(s4.name)} × ${esc(m4.name)}</span><span class="ab-cost">種付料など ${fmt((s4.fee||0)+150)}万円／種付けは5〜6月</span><span style="flex:1"></span><button class="btn gold sm" id="btn-breed2">この配合で種付けを登録</button></div>`; })();
   const mareCards=mares.map(m=>{ const rs=mareSellReasons(m); const pr=mareProduce(m);
@@ -6236,11 +6284,37 @@ function lineStatus(line){
  return "未確立";
 }
 /* 系統の熱（盛衰の価格連動）：世界の上位馬の父系シェアが高い系統は
-   種付け料の市場価格・セール価格・売却価格が上がり、シェアの低い系統は
-   下がる。係数は 0.90〜1.45 に収め、際限なくは振れない */
+   種付け料の市場価格・セール価格・売却価格が上がる。
+   減衰つき（2026-11-10）：以前は当年シェアそのものに連動し（上限×1.45）、
+   流行→高価格→購入集中→さらにシェア増 の正のフィードバックが単年で
+   暴走し得た。現在は ①シェアを平滑化（当年0.45＋前年までの平滑値0.55）し、
+   ②価格倍率の上限を×1.28に下げ、③倍率の前年からの変化を年±0.06までに
+   制限する。平滑シェアと倍率は S.lineTrendSmooth／S.lineHeatPrev に保持し、
+   推移は生産タブの系統一覧とライバル牧場パネルで6年分見られる */
 function trendHeat(line){
- const t=(S.lineTrend||[]).find(x=>x.line===line);
- return t? clamp(1+(t.pct-12)/100, 0.9, 1.45) : 1;
+ const sm=(S.lineTrendSmooth||[]).find(x=>x.line===line);
+ const raw=(S.lineTrend||[]).find(x=>x.line===line);
+ const pct= sm? sm.pct : (raw? raw.pct : null);
+ if(pct==null) return 1;
+ let heat=clamp(1+(pct-12)/140, 0.92, 1.28);
+ const prev=(S.lineHeatPrev||{})[line];
+ if(prev!=null) heat=clamp(heat, prev-0.06, prev+0.06);
+ return Math.round(heat*1000)/1000;
+}
+/* 年末に平滑シェアと倍率の控えを更新する（worldYearStep から呼ぶ）。
+   その年の実シェア raw に対し smooth＝smooth×0.55＋raw×0.45 で寄せ、
+   実シェアが消えた系統は ×0.55 で減衰させる */
+function updateLineTrendSmooth(){
+ const raw=S.lineTrend||[];
+ const prev=S.lineTrendSmooth||[];
+ const out=[];
+ const seen=new Set();
+ raw.forEach(r=>{ seen.add(r.line); const p=prev.find(x=>x.line===r.line); out.push({line:r.line, pct: p? Math.round((p.pct*0.55+r.pct*0.45)*10)/10 : r.pct}); });
+ prev.forEach(p=>{ if(!seen.has(p.line)&&p.pct>=2) out.push({line:p.line, pct:Math.round(p.pct*0.55*10)/10}); });
+ S.lineTrendSmooth=out.sort((a,b)=>b.pct-a.pct).slice(0,6);
+ S.lineHeatPrev=S.lineHeatPrev||{};
+ out.forEach(o=>{ S.lineHeatPrev[o.line]=trendHeat(o.line); });
+ Object.keys(S.lineHeatPrev).forEach(k=>{ if(!out.some(o=>o.line===k)) delete S.lineHeatPrev[k]; });
 }
 function lineHeatOf(sireName){ return trendHeat(lineOf(sireName||"").parent); }
 /* 世界データの上限管理：何十年遊んでも、新聞・系統推移・対戦履歴・
@@ -6352,11 +6426,12 @@ function worldYearStep(prevY){
   const top=world.filter(w=>!w.legend).sort((a,b)=>wRating(b)-wRating(a)).slice(0,24); /* 系統シェアも現役馬だけで数える */
   const cnt={}; top.forEach(w=>{ const ln=lineOf(w.sire||""); const key=(ln&&ln.parent)?ln.parent:(w.sire||"その他"); cnt[key]=(cnt[key]||0)+1; });
   S.lineTrend=Object.keys(cnt).map(k=>({line:k, pct:Math.round(cnt[k]/Math.max(1,top.length)*100)})).sort((a,b)=>b.pct-a.pct).slice(0,5);
+  updateLineTrendSmooth(); /* 平滑シェアと価格倍率の減衰を年末に1回だけ更新する */
   /* 系統シェアの推移を残す（記録タブで年ごとの変動が見える）。首位系統が
      入れ替わった年は新聞記事にもする */
   const prevTop=(S.lineTrendHist&&S.lineTrendHist.length)? (S.lineTrendHist[S.lineTrendHist.length-1].top||[])[0] : null;
   S.lineTrendHist=S.lineTrendHist||[];
-  S.lineTrendHist.push({y:prevY+1, top:S.lineTrend.slice(0,3)});
+  S.lineTrendHist.push({y:prevY+1, top:S.lineTrend.slice(0,3).map(t=>{ const sm=(S.lineTrendSmooth||[]).find(x=>x.line===t.line); return {line:t.line, pct:t.pct, smooth:sm?sm.pct:t.pct, heat:trendHeat(t.line)}; })});
   if(S.lineTrendHist.length>10) S.lineTrendHist.splice(0, S.lineTrendHist.length-10);
   const newTop=S.lineTrend[0];
   if(newTop&&prevTop&&prevTop.line!==newTop.line) pushNews(`系統の勢力図に変化：${lineDisp(newTop.line)}が首位に`, `世界の上位馬の父系シェアで ${lineDisp(newTop.line)} が ${newTop.pct}% と首位に立った。前年首位の ${lineDisp(prevTop.line)}（${prevTop.pct}%）を逆転した年になった。流行の移り変わりは種付け需要にも波及する。`);
@@ -7536,7 +7611,7 @@ function renderRace(){
     ${isThis?`<b>エントリー済み</b><button class="btn ghost sm" data-entry-cancel="${fh.id}">取消</button>`
       : ent?`<span class="small">（${esc(fh.name)}は「${esc(ent.name)}」にエントリー中）</span>`
       : rs?`<span class="disreason">${fh?fh.name+"：":""}${rs}</span>`
-      : `<button class="btn sm" data-future-entry="${g.name}">${esc(fh.name)} でエントリー</button>`}</div>`; };
+      : `<button class="btn sm" data-future-entry="${g.name}">${esc(fh.name)} でエントリー</button>`}${g.overseas?(()=>{ const ra=S.week+x.w, wl=a=>`${Math.floor(a/48)+1}年目${Math.floor((a%48)/4)+1}月第${(a%4)+1}週`; return `<span class="travelblock"><span class="tb">✈ 出国の移動週：${wl(ra-1)}</span><span class="tb race">🏁 レース週：${wl(ra)}</span><span class="tb">✈ 帰国の移動週：${wl(ra+1)}</span></span>`; })():""}</div>`; };
   let futureInner=`<div class="panel"><p class="small" style="margin-top:0">対象馬は厩舎画面や出馬表で選んだ馬です。エントリーすると、そのレースまで「あと○週」と表示され続け、レース週には週送りが止まります。</p>${pageSlice("raceFuture", futs, 5).map(futRow).join("")||`<p class="small">今後12週の重賞はありません。</p>`}</div>`+pagerHTML("raceFuture", futs.length, 5);
   let trendInner=`<div class="panel"><label class="small">競馬場 <select id="course-ana">${COURSES.map(c=>`<option ${c===selCourseAna?"selected":""}>${c}</option>`).join("")}</select></label>
   ${(()=>{ const c=selCourseAna, info=COURSE_INFO[c]||{dir:"",note:""}, st=COURSE_STRAIGHT[c]||350, small=COURSE_SMALL.includes(c), steep=STEEP_COURSES.includes(c);
@@ -10449,9 +10524,10 @@ function lossAnalysisHTML(o){
   const posMid=raceRankAt(h,sim.tWin*0.45), pos4=raceRankAt(h,sim.tWin*0.82);
   const bestL3=Math.min.apply(null,sorted.map(x=>x._last3));
   const l3d=h._last3-bestL3, abDiff=(win._ab||0)-(h._ab||0);
+  const evChip=(l,v)=>`<span class="fev">${l} <b>${v}</b></span>`;
   const dataLine= place===1
-    ? `<div class="small" style="text-align:left">勝ち時計 ${fmtTime(h._time)}／2着と ${marginLabel(sorted[1]?sorted[1]._margin:0)}／道中 ${posMid}番手 → 4コーナー ${pos4}番手／上がり ${h._last3.toFixed(1)}（最速 ${bestL3.toFixed(1)}）／作戦 ${tac.n}・${raceState.paceInfo}</div>`
-    : `<div class="small" style="text-align:left">勝ち馬と ${(h._time-win._time).toFixed(1)}秒差（${marginLabel(h._margin)}）／道中 ${posMid}番手 → 4コーナー ${pos4}番手／上がり ${h._last3.toFixed(1)}（最速 ${bestL3.toFixed(1)}）／作戦 ${tac.n}・${raceState.paceInfo}</div>`;
+    ? `<div class="dataline">${evChip("勝ち時計",fmtTime(h._time))}${evChip("2着との差",marginLabel(sorted[1]?sorted[1]._margin:0))}${evChip("道中",posMid+"番手")}${evChip("4角",pos4+"番手")}${evChip("上がり",h._last3.toFixed(1))}${evChip("最速上がり",bestL3.toFixed(1))}${evChip("作戦",tac.n)}${evChip("ペース",raceState.paceInfo)}</div>`
+    : `<div class="dataline">${evChip("勝ち馬との差",(h._time-win._time).toFixed(1)+"秒（"+marginLabel(h._margin)+"）")}${evChip("道中",posMid+"番手")}${evChip("4角",pos4+"番手")}${evChip("上がり",h._last3.toFixed(1))}${evChip("最速上がり",bestL3.toFixed(1))}${evChip("作戦",tac.n)}${evChip("ペース",raceState.paceInfo)}</div>`;
   if(place===1){
     const pts=[];
     if(l3d<=0.05)pts.push([`上がり最速 ${h._last3.toFixed(1)} の末脚`, "直線でいちばん伸びました。"]);
@@ -10462,47 +10538,48 @@ function lossAnalysisHTML(o){
     if(h.gear==="cheek"&&(h.temper==="激"||h.temper==="荒い"))pts.push(["チークで折り合いがついた", "気性の荒いタイプにチークが合い、折り合いがつきました。"]);
     if((sorted[1]?sorted[1]._margin:0)>=2.5)pts.push([`${marginLabel(sorted[1]._margin)}差の完勝`, "2着以下を大きく離しました。"]);
     if(!pts.length)pts.push(["実力どおりの勝利", "大きな決め手はなく、力で押し切りました。"]);
-    return `<div class="panel"><h3>🏆 勝因メモ：${esc(h.name)}</h3>${dataLine}<ul class="causelist">${pts.slice(0,3).map(p=>`<li><b>${p[0]}</b><br>${p[1]}</li>`).join("")}</ul></div>`;
+    return `<div class="panel"><h3>🏆 勝因メモ：${esc(h.name)}</h3>${dataLine}<div class="factorgrid">${pts.slice(0,3).map(p=>`<div class="fcard"><div class="fhead"><span class="ftitle">${p[0]}</span></div><div>${p[1]}</div></div>`).join("")}</div></div>`;
   }
-  const F=[]; // {sev, title, detail, adv}
-  const add=(sev,title,detail,adv)=>F.push({sev,title,detail,adv});
+  const F=[]; // {sev, title, detail, adv, ev:[[ラベル,数値],...]}
+  const add=(sev,title,detail,adv,ev)=>F.push({sev,title,detail,adv,ev:ev||[]});
   /* 状態（レース前の値で判定する） */
-  if(fatB>=75)add(9,"疲労が溜まっていた",`レース前の疲労 ${fatB}。疲れが能力を大きく削りました。`,"次走まで放牧・休養でしっかり回復させましょう。");
-  else if(fatB>=60)add(6,"疲労の影響",`レース前の疲労 ${fatB} と高めでした。`,"間隔を空けるか、軽めの調整で次走へ。");
-  if(condB<=35)add(8,"調子が上がっていなかった",`レース前の調子 ${condB} と、本来の走りができない状態でした。`,"調教で調子を上げてから出走させましょう。");
-  else if(condB<=48)add(5,"調子は今ひとつ",`レース前の調子 ${condB} と低めでした。`,"出走間隔と調教で調子を整えましょう。");
-  if(Math.abs(wDevB)>=10)add(6,wDevB>0?"馬体重が重かった":"馬体重が軽かった",`ベスト体重 ${h.wBest}kg に対して ${wB}kg（${wDevB>0?"+":""}${wDevB}kg）で出走しました。`,"調教と休養でベスト体重に寄せてから出走を。");
+  if(fatB>=75)add(9,"疲労が溜まっていた",`レース前の疲労 ${fatB}。疲れが能力を大きく削りました。`,"次走まで放牧・休養でしっかり回復させましょう。",[["レース前疲労",fatB],["目安","75以上で大きく低下"]]);
+  else if(fatB>=60)add(6,"疲労の影響",`レース前の疲労 ${fatB} と高めでした。`,"間隔を空けるか、軽めの調整で次走へ。",[["レース前疲労",fatB]]);
+  if(condB<=35)add(8,"調子が上がっていなかった",`レース前の調子 ${condB} と、本来の走りができない状態でした。`,"調教で調子を上げてから出走させましょう。",[["レース前調子",condB]]);
+  else if(condB<=48)add(5,"調子は今ひとつ",`レース前の調子 ${condB} と低めでした。`,"出走間隔と調教で調子を整えましょう。",[["レース前調子",condB]]);
+  if(Math.abs(wDevB)>=10)add(6,wDevB>0?"馬体重が重かった":"馬体重が軽かった",`ベスト体重 ${h.wBest}kg に対して ${wB}kg（${wDevB>0?"+":""}${wDevB}kg）で出走しました。`,"調教と休養でベスト体重に寄せてから出走を。",[["馬体重",wB+"kg"],["ベスト",h.wBest+"kg"],["差",(wDevB>0?"+":"")+wDevB+"kg"]]);
   /* 馬具の相性（能力計算に実際に効いた分だけを根拠にする） */
-  if(h.gear==="blinker"&&(h.men||60)>=62)add(4,"ブリンカーが合っていなかった",`落ち着いたタイプ（精神 ${h.men||60}）にブリンカーは逆効果で、能力を少し削りました。`,"馬具を外して様子を見るのが無難です。");
-  if(h.gear==="cheek"&&!(h.temper==="激"||h.temper==="荒い"))add(2,"チークの効果は出なかった",`チークは気性の荒いタイプ向けで、この馬の気性（${h.temper||"普通"}）では効果が出ませんでした。`,"馬具なしで十分なタイプです。");
+  if(h.gear==="blinker"&&(h.men||60)>=62)add(4,"ブリンカーが合っていなかった",`落ち着いたタイプ（精神 ${h.men||60}）にブリンカーは逆効果で、能力を少し削りました。`,"馬具を外して様子を見るのが無難です。",[["精神",(h.men||60)],["馬具","ブリンカー"]]);
+  if(h.gear==="cheek"&&!(h.temper==="激"||h.temper==="荒い"))add(2,"チークの効果は出なかった",`チークは気性の荒いタイプ向けで、この馬の気性（${h.temper||"普通"}）では効果が出ませんでした。`,"馬具なしで十分なタイプです。",[["気性",h.temper||"普通"],["馬具","チーク"]]);
   /* 適性 */
   const er=effRange(h);
-  if(r.dist>er.hi)add(8,"距離が長すぎた",`適性距離は ${er.lo}〜${er.hi}m。この ${r.dist}m では終盤にスタミナが持ちませんでした。`,`${er.hi}m 以内のレースを選びましょう。`);
-  else if(r.dist<er.lo)add(7,"距離が短すぎた",`適性距離は ${er.lo}〜${er.hi}m。${r.dist}m では流れについていくのが精一杯でした。`,`${er.lo}m 以上のレースを選びましょう。`);
+  if(r.dist>er.hi)add(8,"距離が長すぎた",`適性距離は ${er.lo}〜${er.hi}m。この ${r.dist}m では終盤にスタミナが持ちませんでした。`,`${er.hi}m 以内のレースを選びましょう。`,[["適性距離",er.lo+"〜"+er.hi+"m"],["このレース",r.dist+"m"]]);
+  else if(r.dist<er.lo)add(7,"距離が短すぎた",`適性距離は ${er.lo}〜${er.hi}m。${r.dist}m では流れについていくのが精一杯でした。`,`${er.lo}m 以上のレースを選びましょう。`,[["適性距離",er.lo+"〜"+er.hi+"m"],["このレース",r.dist+"m"]]);
   const surfG=r.surf==="芝"?h.turf:h.dirt;
-  if(surfG==="C")add(7,`${r.surf}が苦手`,`${r.surf}適性が低く、力を出し切れませんでした。`,r.surf==="芝"?"ダート戦か、芝でも条件の合うコースを。":"芝のレースを選びましょう。");
+  if(surfG==="C")add(7,`${r.surf}が苦手`,`${r.surf}適性が低く、力を出し切れませんでした。`,r.surf==="芝"?"ダート戦か、芝でも条件の合うコースを。":"芝のレースを選びましょう。",[["適性",surfG+"級"],["馬場",r.surf]]);
   const gi=GROUNDS.indexOf(r.ground);
-  if(gi>=2&&h.heavy==="C")add(6,"重馬場がこたえた",`${r.ground}の馬場で脚を取られました（重馬場適性が低め）。`,"良馬場のレースを狙いましょう。");
+  if(gi>=2&&h.heavy==="C")add(6,"重馬場がこたえた",`${r.ground}の馬場で脚を取られました（重馬場適性が低め）。`,"良馬場のレースを狙いましょう。",[["馬場",r.ground],["重馬場適性","低め"]]);
   /* 展開：ペースと脚質の噛み合わせ */
-  if(pace>=0.9&&tac.pos>=0.62)add(8,"ハイペースで前が崩れた",`${raceState.paceInfo}（1000m ${raceState.pace1000}）の中を ${tac.n} で前に行った分、直線で余力がありませんでした。`,"前に行く馬が多いレースでは脚質を下げるか、ペースが落ち着く組み合わせを。");
-  if(pace<=-0.8&&tac.pos<=0.36)add(8,"スローペースで届かなかった",`${raceState.paceInfo}（1000m ${raceState.pace1000}）で前が止まらず、${tac.n} では差し届きませんでした。`,"スローが見込まれるレースでは位置取りを前に。");
-  if(r.dist>=2200&&(h.sta||0)<55&&posMid<=4&&place>=6)add(7,"長距離でスタミナ切れ",`${r.dist}m を ${posMid}番手で運びましたが、スタミナ（${h.sta}）が持たず直線で失速しました。`,"距離短縮か、位置取りを下げて温存する作戦を。");
+  if(pace>=0.9&&tac.pos>=0.62)add(8,"ハイペースで前が崩れた",`${raceState.paceInfo}（1000m ${raceState.pace1000}）の中を ${tac.n} で前に行った分、直線で余力がありませんでした。`,"前に行く馬が多いレースでは脚質を下げるか、ペースが落ち着く組み合わせを。",[["ペース",raceState.paceInfo],["1000m通過",raceState.pace1000],["作戦",tac.n]]);
+  if(pace<=-0.8&&tac.pos<=0.36)add(8,"スローペースで届かなかった",`${raceState.paceInfo}（1000m ${raceState.pace1000}）で前が止まらず、${tac.n} では差し届きませんでした。`,"スローが見込まれるレースでは位置取りを前に。",[["ペース",raceState.paceInfo],["1000m通過",raceState.pace1000],["作戦",tac.n]]);
+  if(r.dist>=2200&&(h.sta||0)<55&&posMid<=4&&place>=6)add(7,"長距離でスタミナ切れ",`${r.dist}m を ${posMid}番手で運びましたが、スタミナ（${h.sta}）が持たず直線で失速しました。`,"距離短縮か、位置取りを下げて温存する作戦を。",[["距離",r.dist+"m"],["スタミナ",h.sta],["道中",posMid+"番手"]]);
   /* 位置取り・進路 */
-  if(pos4>=Math.max(9,Math.ceil(n*0.65))&&place>=4)add(7,"位置取りが後ろすぎた",`4コーナー ${pos4}番手（${n}頭立て）からでは、直線だけで挽回しきれませんでした。`,"作戦を前寄りにするか、出遅れないようゲート対策を。");
-  if((h.flags||[]).includes("slowgate")||traitOf(h,"slowstart"))add(5,"スタートで後手",`出遅れ気味に始まり、道中 ${posMid}番手と後ろからの競馬になりました。`,"ゲート練習系の調教や「ゲート上手」の特性習得を。");
+  if(pos4>=Math.max(9,Math.ceil(n*0.65))&&place>=4)add(7,"位置取りが後ろすぎた",`4コーナー ${pos4}番手（${n}頭立て）からでは、直線だけで挽回しきれませんでした。`,"作戦を前寄りにするか、出遅れないようゲート対策を。",[["4角",pos4+"番手"],["頭数",n+"頭"]]);
+  if((h.flags||[]).includes("slowgate")||traitOf(h,"slowstart"))add(5,"スタートで後手",`出遅れ気味に始まり、道中 ${posMid}番手と後ろからの競馬になりました。`,"ゲート練習系の調教や「ゲート上手」の特性習得を。",[["道中",posMid+"番手"]]);
   const blkR=visBlockedRatio(h);
-  if(blkR>=0.45&&place>=3)add(7,"直線で進路が開かなかった","最後の直線で前が壁になり、横も塞がれてしばらく抜け出せませんでした。（これは表示上の進路取りから測った「展開として」の参考情報で、着順計算そのものには影響していない要素です）","騎手の技術と馬の反応が上がると、スキマを早く使えるようになります。");
-  if((h._latSwing||0)>=0.7&&(h.smt||60)<55)add(4,"コーナーで外を回らされた","最終コーナーで大きく外を回った分、距離のロスがありました。","賢さが上がると外でもロスが小さくなります。内枠・内を回れる作戦も有効です。");
+  if(blkR>=0.45&&place>=3)add(7,"直線で進路が開かなかった","最後の直線で前が壁になり、横も塞がれてしばらく抜け出せませんでした。（これは表示上の進路取りから測った「展開として」の参考情報で、着順計算そのものには影響していない要素です）","騎手の技術と馬の反応が上がると、スキマを早く使えるようになります。",[["進路なしの時間",Math.round(blkR*100)+"%"],["出所","表示上の進路（参考）"]]);
+  if((h._latSwing||0)>=0.7&&(h.smt||60)<55)add(4,"コーナーで外を回らされた","最終コーナーで大きく外を回った分、距離のロスがありました。","賢さが上がると外でもロスが小さくなります。内枠・内を回れる作戦も有効です。",[["賢さ",h.smt||60]]);
   /* 直線の伸び・作戦適性・アクシデント */
-  if(l3d>=0.9)add(6,"直線の伸びが足りなかった",`上がり ${h._last3.toFixed(1)} は最速の ${bestL3.toFixed(1)} より ${l3d.toFixed(1)} 秒遅く、最後に伸び負けました。`,"瞬発力を伸ばす調教や、長い直線のコースを。");
-  if(h._fit!=null&&h._fit<0.45)add(6,"作戦が脚質に合っていなかった",`作戦「${tac.n}」はこの馬の脚質適性が低く、道中で余計に消耗しました（本来は${bestTacStyle(h)}向き）。`,"脚質に合う作戦に変えると力を出し切れます。");
-  if(h._kaka)add(6,"道中でかかって消耗した","折り合いを欠いて序盤に力を使い、直線で伸びを欠きました。","折り合いに長けた騎手への乗り替わりが有効です。");
+  if(l3d>=0.9)add(6,"直線の伸びが足りなかった",`上がり ${h._last3.toFixed(1)} は最速の ${bestL3.toFixed(1)} より ${l3d.toFixed(1)} 秒遅く、最後に伸び負けました。`,"瞬発力を伸ばす調教や、長い直線のコースを。",[["上がり",h._last3.toFixed(1)],["最速上がり",bestL3.toFixed(1)],["差",l3d.toFixed(1)+"秒"]]);
+  if(h._fit!=null&&h._fit<0.45)add(6,"作戦が脚質に合っていなかった",`作戦「${tac.n}」はこの馬の脚質適性が低く、道中で余計に消耗しました（本来は${bestTacStyle(h)}向き）。`,"脚質に合う作戦に変えると力を出し切れます。",[["作戦",tac.n],["本来の脚質",bestTacStyle(h)]]);
+  if(h._kaka)add(6,"道中でかかって消耗した","折り合いを欠いて序盤に力を使い、直線で伸びを欠きました。","折り合いに長けた騎手への乗り替わりが有効です。",[["折り合い","不良"]]);
   /* 相手関係 */
-  if(abDiff>=2.5)add(9,"勝ち馬が強すぎた",`${esc(win.name)} とは能力差があり、このクラスでは相手が違いました。`,"条件を下げたレース（自己条件）で勝ち星を狙いましょう。");
-  else if(abDiff>=1.2&&place>=3)add(5,"上位との能力差",`勝ち馬 ${esc(win.name)} とは力の差がありました。`,"成長を待つか、条件の合うレース選びを。");
+  if(abDiff>=2.5)add(9,"勝ち馬が強すぎた",`${esc(win.name)} とは能力差があり、このクラスでは相手が違いました。`,"条件を下げたレース（自己条件）で勝ち星を狙いましょう。",[["能力差","+"+abDiff.toFixed(1)],["勝ち馬",win.name]]);
+  else if(abDiff>=1.2&&place>=3)add(5,"上位との能力差",`勝ち馬 ${esc(win.name)} とは力の差がありました。`,"成長を待つか、条件の合うレース選びを。",[["能力差","+"+abDiff.toFixed(1)],["勝ち馬",win.name]]);
   F.sort((a,b)=>b.sev-a.sev);
   const top=F.slice(0,4);
-  const body=top.length? `<ul class="causelist">${top.map(f=>`<li><b>${f.title}</b><br>${f.detail}<span class="cv-adv">対策：${f.adv}</span></li>`).join("")}</ul><p class="small mt" style="text-align:left">一番の敗因は <b>${top[0].title}</b> です。</p>`
+  const sevLabel=v=> v>=8?"影響：大": v>=6?"影響：中": "影響：小";
+  const body=top.length? `<div class="factorgrid">${top.map(f=>`<div class="fcard"><div class="fhead"><span class="fsev s${f.sev}">${sevLabel(f.sev)}</span><span class="ftitle">${f.title}</span></div><div>${f.detail}</div>${f.ev&&f.ev.length?`<div class="fevs">${f.ev.map(e=>evChip(e[0],e[1])).join("")}</div>`:""}<span class="fadv">対策：${f.adv}</span></div>`).join("")}</div><p class="small mt" style="text-align:left">一番の敗因は <b>${top[0].title}</b> です。</p>`
     : (h._margin<=0.35
       ? `<p style="text-align:left">大きな敗因は見当たりません。${marginLabel(h._margin)}の惜敗で、勝ち馬との差はほんのわずかでした。同じ条件なら次は勝ち負けです。</p>`
       : `<p style="text-align:left">大きな敗因は見当たりません。状態・適性・展開に目立った問題はなく、今回は勝ち馬の力が上でした。</p>`);
@@ -10840,7 +10917,7 @@ function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[],
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
- news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[]}; d.ck=saveChecksum(d); return d; }
+ news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[]}; d.ck=saveChecksum(d); return d; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
   const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
   if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
@@ -11437,7 +11514,9 @@ function renderFarm(){
    <div class="sc-stats">速${h.spd} ス${h.sta} パ${h.pow} 瞬${h.bst} 根${h.gut}／芝${aptMark4(h.turf)} ダ${aptMark4(h.dirt)}</div>
    <div class="sc-eval">オススメ：秘書 ${h.saleEvals.sec||"―"}／牧場長 ${h.saleEvals.mgr||"―"}／調教師 ${h.saleEvals.tr||"―"}（☆＞◎＞○＞△）</div></div>
    <div class="sc-actions"><button class="btn sm" data-sale-bid="${i}">入札 ${fmt(h.price)}万円</button><button class="btn gold sm" data-sale-buy="${i}">一発購入 ${fmt(Math.round(h.price*1.35))}万円</button></div></div>`); });
-  html+=panelOpen("farm","sale")+`<div id="farm-sale"><h2 class="sec">🔨 ${SN} <span class="tag">開催中（今週のみ）・全${saleCards.length}頭</span></h2><div class="sale-funds" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>資金 ${fmt(S.funds)}万円</span><span style="flex:1"></span><button class="btn red sm" data-sale-end="1">セールを終了する</button></div><div class="salelist">${pageSlice("farmSale",saleCards,6).join("")}</div></div>`+pagerHTML("farmSale",saleCards.length,6)+`<div class="flex" style="justify-content:flex-end;margin-top:6px"><button class="btn red sm" data-sale-end="1">セールを終了する</button></div>`+panelClose();
+  const saleBuyOn= S.sale.kind==="mare"? !!autoCfg().buyMareOmakase : !!autoCfg().buyYoungOmakase;
+  const saleBuyLabel= S.sale.kind==="mare"? "繁殖牝馬のおまかせ購入" : "幼駒のおまかせ購入";
+  html+=panelOpen("farm","sale")+`<div id="farm-sale"><h2 class="sec">🔨 ${SN} <span class="tag">開催中（今週のみ）・全${saleCards.length}頭</span></h2><div class="sale-funds" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>資金 ${fmt(S.funds)}万円</span><span style="flex:1"></span><button class="btn red sm" data-sale-end="1">セールを終了する</button></div><div class="entryline" style="margin:6px 0"><span>🤖 <b>${saleBuyLabel}</b>：現在 <b>${saleBuyOn?"ON":"OFF"}</b></span><span class="small">${saleBuyOn?"オート通過時、調教師評価 ☆・◎ の個体だけを自動で買います（資金リザーブ等のガードつき）。手動で買う場合はこのまま下の上場馬から選べます。":"ONにすると、オート通過時に調教師評価 ☆・◎ の個体だけを自動で買います。切り替えは調教タブの「調教師への指示」チェックから。手動購入はこの画面でいつでもできます。"}</span></div><div class="salelist">${pageSlice("farmSale",saleCards,6).join("")}</div></div>`+pagerHTML("farmSale",saleCards.length,6)+`<div class="flex" style="justify-content:flex-end;margin-top:6px"><button class="btn red sm" data-sale-end="1">セールを終了する</button></div>`+panelClose();
  } else { html+=panelHTML("farm","sale",`<p class="small">現在、セールは開催されていません（8月・12月などに開催されます）。</p>`); }
  /* お守り・カップ・記録 */
  html+=panelOpen("farm","records")+`<div class="panel">
@@ -11771,7 +11850,7 @@ function applySave(d){
   }
   if(d.sound&&typeof d.sound==="object") S.sound={on:d.sound.on!==false, bgm:clamp(Number.isFinite(+d.sound.bgm)?+d.sound.bgm:0.6,0,1), se:clamp(Number.isFinite(+d.sound.se)?+d.sound.se:0.9,0,1)};
   /* 旧セーブに残る架空の名馬が混ざっていたら、実在馬リストへ移行する */
-  S.news=Array.isArray(d.news)?d.news:[]; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[];
+  S.news=Array.isArray(d.news)?d.news:[]; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[]; S.lineTrendSmooth=Array.isArray(d.lineTrendSmooth)?d.lineTrendSmooth:null; S.lineHeatPrev=(d.lineHeatPrev&&typeof d.lineHeatPrev==="object")?d.lineHeatPrev:null;
   S.awardLedger=(d.awardLedger&&typeof d.awardLedger==="object")?d.awardLedger:null; S.awardHistory=Array.isArray(d.awardHistory)?d.awardHistory:[]; /* 年間表彰の台帳と受賞歴（旧セーブは空で補う） */
   S.soldToRival=Array.isArray(d.soldToRival)?d.soldToRival:[]; S.rivalry=Array.isArray(d.rivalry)?d.rivalry:[]; S.saleHist=Array.isArray(d.saleHist)?d.saleHist:[];
   if(d.worldHorses&&d.worldHorses.length&&!d.worldHorses.some(w=>FICTIONAL_WORLD.includes(w.name))){ S.worldHorses=d.worldHorses;
@@ -12871,6 +12950,10 @@ function showTrainers(){
   showOverlay(`<h2>調教師の雇用</h2><div class="ov-body"><div style="text-align:left">
   <div class="flex">${[["jp","日本"],["eu","欧州"],["us","米国"]].map(([k,n])=>`<button class="btn sm ${TRUI.region===k?"gold":"ghost"}" data-trregion="${k}">${n}</button>`).join("")}<span class="small">現在：<b>${esc(cur.name)}</b>／能力が高いほど雇用費・維持費は大きく跳ね上がります</span></div>
   ${locked?`<p class="small mt">欧州・米国の調教師は、海外牧場（またはクラブ牧場）を開設すると雇えるようになります。</p>`:""}
+  <div class="ticket" style="text-align:left"><b>費用カーブの調整（2026-11-10）</b><div class="small">旧カーブ（維持費＝能力合計³÷40）は中位で跳ね上がり、中位の調教師だけ割に合いませんでした。新カーブ（維持費＝0.22×合計²＋0.8×合計）は、1頭あたり費用と効果÷費用が単調になるよう滑らかにしています。効果は調教倍率（全ランク平均の目安）です。</div>
+  <table class="costtable"><tr><th>能力合計の目安</th><th>担当上限</th><th>調教倍率</th><th>旧・維持費/週</th><th>新・維持費/週</th><th>新・1頭あたり</th><th>新・雇用費</th></tr>
+  ${[[5,"E〜D中心"],[10,"C中心"],[15,"B中心"],[20,"A中心"],[22,"上位"],[25,"最上位"]].map(([t,lb])=>{ const upO=Math.max(1,Math.round(t*t*t/40)), upN=Math.max(2,Math.round(t*t*0.22+t*0.8)); return `<tr><td>合計${t}（${lb}）</td><td>${6+t}頭</td><td>×${(0.9+(t/5)*0.04).toFixed(2)}</td><td>${fmt(upO)}万円</td><td><b>${fmt(upN)}万円</b></td><td>${(upN/(6+t)).toFixed(1)}万円</td><td>${fmt(Math.round(upN*44/10)*10)}万円</td></tr>`; }).join("")}
+  </table><div class="small">主任の手塚貴久は従来どおり雇用費・維持費ゼロです。各調教師の実際の金額は下の一覧に出ています。</div></div>
   ${items.map(d=>{ const cost=trainerCost(d); const isPrimary=d.id===cur.id; const isEmp=employedTrainers().some(x=>x.id===d.id); const dis=locked||(!isEmp&&S.funds<cost.hire);
     return `<div class="ticket"><b>${esc(d.name)}</b> <span class="small">${d.region==="jp"?`${esc(d.kana)}／${esc(d.base)}所属・${esc(d.debut)}年デビュー`:`${esc(d.kana)}拠点`}／方針：${esc(d.policy)}</span><br>
     <span class="small">能力：${rankRow(d.ranks,[["train","調教"],["eye","相馬眼"],["idea","閃き"],["cond","体調"],["weight","体重"]])}／距離：${rankRow(d.dist,[["sprint","短"],["mile","マ"],["middle","中"],["long","長"]])}${d.ageApt?`／年代：2歳${d.ageApt[0]}・3歳${d.ageApt[1]}・古馬${d.ageApt[2]}・牝馬${d.ageApt[3]}`:""}</span><br>
