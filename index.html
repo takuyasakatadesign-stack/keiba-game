@@ -1031,8 +1031,9 @@ input,select,textarea{ border:2px solid #2f7a33; border-radius:10px; background:
 .poschip .gnum{ display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; border-radius:50%; font-size:11.5px; font-weight:900; border:1.5px solid rgba(0,0,0,.35); padding:0 2px; }
 /* 牧場マップ */
 .farmmap{ position:relative; border-radius:14px; overflow:hidden; border:3px solid #2f7a33; box-shadow:0 0 0 2px #f2c41c; margin-bottom:12px; }
-.farmmap>img{ width:100%; height:300px; object-fit:cover; display:block; }
-.fmark{ position:absolute; transform:translate(-50%,-100%); background:#fffdf4; border:2px solid #2f7a33; border-radius:10px; padding:2px 5px; font-weight:900; font-size:11px; line-height:1.25; color:#26331f; box-shadow:0 3px 6px rgba(0,0,0,.3); cursor:pointer; width:84px; text-align:center; }
+.farmmap>img{ width:100%; height:420px; object-fit:cover; display:block; }
+.fmark{ position:absolute; transform:translate(-50%,-100%); background:#fffdf4; border:2px solid #2f7a33; border-radius:10px; padding:2px 5px; font-weight:900; font-size:11px; line-height:1.25; color:#26331f; box-shadow:0 3px 6px rgba(0,0,0,.3); cursor:pointer; width:76px; text-align:center; }
+@media (max-width:400px){ .fmark{ width:70px; font-size:10px; } }
 .fmark.built{ background:linear-gradient(180deg,#ffe066,#f5a301); border-color:#8a5a00; }
 .fmark small{ display:block; font-size:10px; font-weight:700; text-align:center; }
 /* 作戦画面：パドック風ヘッダー＆単勝購入 */
@@ -1371,7 +1372,7 @@ th,td{ padding:4px 6px; }
 
 /* 馬詳細のコンパクト表示（固定パネルに収めるため、大きな画像と秘書の吹き出しは一覧側に任せる） */
 .compact-detail .detail-art{ display:none; }
-.subpanel .farmmap>img{ height:168px; }
+.subpanel .farmmap>img{ height:420px; }
 .compact-detail .talk{ display:none; }
 .compact-detail .gauges{ display:grid; grid-template-columns:1fr 1fr; gap:1px 16px; }
 .compact-detail .gauge{ margin:0; }
@@ -10393,7 +10394,7 @@ function renderFarm(){
  const upkeepM=FACILITIES.reduce((a,f)=>a+facLv(f.id)*f.maint,0)*(S.overseasFarm?2:1);
  let html=subnavHTML("farm",[["top","牧場"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["club","クラブ"]])+panelOpen("farm","top")+`<h2 class="sec">牧場 <span class="tag">スペース ${sp.used}/${sp.base}</span></h2>`;
  /* 牧場マップ：イラストの上に施設オブジェクトを置き、タップで選択する */
- { const pos=[[13,20],[37,15],[63,19],[88,16],[24,47],[50,42],[76,48],[13,76],[38,72],[62,78],[87,73],[50,93]];
+ { const pos=[[12,13],[37,13],[62,13],[87,13],[12,25],[37,25],[62,25],[87,25],[12,37],[37,37],[62,37],[87,37],[12,49],[37,49],[62,49],[87,49],[12,61],[37,61],[62,61],[87,61],[12,73],[37,73],[62,73],[87,73],[12,85],[37,85],[62,85],[87,85],[12,97],[37,97],[62,97]];
    html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<small>${bd>0?"工事中":lv>0?"Lv"+lv:"未建設"}</small></button>`; }).join("")}</div>`;
  }
  html+=`<div id="farm-rest">`;
