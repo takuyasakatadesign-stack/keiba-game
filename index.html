@@ -3277,6 +3277,43 @@ function theorize(sireStr, dam, sireHorse, damHorse){
 const ABNAME={spd:"スピード",sta:"スタミナ",pow:"パワー",gut:"勝負根性",bst:"瞬発力",flx:"柔軟性",men:"精神力",smt:"賢さ",hlt:"健康"};
 /* 牧場長 */
 const FARM_MANAGER={name:"佐伯 恒夫",ranks:{eye:"A",blood:"B",breakin:"A",health:"B",breed:"B"},facility:"坂路",policy:"スピード重視",desc:"長年幼駒を見てきたベテラン。坂路での育成が得意"};
+/* ============ 牧場長（任命・交代） ============
+   牧場長は1名。候補は所属スタッフ全員（初代の佐伯・配偶者・雇用中の
+   調教師（兼任）・雇用済みの牧場スタッフ）に、新規雇用の候補を加えた
+   全員から選べる。牧場長の5能力（相馬眼／血統知識／馴致／種付け／
+   健康管理）が、受胎率・幼駒の判明と成長・故障の回復・配合の爆発力・
+   セール評価の精度に効く（従来 FARM_MANAGER 固定だった接続をここへ集約）。
+   配偶者が牧場長でない間は、従来どおり「牧場長を上回った分」が
+   spouseExcess として加わる（牧場長本人なら超過は0＝二重取りなし）。
+   旧セーブは farmMgrId 未設定＝佐伯が初期値として引き継がれる。 */
+const MGR_ABIL=[["eye","相馬眼"],["blood","血統知識"],["breakin","馴致"],["breed","種付け"],["health","健康管理"]];
+const RANK_LETTERS=["E","D","C","B","A","S"];
+function mgrPolicyFor(ranks){ let bk="eye", bv=-1; MGR_ABIL.forEach(([k])=>{ const v=rankVal(ranks&&ranks[k]); if(v>bv){ bv=v; bk=k; } }); return {eye:"見極め重視",blood:"血統重視",breakin:"馴致重視",breed:"生産重視",health:"健康重視"}[bk]||"バランス"; }
+function mgrResolve(id){
+  if(!id||id==="saeki") return {id:"saeki", name:FARM_MANAGER.name, sex:"m", ranks:{...FARM_MANAGER.ranks}, source:"初代牧場長", policy:FARM_MANAGER.policy, facility:FARM_MANAGER.facility, desc:FARM_MANAGER.desc, salary:0};
+  if(id==="spouse"){ const fam=S.family; if(!fam||!fam.spouse) return null; const sp=fam.spouse; return {id:"spouse", name:sp.name, sex:sp.sex||"f", ranks:{...(sp.ranks||{})}, source:"配偶者", policy:mgrPolicyFor(sp.ranks), facility:null, desc:"配偶者として牧場を支えます。能力がそのまま牧場長の効果になります", salary:0}; }
+  if(id.indexOf("trainer:")===0){ const t=(typeof trainerById==="function")? trainerById(id.slice(8)) : null; if(!t||t.retired) return null; const rk={eye:t.ranks.eye, blood:t.ranks.idea, breakin:t.ranks.train, breed:t.ranks.weight, health:t.ranks.cond}; return {id, name:t.name, sex:"m", ranks:rk, source:"調教師（兼任）", policy:mgrPolicyFor(rk), facility:null, desc:`${t.base||""}の調教師が兼任します（調教師能力の読み替え：血統知識＝閃き／馴致＝調教／種付け＝体重／健康管理＝体調）`, salary:0}; }
+  if(id.indexOf("staff:")===0){ const st=(S.farmStaff||[]).find(x=>"staff:"+x.id===id); if(!st) return null; return {id, name:st.name, sex:st.sex||"m", ranks:{...st.ranks}, source:"牧場スタッフ", policy:st.policy||mgrPolicyFor(st.ranks), facility:st.facility||null, desc:st.desc||"雇用した牧場スタッフ", salary:st.salary||0}; }
+  return null;
+}
+function farmManager(){ return mgrResolve(S.farmMgrId||"saeki") || mgrResolve("saeki"); }
+function mgrAffiliatedIds(){ const out=["saeki"]; if(S.family&&S.family.spouse) out.push("spouse"); try{ employedTrainers().forEach(t=>out.push("trainer:"+t.id)); }catch(e){} (S.farmStaff||[]).forEach(st=>out.push("staff:"+st.id)); return out; }
+let _mgrSeq=1;
+function genMgrCandidate(){
+  const used=new Set([FARM_MANAGER.name]); if(S.family&&S.family.spouse) used.add(S.family.spouse.name); (S.farmStaff||[]).forEach(x=>used.add(x.name)); (S.mgrCandidates||[]).forEach(x=>used.add(x.name));
+  let name=""; for(let t=0;t<300;t++){ const cand=pick(STAFF_SUR)+pick(STAFF_GIV); if(!used.has(cand)){ name=cand; break; } }
+  if(!name) name=pick(STAFF_SUR)+pick(STAFF_GIV)+pick(STAFF_GIV);
+  const ranks={}; MGR_ABIL.forEach(([k])=>{ ranks[k]=RANK_LETTERS[clamp(ri(1,3),0,5)]; });
+  const sp1=pick(MGR_ABIL)[0]; ranks[sp1]=Math.random()<0.18?"S":"A"; const sp2=pick(MGR_ABIL)[0]; if(sp2!==sp1) ranks[sp2]="B";
+  const total=MGR_ABIL.reduce((a,[k])=>a+rankVal(ranks[k]),0);
+  let nid=0; const taken=new Set([...(S.farmStaff||[]),...(S.mgrCandidates||[])].map(x=>x.id)); do{ nid=9000+Math.floor(Math.random()*8000000); }while(taken.has(nid));
+  return {id: nid, name, sex:Math.random()<0.5?"f":"m", ranks, salary: 10+total*5, total, policy: Math.random()<0.2? "スピード重視" : mgrPolicyFor(ranks), facility: (FACILITIES[ri(0,FACILITIES.length-1)]||{}).n||null, desc: pick(["育成牧場で長く若馬を見てきた","生産牧場の現場責任者を務めた","獣医助手と牧場運営の経験が豊富","種馬場で繁殖シーズンを仕切ってきた","大手牧場で血統と配合を担当してきた"])};
+}
+function ensureMgrCandidates(){ if(!Array.isArray(S.mgrCandidates)) S.mgrCandidates=[]; while(S.mgrCandidates.length<3) S.mgrCandidates.push(genMgrCandidate()); return S.mgrCandidates; }
+function mgrSalaryTotal(){ return (S.farmStaff||[]).reduce((a,x)=>a+(x.salary||0),0); }
+function appointManager(id){ const m=mgrResolve(id); if(!m){ toast("その候補は現在任命できません"); return; } S.farmMgrId=m.id; log(`👤 牧場長に ${m.name} を任命しました（${m.source}）。牧場の受胎・育成・健康管理はこの人の能力で進みます`); saveAuto(); renderAll(); }
+function hireMgrCandidate(cid){ ensureMgrCandidates(); const i=S.mgrCandidates.findIndex(x=>x.id===cid); if(i<0) return; const c=S.mgrCandidates[i]; const sign=(c.salary||0)*2; if(S.funds<sign){ toast("契約金が不足しています"); return; } undoPush(`牧場スタッフ雇用（${c.name}）の前`); S.funds-=sign; ledOut("salary",sign); if(!Array.isArray(S.farmStaff)) S.farmStaff=[]; S.farmStaff.push(c); S.mgrCandidates.splice(i,1); ensureMgrCandidates(); S.farmMgrId="staff:"+c.id; log(`👤 ${c.name} を牧場スタッフとして雇用し（契約金 ${fmt(sign)}万円／月給 ${fmt(c.salary)}万円）、牧場長に任命しました`); saveAuto(); renderAll(); }
+function refreshMgrCandidates(){ if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); S.mgrCandidates=[]; ensureMgrCandidates(); log("👤 牧場長の雇用候補を入れ替えました"); saveAuto(); renderAll(); }
 function rankVal(r){ const v={"S":5,"A":4,"B":3,"C":2,"D":1,"E":0}[r]; return v==null?3:v; } /* E級は0：以前は `||3` のため 0 が偽値として落ち、E級がB級（3）扱いになり、最低ランクの調教師・牧場長でも能力が効いてしまっていた */
 /* ============ 調教「指示」方式 ============ */
 function defaultPlan(){ return {repeat:"awase", fatTh:60, fatAct:"bokujou", preRace:true, postRest:1, goalTrait:"", weakFocus:false}; }
@@ -3389,7 +3426,7 @@ function facRecommend(){
     } else if(catNow<2){
       sc+=15; rs.push(`${f.cat}の効果はまだ ${catNow.toFixed(1)} と低めで、伸ばす余地が大きいです`);
     }
-    if(FARM_MANAGER.facility&&f.n.indexOf(FARM_MANAGER.facility)>=0){ sc+=16; rs.push(`牧場長（${FARM_MANAGER.name}）の得意施設です。配置すると効果が1.5倍になります`); }
+    { const _fm=farmManager(); if(_fm.facility&&f.n.indexOf(_fm.facility)>=0){ sc+=16; rs.push(`牧場長（${_fm.name}）の得意施設です。配置すると効果が1.5倍になります`); } }
     if(f.cost<=2000) sc+=Math.max(0,20-f.cost/130);
     if(f.cost<=600) rs.push(`建築費 ${fmt(f.cost)}万円と手頃で、資金（${fmt(S.funds)}万円）に無理がありません`);
     if(f.maint<=10) rs.push(`月維持費が ${f.maint}万円と軽く、建てた後の負担が小さいです`);
@@ -4944,7 +4981,7 @@ const S={
   bets:[], betStats:{bought:0, returned:0, hit:0, count:0}, betHistory:[], raceSpeed:1, camMode:"leader",
   autosaveFreq:"week", pendingYearEnd:null, autoCfg:null, trainerId:"jp122", trainers:["jp122"], trainerDirectives:{}, omakase:false,
   friendship:{0:35,1:20,2:25,3:15,4:10,5:15}, jockStats:{}, weekReport:[], watchMode:"full", betPct:0,
-  facilities:{}, building:{}, mgrPost:null, fame:0, farmEquity:0, lastDividend:null,
+  facilities:{}, building:{}, mgrPost:null, farmMgrId:"saeki", farmStaff:[], mgrCandidates:[], fame:0, farmEquity:0, lastDividend:null,
   pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0, hallOfFame:[],
   club:null, sale:null, saleWeekKey:"", clubOffers:[], ended:false, springFlags:{}, overseasFarm:null, clubFarm:false,
   worldHorses: defaultWorld(),
@@ -5729,7 +5766,7 @@ const FAMILY_CANDIDATES=[
 ];
 const CHILD_GIV_M=["湊","律","航","颯","樹","凪"], CHILD_GIV_F=["陽菜","澪音","栞","楓","結衣","紬"];
 function spouseFaceSVG(seed, sex){ let h=0; for(const c of String(seed)) h=(h*31+c.charCodeAt(0))>>>0; const skin=["#ffd9b8","#f2c69b","#e8b48c"][h%3], hairC=["#3a2a20","#17120e","#6b4a2c","#57534e"][h%4]; const hair= sex==="f"? `<path d="M13 46 Q5 ${22+h%7} 21 11 Q40 1 59 11 Q75 ${22+h%7} 67 46 L57 46 Q61 25 51 16 L29 16 Q19 25 23 46 Z" fill="${hairC}"/>` : `<path d="M21 31 Q19 9 40 8 Q61 9 59 31 Q57 17 40 16 Q23 17 21 31 Z" fill="${hairC}"/>`; return `<svg viewBox="0 0 80 80" width="60" height="60" role="img" aria-label="顔"><circle cx="40" cy="41" r="31" fill="#e8f2e4"/><circle cx="40" cy="40" r="19" fill="${skin}"/>${hair}<circle cx="33" cy="40" r="2.2" fill="#222"/><circle cx="47" cy="40" r="2.2" fill="#222"/><path d="M34 50 Q40 54 46 50" stroke="#b06a4a" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`; }
-function spouseExcess(k){ const fam=S.family; if(!fam||!fam.spouse) return 0; let ex=Math.max(0, rankVal(fam.spouse.ranks[k]||"E")-rankVal(FARM_MANAGER.ranks[k]||"E")); if((k==="breakin"||k==="health")&&(fam.staffChildren||0)>0) ex+=Math.min(1,fam.staffChildren); return ex; }
+function spouseExcess(k){ const fam=S.family; if(!fam||!fam.spouse) return 0; let ex=Math.max(0, rankVal(fam.spouse.ranks[k]||"E")-rankVal(farmManager().ranks[k]||"E")); if((k==="breakin"||k==="health")&&(fam.staffChildren||0)>0) ex+=Math.min(1,fam.staffChildren); return ex; }
 function familyEvent(text){ if(!S.family) return; S.family.events=S.family.events||[]; S.family.events.unshift({id:"fe"+Date.now()+Math.floor(Math.random()*999), text, seen:false}); S.family.events=S.family.events.slice(0,20); }
 function addAffection(key,n){ if(S.family&&S.family.spouse) return; S.affection=S.affection||{sec:0,trainer:0,jockey:0}; S._affW=S._affW||{week:-1,sec:0,trainer:0,jockey:0}; if(S._affW.week!==S.week){ S._affW={week:S.week,sec:0,trainer:0,jockey:0}; } if(S._affW[key]>=3) return; S._affW[key]+=n; S.affection[key]=Math.min(100,(S.affection[key]||0)+n); }
 function marryTo(sp, kids, how){ S.family={spouse:sp, marriedYear:year(), children:(kids||[]).map(k=>({name:k.name, sex:k.sex, age:k.age, course:!!k.course, policy:k.course? "sport":"farm", apt:{study:ri(2,4), sport:k.course?5:ri(1,5), farm:ri(1,5)}, path:null, bornYear:null})), events:[], staffChildren:0}; familyEvent(`💒 ${sp.name} と結婚しました（${how}）。配偶者は牧場スタッフとして加わります。`); log(`💒 ${sp.name} と結婚しました。配偶者は牧場スタッフに加わりました`); }
@@ -5782,7 +5819,7 @@ function familyPanelHTML(){ const fam=S.family;
   const sp=fam.spouse; const rk=[["相馬眼","eye"],["血統知識","blood"],["馴致","breakin"],["種付け","breed"],["健康管理","health"]].map(([l,k])=>`<span class="uchip">${l} <span class="uv">${sp.ranks[k]}</span></span>${spouseExcess(k)>0?`<span class="uchip gold">牧場長超え +${spouseExcess(k)}</span>`:""}`).join("");
   const kids=(fam.children||[]).map((c,i)=>{ const pathTxt=c.path==="jockey"? "騎手として活動中": c.path==="trainer"? "調教師として開業": c.path==="staff"? "牧場スタッフ": c.path? "進路決定（デビュー待ち）":"育成中"; return `<div class="ticket"><div class="flex" style="justify-content:space-between"><b>${esc(c.name)}</b><span class="uchips"><span class="uchip">${c.sex==="f"?"女":"男"} <span class="uv">${c.age}歳</span></span><span class="uchip ${c.path?"gold":""}">${pathTxt}</span>${c.course?`<span class="uchip">騎手課程出身</span>`:""}</span></div>${!c.path?`<label class="small">育成方針 <select data-childpol="${i}"><option value="study" ${c.policy==="study"?"selected":""}>勉強（→調教師）</option><option value="sport" ${c.policy==="sport"?"selected":""}>運動（→騎手）</option><option value="farm" ${c.policy==="farm"?"selected":""}>牧場（→牧場スタッフ）</option></select></label><div class="uchips" style="margin-top:4px"><span class="uchip">勉強適性 <span class="uv">${c.apt?c.apt.study:"-"}</span></span><span class="uchip">運動適性 <span class="uv">${c.apt?c.apt.sport:"-"}</span></span><span class="uchip">牧場適性 <span class="uv">${c.apt?c.apt.farm:"-"}</span></span></div>`:`<div class="small">方針：${c.policy==="study"?"勉強":c.policy==="sport"?"運動":"牧場"}</div>`}</div>`; }).join("");
   const evs=(fam.events||[]).slice(0,5).map(e=>`<div class="small" style="margin:2px 0">${esc(e.text)}</div>`).join("");
-  return `<div class="panel"><h3>家庭（${esc(ownerName())} の世帯）</h3><div class="ticket"><div class="flex" style="gap:10px;align-items:flex-start">${spouseFaceSVG(sp.name, sp.sex)}<div style="flex:1"><b>${esc(sp.name)}</b> <span class="small">配偶者・${sp.age}歳／結婚${year()-fam.marriedYear}年目</span><div class="small">牧場スタッフとして勤務。能力は牧場長を上回った分だけ各仕組みに効きます。</div><div class="uchips" style="margin-top:4px">${rk}</div></div></div></div><div class="mt"><b>子供</b>${kids||`<div class="small">子供はまだいません。年単位のイベントで生まれることがあります。</div>`}</div>${evs?`<div class="mt"><b>家族の出来事</b>${evs}</div>`:""}</div>`;
+  return `<div class="panel"><h3>家庭（${esc(ownerName())} の世帯）</h3><div class="ticket"><div class="flex" style="gap:10px;align-items:flex-start">${spouseFaceSVG(sp.name, sp.sex)}<div style="flex:1"><b>${esc(sp.name)}</b> <span class="small">配偶者・${sp.age}歳／結婚${year()-fam.marriedYear}年目</span><div class="small">牧場スタッフとして勤務。${S.farmMgrId==="spouse"?"現在は牧場長として勤務中で、能力がそのまま牧場に効いています。":"能力は牧場長を上回った分だけ各仕組みに効きます。牧場長への任命は馬主タブの牧場長欄からできます。"}</div><div class="uchips" style="margin-top:4px">${rk}</div></div></div></div><div class="mt"><b>子供</b>${kids||`<div class="small">子供はまだいません。年単位のイベントで生まれることがあります。</div>`}</div>${evs?`<div class="mt"><b>家族の出来事</b>${evs}</div>`:""}</div>`;
 }
 /* プレイヤーの人格は「馬主（人物）」。牧場は馬主が所有・経営する場所として残す。
    資金・名声・関係値・表彰の馬主部門などはすべて馬主のものとして扱い、
@@ -5825,7 +5862,8 @@ function bizPanelHTML(){ const eq=farmEquityPct(), val=farmValue(), unit5=Math.r
   ${eq<100?`<div class="flex" style="gap:6px;flex-wrap:wrap">${buyBtn(5,"持分を買う")}${buyBtn(20,"まとめて買う")}${buyBtn(100,"残りを全部買う")}</div>`:`<p class="small">買収が完了しています。自分の馬の預かり料はかかりません。</p>`}
   <div class="mt"><b>預かり料（支払い）</b><div class="uchips" style="margin-top:4px"><span class="uchip">牧場にいる馬 <span class="uv">${fh}頭</span></span><span class="uchip">単価 <span class="uv">${BOARD_PER_HEAD_M}万円/月・頭</span></span><span class="uchip">実質負担 <span class="uv">${fmt(feeM)}万円/月</span></span><span class="uchip dim">在厩の現役馬は対象外（預託料の側）</span></div></div>
   <div class="mt"><b>配当</b><div class="uchips" style="margin-top:4px"><span class="uchip">今年の事業収益見込み <span class="uv">${fmt(rev)}万円</span></span><span class="uchip">配当見込み <span class="uv">${fmt(divEst)}万円</span></span>${ld?`<span class="uchip gold">前回配当 <span class="uv">${fmt(ld.amount)}万円</span></span>`:`<span class="uchip dim">配当実績なし</span>`}</div><div class="small">配当は年末に、事業収益の6割を持分比率で受け取ります。</div></div>
-  <div class="mt"><b>預かり事業（他馬主の馬）</b><div class="uchips" style="margin-top:4px"><span class="uchip">預かり可能 <span class="uv">${cap}頭</span></span><span class="uchip">預かり中 <span class="uv">${bn}頭</span></span>${eq>=100?`<span class="uchip gold">収入 <span class="uv">${fmt(bn*BOARD_PER_HEAD_M)}万円/月</span></span>`:`<span class="uchip dim">買収後に収入が入ります（現在は配当の原資）</span>`}</div></div></div>`; }
+  <div class="mt"><b>預かり事業（他馬主の馬）</b><div class="uchips" style="margin-top:4px"><span class="uchip">預かり可能 <span class="uv">${cap}頭</span></span><span class="uchip">預かり中 <span class="uv">${bn}頭</span></span>${eq>=100?`<span class="uchip gold">収入 <span class="uv">${fmt(bn*BOARD_PER_HEAD_M)}万円/月</span></span>`:`<span class="uchip dim">買収後に収入が入ります（現在は配当の原資）</span>`}</div></div>
+  <div class="mt"><b>会社・牧場イベント</b><div class="small">会社の設立、12の担当枠、牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）の実施と結果レポートは「会社・イベント」タブにあります。</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-goto-company="1">会社・イベントを開く</button></div></div></div>`; }
 function clubDebut(o){
   if(!S.club||!o||o.debuted) return; o.debuted=true;
   try{ const base=clamp(Math.round(((o.potAvg||o.avg||55)+(o.avg||55))/2),45,92);
@@ -6367,19 +6405,6 @@ function renderTrain(){
   el.querySelectorAll("[data-tprimary]").forEach(b=>b.addEventListener("click",()=>setPrimaryTrainer(b.dataset.tprimary)));
   el.querySelectorAll("[data-tfire]").forEach(b=>b.addEventListener("click",()=>fireTrainer(b.dataset.tfire)));
   el.querySelectorAll("[data-role-main]").forEach(sel=>sel.addEventListener("change",()=>{ const r=roleDef(sel.dataset.roleMain); const st=rolesState(); const before=st[r.id].main; st[r.id].main=sel.value; st[r.id].subs=(st[r.id].subs||[]).filter(id=>id!==sel.value); _roleCovCache={}; syncRoleAssignments(); const d=trainerById(sel.value); log(`🎽 ${r.name}の正担当を ${d? d.name : ""} に変更しました（カバー上限 ${roleCapMain(r,d)}頭）`); saveAuto(true); renderAll(); }));
-  /* 会社パネルの操作 */
-  const bf0=document.getElementById("btn-found-company"); if(bf0) bf0.addEventListener("click",()=>foundCompany());
-  el.querySelectorAll("[data-comp-main]").forEach(sel=>sel.addEventListener("change",()=>setCompMain(sel.dataset.compMain, sel.value)));
-  el.querySelectorAll("[data-comp-sub]").forEach(cb=>cb.addEventListener("change",()=>toggleCompSub(cb.dataset.compSub, +cb.value, cb.checked)));
-  el.querySelectorAll("[data-comp-hire]").forEach(b=>b.addEventListener("click",()=>hireStaff(+b.dataset.compHire)));
-  el.querySelectorAll("[data-comp-fire]").forEach(b=>b.addEventListener("click",()=>fireStaff(+b.dataset.compFire)));
-  el.querySelectorAll("[data-comp-evtype]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.type=b.dataset.compEvtype; renderAll(); }));
-  el.querySelectorAll("[data-comp-evsize]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.size=+b.dataset.compEvsize; renderAll(); }));
-  const bev=document.getElementById("btn-comp-event"); if(bev) bev.addEventListener("click",()=>runEvent());
-  const binv=document.getElementById("btn-comp-invest"); if(binv) binv.addEventListener("click",()=>compInvest());
-  const bwd=document.getElementById("btn-comp-withdraw"); if(bwd) bwd.addEventListener("click",()=>compWithdraw());
-  const bins=document.getElementById("btn-comp-ins"); if(bins) bins.addEventListener("click",()=>{ const c=compState(); if(!c) return; c.insOn=!c.insOn; log(c.insOn?"🛡 競走馬保険に加入しました（掛金は毎月、故障時に給付金）":"競走馬保険を解約しました"); saveAuto(); renderAll(); });
-  const brf=document.getElementById("btn-comp-refresh"); if(brf) brf.addEventListener("click",()=>{ const c=compState(); if(!c) return; if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); compRefreshCandidates(); log("🏢 雇用候補を入れ替えました"); saveAuto(); renderAll(); });
   el.querySelectorAll("[data-role-sub]").forEach(cb=>cb.addEventListener("change",()=>{ const r=roleDef(cb.dataset.roleSub); const st=rolesState(); const tid=cb.dataset.rtid; st[r.id].subs=st[r.id].subs||[]; if(cb.checked&&!st[r.id].subs.includes(tid)) st[r.id].subs.push(tid); if(!cb.checked) st[r.id].subs=st[r.id].subs.filter(id=>id!==tid); _roleCovCache={}; syncRoleAssignments(); const d=trainerById(tid); log(`🎽 ${r.name}の副担当に ${d? d.name : ""} を${cb.checked? "加えました（+"+roleCapSub(r,d)+"頭)" : "から外しました"}`); saveAuto(true); renderAll(); }));
   el.querySelectorAll("[data-assign]").forEach(sel=>sel.addEventListener("change",()=>{ const h=S.horses.find(x=>x.id===+sel.dataset.assign); if(!h) return; h.trainerId=sel.value; h.legacyCover=false; log(`🔀 ${h.name} の担当を ${trainerOf(h).name} に変更しました`); saveAuto(true); renderAll(); }));
   const bom=$("#btn-omakase"); if(bom) bom.addEventListener("click",toggleOmakase);
@@ -6932,6 +6957,7 @@ function tryBreed(s,m){
   const ev=evalBreed(s,m);
   const th=ev.theory;
   try{ const bx=spouseExcess("blood"); if(bx>0&&th) th.burst=(th.burst||0)+bx*2; }catch(e){} /* 配偶者（血統知識）の後押し */
+ try{ const mb=rankVal(farmManager().ranks.blood); if(mb>3&&th) th.burst=(th.burst||0)+(mb-3)*2; }catch(e){} /* 牧場長（血統知識）がBを超える分だけ配合の爆発力が増す */
   /* 父系因子の活性化：表示された父系因子は受胎確定時に確実に上昇する下地になる */
   const P=pedigreeOf(s.name,m);
   S.pregnant.push({mareId:m.id, sireName:s.name, theory:{burst:th.burst, danger:th.danger, mods:th.mods, sub:th.sub, theories:th.theories, sireFactors:(P.sire.factors||[])}, judged:false, ok:false, dueYear:0});
@@ -8363,6 +8389,17 @@ function nrDecline(){
   renderAll();
   setTimeout(()=>{ try{ nrMaybeShow(); }catch(e){} },80);
 }
+/* 受胎率の計算（唯一の経路）：牧場長 farmManager() の種付けランクで決まる。
+   配偶者の上乗せは「配偶者が牧場長でない場合に、現牧場長を上回った分だけ」
+   （spouseExcess の現行定義を維持）。実効ランク＝牧場長ランク＋超過分は
+   配偶者ランク以下に収まるため、牧場長のランクを上げれば受胎率は必ず
+   下がらない（単調）。旧経路（配偶者合算など）で別途計算してはならない。 */
+function conceptionChance(sireH){
+ const mgrBreed=rankVal(farmManager().ranks.breed);
+ const excess=(S.farmMgrId!=="spouse" && typeof spouseExcess==="function")? spouseExcess("breed") : 0;
+ const effBreed=mgrBreed+excess;
+ return clamp(0.55 + effBreed*0.04 + facEffect("walker")*0.02 + facEffect("vet")*0.03 + (sireH?0.05:0), 0.3, 0.95);
+}
 function farmWeekly(){
  const mo=month(), wk=weekInMonth();
  /* 春の種付け期イベント（雷嵐配合の前提フラグ） */
@@ -8370,8 +8407,8 @@ function farmWeekly(){
  /* 受胎判定は月末 */
  if(wk===4){ (S.pregnant||[]).filter(p=>!p.judged).forEach(p=>{
    const sireH=(S.stallions||[]).find(x=>x.name===p.sireName)||(S.horses||[]).find(x=>x.name===p.sireName);
-   const chance=0.55 + rankVal(FARM_MANAGER.ranks.breed)*0.04 + facEffect("walker")*0.02 + facEffect("vet")*0.03 + (sireH?0.05:0) + (typeof spouseExcess==="function"? spouseExcess("breed")*0.03 : 0);
-   p.judged=true; p.ok=Math.random()<clamp(chance,0.3,0.95);
+   const chance=conceptionChance(sireH);
+   p.judged=true; p.ok=Math.random()<chance;
    const mare=(S.mares||[]).find(m=>m.id===p.mareId);
    if(p.ok){ p.dueYear=year()+1; log(`🐴 ${mare?mare.name:"繁殖牝馬"} が受胎しました（父：${p.sireName}）。来年4月に誕生予定`); }
    else { if(mare)mare.pregnant=false; log(`繁殖牝馬の受胎は叶いませんでした（父：${p.sireName}）${mo===5?"。6月に再種付けできます":""}`); S.pregnant=S.pregnant.filter(x=>x!==p); }
@@ -8390,11 +8427,11 @@ function farmWeekly(){
    if(y.policy==="speed"&&Math.random()<0.22){ y.spd=clamp(y.spd+1,20,ycap("spd")); if(Math.random()<0.4) y.bst=clamp(y.bst+1,20,ycap("bst")); }
    if(y.policy==="stamina"&&Math.random()<0.22){ y.sta=clamp(y.sta+1,20,ycap("sta")); if(Math.random()<0.4) y.hlt=clamp(y.hlt+1,20,ycap("hlt")); }
    if(y.policy==="spirit"&&Math.random()<0.22){ y.men=clamp(y.men+1,20,ycap("men")); if(Math.random()<0.4) y.gut=clamp(y.gut+1,20,ycap("gut")); }
-   const reveal=clamp(18+y.bredWeeks*3 + facEffect("group")*2 + rankVal(FARM_MANAGER.ranks.breakin)*1.5 + (typeof spouseExcess==="function"? spouseExcess("breakin")*2 : 0),0,100);
+   const reveal=clamp(18+y.bredWeeks*3 + facEffect("group")*2 + rankVal(farmManager().ranks.breakin)*1.5 + (typeof spouseExcess==="function"? spouseExcess("breakin")*2 : 0),0,100);
    y.known=Math.max(y.known||0, Math.round(reveal));
    const growFac={saka:"pow",track:"bst",kado:"flx",gatef:"gut",pool_f:"sta",longe:"men",flower:"smt",merit:"smt",grass:"hlt"};
    Object.keys(growFac).forEach(fid=>{ const e=facEffect(fid); if(e>0 && Math.random()<0.18){ const k=growFac[fid]; y[k]=clamp(y[k]+ (Math.random()<0.5?1:0) + (e>=2?1:0),20,99); } });
-   if(FARM_MANAGER.policy==="スピード重視"&&Math.random()<0.2) y.spd=clamp(y.spd+1,20,99);
+   if(farmManager().policy==="スピード重視"&&Math.random()<0.2) y.spd=clamp(y.spd+1,20,99);
    if(Math.random()<0.5) y.cond=clamp((y.cond||60)+ri(-3,4),20,100);
  });
  /* セール開催週の上場生成 */
@@ -8407,7 +8444,7 @@ function saleEval(kind, h){
  const trueScore=(h.spd+h.sta+h.pow+h.bst+h.gut)/5;
  const noise=(base,acc)=>{ const n=pick([-2,-1,0,0,1,2]); return n===0?"◎":(Math.abs(n)===2&&Math.random()<acc?"☆":(n>0?"◎":"△")); };
  if(kind==="sec"){ const est=(h.dmin+h.dmax); return trueScore>=78?"☆":trueScore>=70?"◎":trueScore>=62?"○":trueScore>=55?"△":""; }
- if(kind==="mgr"){ const est=(h.men+h.hlt)/2; return est>=80?"☆":est>=72?"◎":est>=64?"○":est>=56?"△":""; }
+ if(kind==="mgr"){ /* 牧場長の評価：精度は牧場長の相馬眼で決まる（Sなら実力どおり、低ければぶれる） */ let meye=4; try{ meye=rankVal(farmManager().ranks.eye); }catch(e){} const merr=[10,8,5,3,1,0][meye]||0; const est=(h.men+h.hlt)/2+(merr? (Math.random()*2-1)*merr : 0); return est>=80?"☆":est>=72?"◎":est>=64?"○":est>=56?"△":""; }
  /* 調教師の評価（kind="tr"）：話者は相馬眼が最も高い調教師で、見積もりの
     精度もその相馬眼で決まる（Sなら実力どおり、低ければぶれる。
     購入の目利き saleMarkByEye と同じ誤差表で揃える） */
@@ -8495,7 +8532,7 @@ function nextWeekBody(){
   S.funds-=upkeep();
   upkeepItems().forEach(x=>ledOut(x.cat,x.v)); // 月次明細へ項目別に記録
   /* 施設の月維持費（月初週に徴収） */
-  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } try{ companyMonthly(); }catch(e){} }
+  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } try{ const fsal=mgrSalaryTotal(); if(fsal>0){ S.funds-=fsal; ledOut("salary",fsal); log(`牧場スタッフの月給 ${fmt(fsal)}万円を支払い`); } }catch(e){} try{ companyMonthly(); }catch(e){} }
   /* 施設の工事進行 */
   Object.keys(S.building||{}).forEach(id=>{ if(S.building[id]>0){ S.building[id]--; if(S.building[id]<=0){ const f=FACILITIES.find(x=>x.id===id); log(`🏗 施設「${f?f.n:id}」が完成した`); } } });
   if(S.overseasFarm&&S.overseasFarm.farms){ ["eu","us"].forEach(rg=>{ const f=S.overseasFarm.farms[rg]; if(f&&!f.built&&f.weeks>0){ f.weeks--; if(f.weeks<=0){ f.built=true; log(`🌍 ${OV_FARMS[rg].name}が完成しました（遠征費の割引・現地の種牡馬割引・産駒の適性底上げが有効になります）`); } } }); }
@@ -8535,7 +8572,7 @@ function nextWeekBody(){
       h.weight=clamp(Math.round(h.weight+wD),420,540);
       if(Math.abs(wDev(h))>=12) h.cond=clamp(h.cond-3,15,100); // ベストから大きく外れると調子も落ちる
     }
-    if(h.injured>0)h.injured=Math.max(0,h.injured-(facEffect("walker")>0?1:0)*0+ (facEffect("vet")>0&&S.week%2===0?1:0)); if(h.injured>0 && typeof spouseExcess==="function"){ const hx=spouseExcess("health"); if(hx>0&&Math.random()<0.12*hx) h.injured=Math.max(0,h.injured-1); }
+    if(h.injured>0)h.injured=Math.max(0,h.injured-(facEffect("walker")>0?1:0)*0+ (facEffect("vet")>0&&S.week%2===0?1:0)); if(h.injured>0 && typeof spouseExcess==="function"){ const hx=spouseExcess("health"); if(hx>0&&Math.random()<0.12*hx) h.injured=Math.max(0,h.injured-1); } if(h.injured>0){ const mh=rankVal(farmManager().ranks.health); if(mh>3&&Math.random()<0.08*(mh-3)) h.injured=Math.max(0,h.injured-1); } /* 牧場長（健康管理）がBを超える分だけ回復が早まる */
     if(!manual && !h.retired) runPlan(h);
     /* 気合乗り（性格で振れ幅が変わる） */
     const swing={熱血:26,強気:18,真面目:8,従順:10,頑固:14,臆病:16}[h.personality]||12;
@@ -13029,7 +13066,7 @@ const SAVE_KEY="keibaGemu_";
 function saveChecksum(d){ try{ return fnv1a([d.v,d.week,d.funds,(d.horses||[]).length,(d.horses||[]).map(h=>h&&h.name).join(","),(d.mares||[]).length,(d.youngStock||[]).length,(d.worldHorses||[]).length].join("|")); }catch(e){ return ""; } }
 function saveCkOk(d){ return !d || !d.ck || d.ck===saveChecksum(d); }
 function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", trainers:Array.isArray(S.trainers)?S.trainers.slice():null, trainerDirectives:S.trainerDirectives||null, roles:S.roles||null, company:S.company||null, omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, standards:S.standards||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
- friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0, fameYr:S.fameYr||null, yeRetirePending:S.yeRetirePending||[],
+ friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, farmMgrId:S.farmMgrId||"saeki", farmStaff:S.farmStaff||[], mgrCandidates:S.mgrCandidates||[], fame:S.fame||0, fameYr:S.fameYr||null, yeRetirePending:S.yeRetirePending||[],
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
  news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
@@ -13572,16 +13609,34 @@ function renderFarm(){
  const preview={}; FAC_CATS.forEach(c=>preview[c]=0);
  if(sf){ const lv0=facLv(sf.id); if(facBuilding(sf.id)===0 && lv0<(sf.maxLv||2)){ const mul=S.mgrPost===sf.id?1.5:1; const inc=(lv0+1)*mul - lv0*(S.mgrPost===sf.id?1.5:1); if(lv0===0||true){ const curEff=facEffect(sf.id); const nextEff=(lv0+1)*mul; const d=Math.max(0,nextEff-curEff); preview[sf.cat]=(preview[sf.cat]||0)+d; if(sf.id==="merit"){preview["名声"]+=d*0.6;} if(sf.id==="tourism"){preview["名声"]+=d*0.3;} } } }
  const upkeepM=FACILITIES.reduce((a,f)=>a+facMaintM(f,facLv(f.id)),0)+overseasUpkeepM();
- let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
+ let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["company","会社・イベント"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
  /* 牧場マップ：イラストの上に施設オブジェクトを置き、タップで選択する */
  { const pos=[[12,13],[37,13],[62,13],[87,13],[12,25],[37,25],[62,25],[87,25],[12,37],[37,37],[62,37],[87,37],[12,49],[37,49],[62,49],[87,49],[12,61],[37,61],[62,61],[87,61],[12,73],[37,73],[62,73],[87,73],[12,85],[37,85],[62,85],[87,85],[12,97],[37,97],[62,97]];
    html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<small>${bd>0?"工事中":lv>0?"Lv"+lv+"/"+facMaxLv(f):"未建設"}</small></button>`; }).join("")}</div>`;
  }
  html+=`<div id="farm-rest">`;
  const postName=S.mgrPost? (FACILITIES.find(f=>f.id===S.mgrPost)||{}).n : "なし";
- html+=`<div class="panel"><b>牧場長：${FARM_MANAGER.name}</b> <span class="small">${FARM_MANAGER.desc}／育成方針：${FARM_MANAGER.policy}／得意施設：${FARM_MANAGER.facility}</span><br>
- <span class="small">能力：</span>${rankTilesHTML(FARM_MANAGER.ranks, [["eye","相馬眼"],["blood","血統知識"],["breakin","馴致"],["health","健康管理"],["breed","種付け"]])}
- <br><label class="small">配置先 <select id="mgr-post"><option value="">配置しない</option>${FACILITIES.filter(f=>facLv(f.id)>0).map(f=>`<option value="${f.id}" ${S.mgrPost===f.id?"selected":""}>${f.n}</option>`).join("")}</select></label> <span class="small">得意施設（坂路）に配置すると効果がさらに上がります。現在：${postName}</span></div>`;
+ { const mgr=farmManager(); ensureMgrCandidates();
+   const mgrCard=(m, hire)=>{ const isCur=m.id===mgr.id;
+     return `<div class="panel" style="margin:0;${isCur?"outline:2px solid #c9a227":""}"><div class="flex" style="gap:8px;align-items:flex-start">${spouseFaceSVG(m.name, m.sex)}<div style="flex:1;min-width:0"><b>${esc(m.name)}</b> <span class="uchip">${esc(m.source)}</span>${isCur?` <span class="uchip gold">現在の牧場長</span>`:""}<div class="small">${esc(m.desc||"")}</div><div style="margin-top:3px">${rankTilesHTML(m.ranks, MGR_ABIL)}</div><div class="small">育成方針：${esc(m.policy||"―")}${m.facility?`／得意施設：${esc(m.facility)}`:""}${hire?`／月給 ${fmt(m.salary||0)}万円`:""}</div></div></div>${isCur?`<div class="small mt">牧場長として勤務中です</div>`: hire? `<button class="btn gold sm mt" data-mgr-hire="${m.idNum}" ${S.funds>=(m.salary||0)*2?"":"disabled"}>雇用して牧場長に任命（契約金 ${fmt((m.salary||0)*2)}万円）</button>` : `<button class="btn sm mt" data-mgr-appoint="${esc(m.id)}">この人を牧場長に任命する</button>`}</div>`; };
+   const affCards=mgrAffiliatedIds().map(id=>mgrResolve(id)).filter(Boolean).map(m=>mgrCard(m,false)).join("");
+   const candCards=(S.mgrCandidates||[]).map(c=>mgrCard({id:"cand:"+c.id, idNum:c.id, name:c.name, sex:c.sex, ranks:c.ranks, source:"新規雇用", policy:c.policy, facility:c.facility, desc:c.desc, salary:c.salary}, true)).join("");
+   html+=`<div class="panel"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>牧場長：${esc(mgr.name)}</b><span class="uchip gold">${esc(mgr.source)}</span></div> <span class="small">${esc(mgr.desc||"")}／育成方針：${esc(mgr.policy||"―")}${mgr.facility?`／得意施設：${esc(mgr.facility)}`:""}</span><br>
+ <span class="small">能力：</span>${rankTilesHTML(mgr.ranks, MGR_ABIL)}
+ <div class="small" style="margin-top:3px">牧場長の能力は、受胎率（種付け）・幼駒の判明と成長（馴致）・故障の回復（健康管理）・配合の爆発力（血統知識）・セール評価の精度（相馬眼）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力も加わります。</div>
+ <br><label class="small">配置先 <select id="mgr-post"><option value="">配置しない</option>${FACILITIES.filter(f=>facLv(f.id)>0).map(f=>`<option value="${f.id}" ${S.mgrPost===f.id?"selected":""}>${f.n}</option>`).join("")}</select></label> <span class="small">${mgr.facility?`得意施設（${esc(mgr.facility)}）に配置すると効果がさらに上がります。`:""}現在：${postName}</span>
+ <details class="fold" style="margin-top:8px"><summary>牧場長を変更する（所属スタッフ＋新規雇用の候補）</summary><div class="foldbody">
+ <div class="small"><b>現在の所属スタッフ</b>（配偶者や、調教師の兼任も選べます）</div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin:6px 0">${affCards}</div>
+ <div class="small"><b>新規雇用の候補</b>（雇用すると牧場スタッフになり、そのまま牧場長に任命します。月給は毎月かかります） <button class="btn sm" id="btn-mgr-refresh">候補を入れ替える（50万円）</button></div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin:6px 0">${candCards}</div>
+ ${mgrSalaryTotal()>0?`<div class="small">牧場スタッフの月給合計 ${fmt(mgrSalaryTotal())}万円／月</div>`:""}
+ </div></details></div>`;
+ }
+ /* 会社・牧場イベントへの入口カード（タブに埋もれないよう牧場トップにも出す） */
+ { const c=S.company; const rep=c&&c.lastReport; const planMain=c? compMain("plan") : null; const ready=!!(c&&planMain&&S.week>=(c.eventCdUntil||0));
+   html+=`<div class="panel" style="border:2px solid #c9a227"><b>🎪 会社・牧場イベント</b><div class="small" style="margin:3px 0">${!c?`牧場イベントは会社化すると開けます（条件：名声${FOUND_FAME}以上・設立費 ${fmt(FOUND_COST)}万円／現在 名声 ${S.fame||0}・資金 ${fmt(S.funds)}万円）。会社の設立も「会社・イベント」タブで行えます。`: ready?`イベントを実施できます（事業担当：${esc(planMain.name)}）。見学会／ファン感謝祭／マルシェ／チャリティオークションから種類と規模を選んで実施すると、結果レポートが残ります。`: planMain?`前回のイベントから間隔が必要です（次回まであと ${(c.eventCdUntil||0)-S.week} 週）。担当枠の確認は「会社・イベント」タブでできます。`:`イベントには事業担当（正）の配置が必要です。「会社・イベント」タブでスタッフを雇って配置してください。`}${rep?`<br>前回の結果：${esc(rep.type)}（${esc(rep.size)}）― 来場 ${rep.att.toLocaleString()}人／収支 ${rep.income-rep.cost>=0?"+":""}${fmt(rep.income-rep.cost)}万円`:""}</div><button class="btn gold sm" data-goto-company="1">${c?"会社・イベントを開く":"会社化の案内を見る"}</button></div>`;
+ }
  html+=`<div class="panel"><b>牧場状況と施設効果</b>
  <div class="small" style="margin:3px 0">スペース ${sp.used}/${sp.base}（空き ${sp.free}／名声ボーナス +${sp.fameBonus}）／月維持費 ${fmt(upkeepM)}万円／繋養上限：繁殖牝馬 ${mareCap()}頭・種牡馬 ${sireCap()}頭／名声 ${S.fame||0}</div>
  ${FAC_CATS.map(c=>{ const base=Math.min(100,(cats[c]||0)*14), inc=Math.min(100-base,(preview[c]||0)*14); return `<div class="stat"><span style="min-width:52px">${c}</span><span class="facbar"><i class="base" style="width:${base}%"></i><i class="inc" style="width:${inc}%"></i></span><b>${(cats[c]||0).toFixed(1)}</b>${preview[c]?`<span class="small" style="color:#58a700">+${preview[c].toFixed(1)}（${sf.n}）</span>`:""}</div>`; }).join("")}
@@ -13628,10 +13683,10 @@ function renderFarm(){
  (S.youngStock||[]).forEach(y=>{ ensureFullHorse(y);
   const known=y.known||0; const showV=k=> known>=85? y[k] : known>=55? "約"+Math.round(y[k]/5)*5 : "？？";
   const topK=ABS9.reduce((b,[k])=>y[k]>y[b]?k:b,"spd");
-  const opinion= known<55? "まだ見極め中です。施設で育てながら判明度を上げましょう" : known<85? `伸びしろは${ABNAME[topK]}にありそうです（暫定所見）` : `${ABNAME[topK]}は一級品の可能性。${FARM_MANAGER.name}の太鼓判です`;
+  const opinion= known<55? "まだ見極め中です。施設で育てながら判明度を上げましょう" : known<85? `伸びしろは${ABNAME[topK]}にありそうです（暫定所見）` : `${ABNAME[topK]}は一級品の可能性。${farmManager().name}の太鼓判です`;
   youngCards.push(`<div class="panel"><b>${esc(y.name)}</b>${y.fateBond?` <span class="uchip gold">✨ 縁の馬</span>`:""} <span class="uchip">所在 育成中（牧場）</span> <span class="small">${y.sex}${y.age}歳・${coatName(y)}／父 ${esc(y.sire)}／判明度 ${known}%</span>${y.theoryNames&&y.theoryNames.length? `<span class="uchips" style="margin:0 0 0 4px">${y.theoryNames.map(x=>`<span class="uchip">${esc(x)}</span>`).join("")}</span>`:""}
   <div class="uchips" style="margin-top:3px">${ABS9.map(([k,n])=>`<span class="uchip">${n} <span class="uv">${showV(k)}</span>${({pow:facLv("saka"),bst:facLv("track"),flx:facLv("kado"),gut:facLv("gatef"),sta:facLv("pool_f"),men:facLv("longe"),smt:facLv("flower"),hlt:facLv("grass")}[k]||0)>0?" ●":""}</span>`).join("")}</div>
-  <div class="small">牧場長所見（${FARM_MANAGER.name}）：${opinion}</div>
+  <div class="small">牧場長所見（${farmManager().name}）：${opinion}</div>
   ${(()=>{ if(!y.birthComment){ try{ y.birthComment=makeBirthComment(y); }catch(e){} } return birthCommentCardHTML(y); })()}
   <div class="small" style="margin-top:4px">育成方針 <select data-youngpol="${y.id}"><option value="natural" ${!y.policy||y.policy==="natural"?"selected":""}>自然成長重視</option><option value="speed" ${y.policy==="speed"?"selected":""}>スピード重視</option><option value="stamina" ${y.policy==="stamina"?"selected":""}>基礎体力重視</option><option value="spirit" ${y.policy==="spirit"?"selected":""}>精神面重視</option></select>${y.pot?` <span>潜在：速${y.pot.spd} ス${y.pot.sta} パ${y.pot.pow} 瞬${y.pot.bst} 根${y.pot.gut}（成長限界・判明度連動の目安）</span>`:""}</div>
   <span class="small">●は対応施設で育成中の能力。未判明の能力は「？？」で表示されます。2歳になる年末に「入厩／売却／クラブ募集」を選べます。</span></div>`);
@@ -13705,6 +13760,25 @@ function renderFarm(){
  const mp=$("#mgr-post"); if(mp) mp.addEventListener("change",()=>{ S.mgrPost=mp.value||null; renderAll(); });
  el.querySelectorAll("[data-goto-rank]").forEach(b=>b.addEventListener("click",()=>switchView("rank")));
  el.querySelectorAll("[data-goto-club]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="club"; renderAll(); window.scrollTo(0,0); }));
+ /* 会社・イベントへの入口と会社パネルの操作（以前は配線が調教画面側にあり、
+    牧場画面ではタブ自体も無くボタンも反応しなかったため、ここへ集約した） */
+ el.querySelectorAll("[data-goto-company]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="company"; renderAll(); window.scrollTo(0,0); }));
+ const bf0=el.querySelector("#btn-found-company"); if(bf0) bf0.addEventListener("click",()=>foundCompany());
+ el.querySelectorAll("[data-comp-main]").forEach(sel=>sel.addEventListener("change",()=>setCompMain(sel.dataset.compMain, sel.value)));
+ el.querySelectorAll("[data-comp-sub]").forEach(cb=>cb.addEventListener("change",()=>toggleCompSub(cb.dataset.compSub, +cb.value, cb.checked)));
+ el.querySelectorAll("[data-comp-hire]").forEach(b=>b.addEventListener("click",()=>hireStaff(+b.dataset.compHire)));
+ el.querySelectorAll("[data-comp-fire]").forEach(b=>b.addEventListener("click",()=>fireStaff(+b.dataset.compFire)));
+ el.querySelectorAll("[data-comp-evtype]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.type=b.dataset.compEvtype; renderAll(); }));
+ el.querySelectorAll("[data-comp-evsize]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.size=+b.dataset.compEvsize; renderAll(); }));
+ const bev=el.querySelector("#btn-comp-event"); if(bev) bev.addEventListener("click",()=>runEvent());
+ const binv=el.querySelector("#btn-comp-invest"); if(binv) binv.addEventListener("click",()=>compInvest());
+ const bwd=el.querySelector("#btn-comp-withdraw"); if(bwd) bwd.addEventListener("click",()=>compWithdraw());
+ const bins=el.querySelector("#btn-comp-ins"); if(bins) bins.addEventListener("click",()=>{ const c=compState(); if(!c) return; c.insOn=!c.insOn; log(c.insOn?"🛡 競走馬保険に加入しました（掛金は毎月、故障時に給付金）":"競走馬保険を解約しました"); saveAuto(); renderAll(); });
+ const brf=el.querySelector("#btn-comp-refresh"); if(brf) brf.addEventListener("click",()=>{ const c=compState(); if(!c) return; if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); compRefreshCandidates(); log("🏢 雇用候補を入れ替えました"); saveAuto(); renderAll(); });
+ /* 牧場長の任命・交代と新規雇用の操作（牧場トップの牧場長欄で完結する） */
+ el.querySelectorAll("[data-mgr-appoint]").forEach(b=>b.addEventListener("click",()=>appointManager(b.dataset.mgrAppoint)));
+ el.querySelectorAll("[data-mgr-hire]").forEach(b=>b.addEventListener("click",()=>hireMgrCandidate(+b.dataset.mgrHire)));
+ const bmr=el.querySelector("#btn-mgr-refresh"); if(bmr) bmr.addEventListener("click",()=>refreshMgrCandidates());
  const bcl2=$("#btn-club2"); if(bcl2) bcl2.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); renderAll(); });
   const bom=$("#btn-omiai-open"); if(bom) bom.addEventListener("click",()=>showOmiai());
   el.querySelectorAll("[data-childpol]").forEach(sel=>sel.addEventListener("change",()=>{ const c=S.family&&S.family.children? S.family.children[+sel.dataset.childpol] : null; if(c){ c.policy=sel.value; log(`👨‍👩‍👧 ${c.name} の育成方針を「${sel.value==="study"?"勉強":sel.value==="sport"?"運動":"牧場"}」にしました`); renderAll(); } }));
@@ -13873,8 +13947,9 @@ function showSettings(){
 <div class="rulecard"><b>名声</b><p>舞台で決まります。勝利：G1 +5／G2 +3／G3 +2。重賞以外の勝利は +1 ずつでも年間+4までで頭打ち。重賞で2〜5着に入着すると G1 +2／G2・G3 +1、G1に出走して掲示板外でも +1（挑戦由来は年間+8まで）。上限120・減衰なし。条件戦の勝利を重ねるだけでは頭打ちになり、大きな舞台で勝ち・挑むほど伸びます。牧場スペースが名声5ごとに+1、海外牧場は名声30以上、クラブ牧場は名声20以上で開設可。</p></div>
 <div class="rulecard"><b>維持費の単価（週）</b><p>競走馬 18万円（エサ代8＋厩舎管理6＋装蹄・獣医4）／繁殖牝馬 5万円／自家種牡馬 8万円／幼駒 3万円。施設の月維持費は月初週に別途かかります。</p></div>
 <div class="rulecard"><b>種付料</b><p>自前の種牡馬は無料。外部の種牡馬は質と系統の人気で決まり、無名で数百万円、人気馬で数千万円、トップクラスで2〜3億円。手数料として一律150万円が加わります。逆に、自分の種牡馬が世界の生産者に使われると種付け料収入が入ります（需要に応じて年最大3件まで）。</p></div>
-<div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→経営）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
+<div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
 <div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。種付け・購入の代行担当も、チェックを入れた人の中で見極め担当を優先して決まります。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
+<div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
 <div class="rulecard"><b>馬主・牧場・調教師・クラブの役割と金の流れ</b><p>馬主（あなた）は馬を所有し、賞金を受け取る側です。購入代金・種付け料・海外遠征費・預託料を払います。牧場はあなたが経営する生産と育成・休養の場所で、産駒の生産と売却を担います。調教師はトレーニングセンターの厩舎で現役馬を預かり、馬主は担当馬1頭ごとの月額で預託料を払います（単価は調教師の能力で変動）。牧場は持分で所有するもので、新規開始の時点では持っていません。牧場にいる馬は預かり料（繋養料）を払い、持分を買うと事業収益の配当が入り、100%の買収で自分の馬の預かり料が止まって、他馬主の馬を預かる収入が入ります。馬の所在は、在厩（調教師の厩舎）／育成中（牧場）／休養中（牧場）／繁殖（牧場）で表示します。クラブは馬主の集まりで、クラブ馬の生産・育成の本拠はあなたの牧場、デビュー後は在厩として世界のレースを回ります。</p></div>
 <div class="rulecard"><b>融資</b><p>枠＝基礎4,000万円＋重賞ウィナー1,500万円/頭＋G1勝利500万円/勝＋所有馬300万円/頭。金利15%は借入額に対する固定率（返済総額＝借入額×1.15、12週分割）。延滞が2回続くと破産です。</p></div>
 <div class="rulecard"><b>スポンサー支援</b><p>受取額＝基礎1,500万円＋重賞ウィナー500万円/頭＋名声60万円/1＋直近1年の賞金収入の3%（上限3億円）。対価として12週間、賞金の30%を支払います（48週間ごとに再利用可）。</p></div>
@@ -14045,7 +14120,7 @@ function applySave(d){
   S.ledger=(d.ledger&&d.ledger.key)?d.ledger:null; S.ledgerHist=Array.isArray(d.ledgerHist)?d.ledgerHist:[]; S.facV2=!!d.facV2; S.ownerName=d.ownerName||null; S.farmEquity=(d.farmEquity==null? 100 : d.farmEquity); S._sireYr=d.sireYr||0; S.lastDividend=d.lastDividend||null; S.family=d.family||null; S.affection=d.affection||null; S.familyCand=d.familyCand||null; S._playedRaceIds=(d.playedIds&&typeof d.playedIds==="object")? d.playedIds : {};
   if(d.watchMatrix&&typeof d.watchMatrix==="object") S.watchMatrix=d.watchMatrix;
   if(d.markOn!==undefined) S.markOn=d.markOn;
-  S.facilities=d.facilities||{}; S.building=d.building||{}; S.mgrPost=d.mgrPost||null; S.fame=d.fame||0; S.fameYr=d.fameYr||null; S.yeRetirePending=Array.isArray(d.yeRetirePending)?d.yeRetirePending:[]; S._polC=null;
+  S.facilities=d.facilities||{}; S.building=d.building||{}; S.mgrPost=d.mgrPost||null; S.farmMgrId=d.farmMgrId||"saeki"; S.farmStaff=Array.isArray(d.farmStaff)?d.farmStaff:[]; S.mgrCandidates=Array.isArray(d.mgrCandidates)?d.mgrCandidates:[]; S.fame=d.fame||0; S.fameYr=d.fameYr||null; S.yeRetirePending=Array.isArray(d.yeRetirePending)?d.yeRetirePending:[]; S._polC=null;
   /* 資金救済（融資・スポンサー）：旧セーブには無いので既定値で補う */
   S.loan=(d.loan&&typeof d.loan==="object"&&+d.loan.remaining>0)? {remaining:Math.round(+d.loan.remaining), weekly:Math.max(1,Math.round(+d.loan.weekly||1)), weeksLeft:Math.max(0,+d.loan.weeksLeft||0), missed:Math.max(0,+d.loan.missed||0)} : null;
   S.sponsorReadyWeek=+d.sponsorReadyWeek||0; S.sponsorCutUntil=+d.sponsorCutUntil||0;
@@ -14211,6 +14286,8 @@ function buildGuide(){
     if(farmEquityPct()<100 && S.funds>=Math.round(farmValue()*0.05)*3) cards.push({key:"eqbuy0", who:"秘書・佐倉 澪", face:"sec", text:`資金に余裕があります。牧場の持分の購入を検討しませんか（現在 ${farmEquityPct()}%）。持分が増えるほど預かり料の負担が減り、配当が増えます。`, btn:"経営を見る", act:"eqbuy"});
     if(pc.y+pc.r>0) cards.push({key:"yepending", who:"秘書・佐倉 澪", face:"sec", text:`年末の処理が残っています（${pc.y?`明け2歳の処遇 ${pc.y}頭`:""}${pc.y&&pc.r?"／":""}${pc.r?`引退の判断 ${pc.r}頭`:""}）。今からでも処理できます`, btn:"未処理の馬を見る", act:"yepending"});
   }catch(e){}
+  /* 会社・牧場イベントの入口（タブに埋もれないよう秘書提案からも直接行ける） */
+  try{ const c=S.company; if(c){ if(S.week>=(c.eventCdUntil||0)&&compMain("plan")) cards.push({key:"compevent"+Math.floor(S.week/4), who:"秘書・佐倉 澪", face:"sec", text:"牧場イベントを実施できます。会社の事業担当が企画を用意しています（見学会／ファン感謝祭／マルシェ／チャリティオークション）。", btn:"イベントを開く", act:"company"}); } else if((S.fame||0)>=FOUND_FAME&&S.funds>=FOUND_COST){ cards.push({key:"compfound", who:"秘書・佐倉 澪", face:"sec", text:`会社化の条件が整いました（名声 ${S.fame||0}）。会社を作ると牧場イベントや事業・広報などの担当枠が開けます。`, btn:"会社・イベントを見る", act:"company"}); } }catch(e){}
   /* 役割のカバーが不足している枠があると、その役割の効果が届かないので
      枠ごとに具体的に知らせる（例：コンディション担当のカバーが○頭不足） */
   try{ const shorts=ROLES.map(r=>({ r, n: roleUncovered(r.id).length })).filter(x=>x.n>0);
@@ -14227,7 +14304,7 @@ function buildGuide(){
         text:`配合提案：${p.mare.name} × ${p.sire.name}（評価${p.ev.rank} ${p.ev.total}・爆発力${p.ev.explosion}）`,
         btn:"この配合で種付けへ", act:"breed", mid:p.mare.id, sname:p.sire.name, dis:S.funds<p.cost});
     });
-    if(!bprops.length) cards.push({key:"breed"+S.week, who:"牧場長・佐伯 恒夫", face:"mgr", text:"配合評価で理論を確認して種付けへ", btn:"生産へ", act:"view", view:"breed", anchor:"breed-form"});
+    if(!bprops.length) cards.push({key:"breed"+S.week, who:("牧場長・"+farmManager().name), face:"mgr", text:"配合評価で理論を確認して種付けへ", btn:"生産へ", act:"view", view:"breed", anchor:"breed-form"});
   }
   /* 次走が未定の馬 → ベストな次走をその場で登録 */
   const unentered=S.horses.filter(h=>!h.entry&&(h.injured||0)===0&&h.age>=2);
@@ -14258,21 +14335,21 @@ function buildGuide(){
   const recG=facRecommend()[0];
   const buildable=recG? recG.f : FACILITIES.filter(f=>facLv(f.id)===0&&facBuilding(f.id)===0&&f.cost<=S.funds).sort((a,b)=>a.cost-b.cost)[0];
   if(sp.free>0&&buildable){
-    cards.push({key:"fac"+buildable.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースに空きがあります。⭐おすすめは「${buildable.n}」（${fmt(buildable.cost)}万円・${buildable.cat}効果）：${recG? recG.reasons[0] : ""}`, btn:"施設を見る", act:"facility", fid:buildable.id});
+    cards.push({key:"fac"+buildable.id, who:("牧場長・"+farmManager().name), face:"mgr", text:`スペースに空きがあります。⭐おすすめは「${buildable.n}」（${fmt(buildable.cost)}万円・${buildable.cat}効果）：${recG? recG.reasons[0] : ""}`, btn:"施設を見る", act:"facility", fid:buildable.id});
   } else if(sp.free>0&&facUpCandidate()){
     /* 新規建設の候補が無いときは拡張のおすすめを提案する（オートの建設
        おまかせがこのカード経由で拡張も実行できるようにするため） */
     const upc=facUpCandidate();
-    cards.push({key:"facup"+upc.f.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`拡張のおすすめは「${upc.f.n}」を Lv.${upc.lv+1} に拡張（${fmt(upc.cost)}万円・${upc.f.cat}効果）`, btn:"施設を見る", act:"facility", fid:upc.f.id, up:true});
+    cards.push({key:"facup"+upc.f.id, who:("牧場長・"+farmManager().name), face:"mgr", text:`拡張のおすすめは「${upc.f.n}」を Lv.${upc.lv+1} に拡張（${fmt(upc.cost)}万円・${upc.f.cat}効果）`, btn:"施設を見る", act:"facility", fid:upc.f.id, up:true});
   } else if(sp.free<=0){
     /* 満杯のときの提案：基本施設（面積）が未建設ならそれを勧め、
        建設済みなら名声を上げる道を示す（名声5ごとに+1で必ず広がる） */
     const bf=FACILITIES.find(f=>f.id==="base");
     if(bf&&facLv("base")===0&&facBuilding("base")===0&&bf.cost<=S.funds){
-      cards.push({key:"facbase", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。「${bf.n}」（${fmt(bf.cost)}万円）を建設すると ${sp.base}→${sp.base+4} に広がります`, btn:"施設を見る", act:"facility", fid:"base"});
+      cards.push({key:"facbase", who:("牧場長・"+farmManager().name), face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。「${bf.n}」（${fmt(bf.cost)}万円）を建設すると ${sp.base}→${sp.base+4} に広がります`, btn:"施設を見る", act:"facility", fid:"base"});
     } else {
       const unbuilt=FACILITIES.filter(f=>facLv(f.id)===0&&facBuilding(f.id)===0).sort((a,b)=>a.cost-b.cost)[0];
-      if(unbuilt) cards.push({key:"facfame", who:"牧場長・佐伯 恒夫", face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。名声 ${sp.nextFame} で +1 広がります（現在 名声 ${S.fame||0}）。重賞・G1を勝って名声を上げましょう`, btn:"施設を見る", act:"facility", fid:unbuilt.id});
+      if(unbuilt) cards.push({key:"facfame", who:("牧場長・"+farmManager().name), face:"mgr", text:`スペースが満杯（${sp.used}/${sp.base}）です。名声 ${sp.nextFame} で +1 広がります（現在 名声 ${S.fame||0}）。重賞・G1を勝って名声を上げましょう`, btn:"施設を見る", act:"facility", fid:unbuilt.id});
     }
   }
   /* 繁殖牝馬の売却提案：自厩舎にとって必要度の低い繁殖牝馬（受胎中を除く）がいて
@@ -14290,12 +14367,12 @@ function buildGuide(){
   }
   const smp=(()=>{ try{ return surplusMare(); }catch(e){ return null; } })();
   if(smp){
-    cards.push({key:"maresell"+smp.m.id, who:"牧場長・佐伯 恒夫", face:"mgr", text:`繁殖牝馬 ${smp.m.name} の売却を提案します。${smp.rs[0]}（見積 ${fmt(mareSellPrice(smp.m))}万円）`, btn:"繁殖牝馬の売却へ", act:"view", view:"breed", anchor:"breed-mares"});
+    cards.push({key:"maresell"+smp.m.id, who:("牧場長・"+farmManager().name), face:"mgr", text:`繁殖牝馬 ${smp.m.name} の売却を提案します。${smp.rs[0]}（見積 ${fmt(mareSellPrice(smp.m))}万円）`, btn:"繁殖牝馬の売却へ", act:"view", view:"breed", anchor:"breed-mares"});
   }
   /* 種牡馬の売却提案：G1級の子が出る確率が際立って低い自家種牡馬は、理由（確率）と見積つきで提案する */
   const sst=(()=>{ try{ return surplusStallion(); }catch(e){ return null; } })();
   if(sst){
-    cards.push({key:"siresell"+sst.s.name, who:"牧場長・佐伯 恒夫", face:"mgr", text:`種牡馬 ${sst.s.name} の売却を提案します。G1級の子が出る確率が ${g1ProbTxt(sst.p)} と低く、繋養の旨みが薄い状態です（見積 ${fmt(stallionSellPrice(sst.s))}万円）`, btn:"種牡馬の詳細へ", act:"view", view:"breed", anchor:"breed-form"});
+    cards.push({key:"siresell"+sst.s.name, who:("牧場長・"+farmManager().name), face:"mgr", text:`種牡馬 ${sst.s.name} の売却を提案します。G1級の子が出る確率が ${g1ProbTxt(sst.p)} と低く、繋養の旨みが薄い状態です（見積 ${fmt(stallionSellPrice(sst.s))}万円）`, btn:"種牡馬の詳細へ", act:"view", view:"breed", anchor:"breed-form"});
   }
   /* 資金が厳しい：マイナスなら立て直し案（融資・スポンサー・緊急売却）を最優先で提示 */
   if(S.funds<0){
@@ -14310,7 +14387,7 @@ function buildGuide(){
 }
 function guideFaceHTML(who){
   if(who==="trainer") return `<img class="gface" src="assets/portrait-trainer.webp" alt="調教師・高橋健一">`;
-  if(who==="mgr") return `<img class="gface" src="assets/portrait-trainer.webp" alt="牧場長・佐伯恒夫" style="filter:sepia(.35)">`;
+  if(who==="mgr") return `<img class="gface" src="assets/portrait-trainer.webp" alt="牧場長" style="filter:sepia(.35)">`;
   return `<img class="gface" src="assets/secretary-normal.webp" alt="秘書・佐倉澪">`;
 }
 /* 提案生成が万一例外を投げても、バーとガイドは必ず描く（進行不能の根絶） */
@@ -14399,6 +14476,7 @@ function gotoGuideCard(c){
   else if(c.act==="omiai"){ showOmiai(); }
   else if(c.act==="retirepick"){ showRetirePicker(c.kind, c.pid); }
   else if(c.act==="eqbuy"){ UI.farm="biz"; switchView("farm"); }
+  else if(c.act==="company"){ UI.farm="company"; switchView("farm"); }
   else if(c.act==="family"){ if(S.family) (S.family.events||[]).forEach(e=>e.seen=true); UI.farm="family"; switchView("farm"); }
   else if(c.act==="propose"){ showPropose(c.pid); }
   else if(c.act==="finance"){ showFinance(); }
