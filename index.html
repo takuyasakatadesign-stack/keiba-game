@@ -6346,6 +6346,8 @@ function renderTrain(){
     const rankLbl=(r,d)=>r.ranks.map(k=>`${({train:"調教",idea:"見極め",eye:"相馬眼",cond:"体調",weight:"体重"})[k]} ${d.ranks[k]||""}`).join("・");
     return `<div class="panel"><b>🎽 役割分担（3枠）</b>
     <p class="small" style="margin:4px 0">各枠は正担当1名＋副担当は制限なし。1人が複数枠を兼任できます。カバー頭数は正・副の能力で決まり、馬が増えて上限を超えた分には、その役割の効果が届きません。</p>
+    <div class="flex" style="align-items:center;gap:8px;margin:6px 0"><button class="btn gold" id="btn-role-opt">✨ 適正配置</button><span class="small">ワンタップで最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順（対象は契約中の調教師のみ・兼任OK）</span></div>
+    ${optSummaryHTML(lastTrainerOpt,"頭")}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">
     ${ROLES.map(r=>{ const cur=st[r.id]; const main=trainerById(cur.main)||trainerData(); const cov=roleCoverage(r.id); const short=cov.total-cov.covered;
       const subs=(cur.subs||[]).map(id=>trainerById(id)).filter(Boolean);
@@ -6394,6 +6396,7 @@ function renderTrain(){
   el.innerHTML=html;
   el.querySelectorAll("[data-th]").forEach(b=>b.addEventListener("click",()=>{ pendingTrain=null; S.selected=+b.dataset.th; renderAll(); }));
   const btr=$("#btn-trainers"); if(btr) btr.addEventListener("click",showTrainers);
+  const bro=$("#btn-role-opt"); if(bro) bro.addEventListener("click",optimizeTrainerRoles);
   el.querySelectorAll("[data-tdel]").forEach(cb=>cb.addEventListener("change",()=>{ const k=cb.dataset.tdel;
     if(k==="omakase"){ toggleOmakase(); return; }
     const tid=cb.dataset.ttid||S.trainerId; const tn=(trainerById(tid)||{}).name||"";
@@ -13764,6 +13767,7 @@ function renderFarm(){
     牧場画面ではタブ自体も無くボタンも反応しなかったため、ここへ集約した） */
  el.querySelectorAll("[data-goto-company]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="company"; renderAll(); window.scrollTo(0,0); }));
  const bf0=el.querySelector("#btn-found-company"); if(bf0) bf0.addEventListener("click",()=>foundCompany());
+ const bopt=el.querySelector("#btn-comp-opt"); if(bopt) bopt.addEventListener("click",()=>optimizeCompRoles());
  el.querySelectorAll("[data-comp-main]").forEach(sel=>sel.addEventListener("change",()=>setCompMain(sel.dataset.compMain, sel.value)));
  el.querySelectorAll("[data-comp-sub]").forEach(cb=>cb.addEventListener("change",()=>toggleCompSub(cb.dataset.compSub, +cb.value, cb.checked)));
  el.querySelectorAll("[data-comp-hire]").forEach(b=>b.addEventListener("click",()=>hireStaff(+b.dataset.compHire)));
@@ -13949,6 +13953,8 @@ function showSettings(){
 <div class="rulecard"><b>種付料</b><p>自前の種牡馬は無料。外部の種牡馬は質と系統の人気で決まり、無名で数百万円、人気馬で数千万円、トップクラスで2〜3億円。手数料として一律150万円が加わります。逆に、自分の種牡馬が世界の生産者に使われると種付け料収入が入ります（需要に応じて年最大3件まで）。</p></div>
 <div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
 <div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。種付け・購入の代行担当も、チェックを入れた人の中で見極め担当を優先して決まります。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
+<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（12枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
+<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（12枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
 <div class="rulecard"><b>馬主・牧場・調教師・クラブの役割と金の流れ</b><p>馬主（あなた）は馬を所有し、賞金を受け取る側です。購入代金・種付け料・海外遠征費・預託料を払います。牧場はあなたが経営する生産と育成・休養の場所で、産駒の生産と売却を担います。調教師はトレーニングセンターの厩舎で現役馬を預かり、馬主は担当馬1頭ごとの月額で預託料を払います（単価は調教師の能力で変動）。牧場は持分で所有するもので、新規開始の時点では持っていません。牧場にいる馬は預かり料（繋養料）を払い、持分を買うと事業収益の配当が入り、100%の買収で自分の馬の預かり料が止まって、他馬主の馬を預かる収入が入ります。馬の所在は、在厩（調教師の厩舎）／育成中（牧場）／休養中（牧場）／繁殖（牧場）で表示します。クラブは馬主の集まりで、クラブ馬の生産・育成の本拠はあなたの牧場、デビュー後は在厩として世界のレースを回ります。</p></div>
 <div class="rulecard"><b>融資</b><p>枠＝基礎4,000万円＋重賞ウィナー1,500万円/頭＋G1勝利500万円/勝＋所有馬300万円/頭。金利15%は借入額に対する固定率（返済総額＝借入額×1.15、12週分割）。延滞が2回続くと破産です。</p></div>
@@ -15390,6 +15396,64 @@ function compRank(roleId){ const m=compMain(roleId); return m? compRankOf(m, com
 /* 効果係数 0..1（正担当の能力×カバー率）。未設立・未配置は0 */
 function compEff(roleId){ const c=S.company; if(!c||!Array.isArray(c.staff)||!c.staff.length) return 0; const m=compMain(roleId); if(!m) return 0; const r=compRankOf(m, compRoleDef(roleId)); if(r<=0) return 0; const cv=compCoverage(roleId); return clamp((0.45+0.11*r)*cv.frac, 0, 1); }
 function compSalaryTotal(){ const c=S.company; return c&&Array.isArray(c.staff)? c.staff.reduce((a,s)=>a+(s.salary||0),0) : 0; }
+/* ============ 適正配置（最適化ボタン） ============
+   調教師3枠・会社12枠に共通の最適化基準：
+   (1) カバー優先：全枠が対象をカバーできる構成を最優先する
+       （調教師側＝自馬全頭、会社側＝業務量 compWorkload）。
+   (2) カバーできる構成の中で、各枠の正担当は該当能力が最も高い人にする
+       （枠の効果が最大になる。正担当のカバー上限は副担当より能力あたりの
+       伸びが大きいため、能力トップを正に置くことはカバー最大化とも両立する）。
+   (3) 副担当はカバー不足を埋めるのに必要な分だけを、該当能力の高い順に足す
+       （足りれば追加しない。全員を足しても届かない枠は人材不足として知らせる）。
+   兼任（1人が複数枠の正・副になる）は可。対象は現在雇用・契約中の人材のみで、
+   新規雇用・解雇はしない。枠ごとに独立に最適化できるのは兼任可のため。 */
+let lastTrainerOpt=null, lastCompOpt=null;
+function optSummaryHTML(sum, unit){
+  if(!sum) return "";
+  const rows=sum.rows.map(x=>`<div class="flex" style="padding:3px 0;border-top:1px solid var(--line);flex-wrap:wrap;gap:4px;align-items:center"><span style="flex:1;min-width:130px"><b>${esc(x.roleName)}</b></span><span class="small">正担当：<b>${esc(x.mainName||"未配置")}</b></span><span class="uchips"><span class="uchip">副担当</span>${x.subNames&&x.subNames.length? x.subNames.map(n=>`<span class="uchip">${esc(n)}</span>`).join("") : `<span class="uchip dim">なし</span>`}</span><span class="uchip ${x.short>0?"warn":""}">カバー <span class="uv">${x.covered}／${x.total}${unit}</span></span></div>`).join("");
+  const shorts=sum.rows.filter(x=>x.short>0).map(x=>`<div class="uchip warn" style="display:block;margin-top:4px">⚠ ${esc(x.roleName)}枠があと${x.short}頭分不足（人材が足りません）</div>`).join("");
+  return `<div class="ticket" style="margin-top:8px"><b>✅ 適正配置の結果</b>${rows}${shorts||`<div class="small" style="margin-top:4px">全枠でカバー充足です</div>`}</div>`;
+}
+function optimizeTrainerRoles(){
+  const emps=employedTrainers();
+  if(!emps.length){ toast("契約中の調教師がいません"); return; }
+  const st=rolesState();
+  const total=(S.horses||[]).filter(h=>!h.retired).length;
+  const totScore=d=>["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks?d.ranks[k]:0),0);
+  ROLES.forEach(r=>{
+    const sorted=emps.slice().sort((a,b)=> roleScore(r,b)-roleScore(r,a) || totScore(b)-totScore(a) || String(a.id).localeCompare(String(b.id)));
+    const main=sorted[0];
+    let cap=roleCapMain(r,main); const subs=[];
+    for(const d of sorted.slice(1)){ if(cap>=total) break; subs.push(d); cap+=roleCapSub(r,d); }
+    st[r.id].main=main.id; st[r.id].subs=subs.map(d=>d.id);
+  });
+  _roleCovCache={}; syncRoleAssignments();
+  const rows=ROLES.map(r=>{ const cov=roleCoverage(r.id); const cur=st[r.id]; const main=trainerById(cur.main); return {roleName:r.name, mainName:main?main.name:"", subNames:(cur.subs||[]).map(id=>{ const d=trainerById(id); return d?d.name:""; }).filter(Boolean), covered:cov.covered, total:cov.total, short:Math.max(0,cov.total-cov.covered)}; });
+  lastTrainerOpt={rows};
+  const shortTxt=rows.filter(x=>x.short>0).map(x=>`${x.roleName}があと${x.short}頭分不足`).join("／");
+  log(`🎽 適正配置を実行しました：${rows.map(x=>`${x.roleName}＝${x.mainName}（カバー ${x.covered}／${x.total}頭）`).join("／")}${shortTxt?` ― ⚠ ${shortTxt}（人材が足りません）`:" ― 全枠カバー充足"}`);
+  toast(shortTxt? `適正配置しました（${shortTxt}）` : "適正配置しました（全枠カバー充足）");
+  saveAuto(true); renderAll();
+}
+function optimizeCompRoles(){
+  const c=compState(); if(!c) return;
+  if(!c.staff.length){ toast("スタッフがいません。まず候補から雇用してください"); return; }
+  const W=compWorkload();
+  const totRank=s=>COMP_ABILITIES.reduce((a,[k])=>a+(s.ranks[k]||0),0);
+  COMP_ROLES.forEach(r=>{
+    const sorted=c.staff.slice().sort((a,b)=> compRankOf(b,r)-compRankOf(a,r) || totRank(b)-totRank(a) || a.id-b.id);
+    const main=sorted[0];
+    let cap=compCapMain(r,main); const subs=[];
+    for(const s of sorted.slice(1)){ if(cap>=W) break; subs.push(s); cap+=compCapSub(r,s); }
+    c.roles[r.id].main=main.id; c.roles[r.id].subs=subs.map(s=>s.id);
+  });
+  const rows=COMP_ROLES.map(r=>{ const cv=compCoverage(r.id); const cur=c.roles[r.id]; const main=compStaffById(cur.main); return {roleName:r.name, mainName:main?main.name:"", subNames:(cur.subs||[]).map(id=>{ const s=compStaffById(id); return s?s.name:""; }).filter(Boolean), covered:cv.covered, total:cv.need, short:cv.short}; });
+  lastCompOpt={rows};
+  const shortTxt=rows.filter(x=>x.short>0).map(x=>`${x.roleName}があと${x.short}頭分不足`).join("／");
+  log(`🏢 適正配置を実行しました（12枠を最適化）${shortTxt?` ― ⚠ ${shortTxt}（人材が足りません）`:" ― 全枠カバー充足"}`);
+  toast(shortTxt? `適正配置しました（${shortTxt}）` : "適正配置しました（全枠カバー充足）");
+  saveAuto(); renderAll();
+}
 let _staffSeq=1;
 function genStaffCandidate(){ const c=S.company; const hrEff=c? compEff("hr") : 0;
   const used=new Set(); if(c){ c.staff.forEach(s=>used.add(s.name)); c.candidates.forEach(s=>used.add(s.name)); }
@@ -15492,6 +15556,8 @@ function companyPanelHTML(){ const c=S.company;
   const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> <span class="tag">月給 ${fmt(st.salary)}万円</span><div class="small" style="margin:3px 0">${COMP_ABILITIES.map(([k,n])=>`<span class="tag">${n}${st.ranks[k]||0}</span>`).join(" ")}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
   return `<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
    <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmt(sal)}万円</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmt(c.invest||0)}万円${c._lastGain?`（先月 +${fmt(c._lastGain)}万円）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span></div>
+   <div class="flex" style="align-items:center;gap:8px;margin:8px 0 2px"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small">ワンタップで12枠すべてを最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順（対象は雇用中のスタッフのみ・兼任OK）</span></div>
+   ${optSummaryHTML(lastCompOpt,"頭相当")}
    ${groupsHtml}
    <div class="flex mt"><button class="btn sm" id="btn-comp-invest">余剰資金の10%を運用に回す（CFO）</button><button class="btn sm" id="btn-comp-withdraw" ${c.invest>0?"":"disabled"}>運用を全額引き出す</button><button class="btn sm" id="btn-comp-ins">${c.insOn?"競走馬保険を解約する":"競走馬保険に加入する（保険担当）"}</button></div>
    <h4 style="margin:10px 0 4px">🎪 牧場イベント</h4>
