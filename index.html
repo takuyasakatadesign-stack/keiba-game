@@ -5306,6 +5306,8 @@ function scoreNextRace(h,r,restNeed){
   const _pa=policyAdjust(h,r,why); sc+=_pa;
   const pos=why.filter(t=>!/まだ結果が出ていない/.test(t)).slice(0,3);
   if(!pos.length) pos.push(`距離${r.dist}mは適性${h.dmin}〜${h.dmax}m内`);
+  /* 定員審査の見通し：優先順位が低い馬は、定員超過時に除外される旨を提案でも分かるようにする */
+  if(exclusionRisk(h,r)){ sc-=5; pos.push(`⚠ 定員審査では優先順位が低く、除外される可能性があります（重賞勝ち・収得賞金で判断）`); }
   return {race:r, score:Math.round(sc*10)/10, reasons:pos, fatAt};
 }
 function suggestNextRaces(h){
@@ -6229,7 +6231,8 @@ function renderTrain(){
   <p class="small" style="margin:6px 0 0">${S.omakase? `🤝 <b>おまかせ中</b>：${TRAINER.name} が定常指示の設定・変更と週次の手当てを代行しています。能力（調教・閃き）が高い調教師ほど、見る頭数と判断の幅が広がります。` : "おまかせ中は、調教師が定常指示の設定・変更や週次の手当てを代行するので、こちらは何もしなくて大丈夫です。オート（提案どおりに進行）とは役割が別です。"}</p>
   </div></div></div>
   <div class="panel"><b>📋 調教師への指示（オート／おまかせで代行させること）</b>
-  <p class="small" style="margin:4px 0">チェックは調教師ごとに持ち、その調教師の担当馬に効きます。外した項目は代行しません（種付けは提案のみになり、オートは繁殖シーズンに止まります）。設定はセーブに保存されます。種付け・セール購入のような厩舎全体の代行は、主任調教師のチェックで決まります。</p>
+  <p class="small" style="margin:4px 0">チェックは調教師ごとに持ちます。種付け・セール購入のような厩舎全体の代行は、その項目にチェックを入れた調教師の中で<b>相馬眼が最も高い人</b>が担当します（同点の場合は主任を優先）。担当者の相馬眼で、購入の目利きと配合提案の質が決まります。外した項目は代行しません（種付けは提案のみになり、オートは繁殖シーズンに止まります）。設定はセーブに保存されます。</p>
+  <p class="small" style="margin:2px 0 4px">現在の代行担当：${[["mateOmakase","種付け"],["buyYoungOmakase","幼駒の購入"],["buyMareOmakase","繁殖牝馬の購入"]].map(([k,l])=>{ const a=delegationAssignee(k); return `${l}：<b>${a? esc(a.name)+"（相馬眼 "+esc(a.ranks.eye||"")+"）" : "未設定"}</b>`; }).join("／")}</p>
   <label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;padding:6px 0;border-top:1px solid var(--line)"><input type="checkbox" data-tdel="omakase" ${S.omakase?"checked":""} style="width:22px;height:22px;flex:none;margin:0"> <span><b>定常指示の見直しとレース調整を任せる（おまかせ）</b><br>毎週の指示の見直し、出走に向けた逆算調整と当日の最終調整を、各馬の担当調教師が代行します</span></label>
   </div>
   <div class="panel" id="train-trainer"><b>👥 雇用中の調教師（${employedTrainers().length}名）</b>
@@ -6239,9 +6242,9 @@ function renderTrain(){
     return `<div class="ticket" style="margin-top:8px"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${isPrim?` <span class="aptchip strong">主任</span>`:""} <span class="uchip">契約調教師（独立）</span> <span class="small">担当 ${list.length}／上限 ${cap}頭${list.length>cap?` <b style="color:#c0392b">上限超過 ${list.length-cap}頭（超過分はおまかせ対象外）</b>`:""}／預託料 単価${fmt(trainerUnitM(d))}万円/月・頭 × ${list.length}頭 ＝ ${fmt(trainerFeeWeek(d))}万円/週</span>
     <div class="uchips" style="margin-top:3px">${list.length? list.map(h=>`<span class="uchip">${esc(h.name)}${omakaseCovered(h)?"":"（対象外）"}</span>`).join("") : `<span class="uchip dim">担当馬はいません</span>`}</div>
     ${row("tacMaster","得意作戦を極める","担当馬の得意作戦の訓練を優先", dir.tacMaster)}
-    ${row("mateOmakase","おまかせ種づけする", isPrim?"厩舎全体の種付け代行（主任の設定が全体に効きます）":"種付け代行は主任の設定で決まります", dir.mateOmakase)}
-    ${row("buyYoungOmakase","幼駒のおまかせ購入", isPrim?"厩舎全体のセール代行（主任の設定が全体に効きます）":"セール代行は主任の設定で決まります", dir.buyYoungOmakase)}
-    ${row("buyMareOmakase","繁殖牝馬のおまかせ購入", isPrim?"厩舎全体のセール代行（主任の設定が全体に効きます）":"セール代行は主任の設定で決まります", dir.buyMareOmakase)}
+    ${row("mateOmakase","おまかせ種づけする", "厩舎全体の種付け代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.mateOmakase)}
+    ${row("buyYoungOmakase","幼駒のおまかせ購入", "厩舎全体の幼駒購入代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.buyYoungOmakase)}
+    ${row("buyMareOmakase","繁殖牝馬のおまかせ購入", "厩舎全体の繁殖牝馬購入代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.buyMareOmakase)}
     <div class="flex mt">${isPrim?"":`<button class="btn sm" data-tprimary="${d.id}">主任にする</button>`}${employedTrainers().length>1?`<button class="btn ghost sm" data-tfire="${d.id}">契約を終了する</button>`:""}</div></div>`; }).join("")}
   </div>
   <div class="panel"><b>🔀 担当の付け替え</b>
@@ -6838,7 +6841,7 @@ function trainerBreedProposals(){
   if(!(month()===5||month()===6)) return [];
   const mares=S.mares||[], sires=S.stallions||[];
   if(!mares.length||!sires.length) return [];
-  const eye=rankVal(TRAINER.ranks&&TRAINER.ranks.eye);
+  const eye=rankVal((breedProposalTrainer().ranks||{}).eye);
   const range= eye>=5? [0,0] : eye===4? [0,1] : eye===3? [1,2] : eye===2? [2,4] : eye===1? [3,6] : [4,999];
   const out=[];
   mares.forEach((m,mi)=>{
@@ -6863,7 +6866,7 @@ function trainerBreedProposals(){
 function trainerBreedPanelHTML(){
   const props=trainerBreedProposals();
   if(!props.length) return "";
-  return `<div class="panel mt" style="background:var(--panel2)"><b>調教師・${esc(TRAINER.name)} の配合提案</b> <span class="small">（相馬眼 ${esc(TRAINER.ranks.eye||"")}：能力が高い調教師ほど、配合評価の高い組み合わせを提案します）</span>
+  return `<div class="panel mt" style="background:var(--panel2)"><b>調教師・${esc(breedProposalTrainer().name)} の配合提案</b> <span class="small">（相馬眼 ${esc(breedProposalTrainer().ranks.eye||"")}：能力が高い調教師ほど、配合評価の高い組み合わせを提案します）</span>
   ${props.map(p=>`<div class="ticket" style="margin-top:6px"><b>${esc(p.mare.name)} × ${esc(p.sire.name)}</b> <span class="small">評価 <b>${p.ev.rank}</b>（${p.ev.total}）／爆発力 ${p.ev.explosion}／危険度 ${p.ev.risk}${p.ev.theory.theories.length?` ${p.ev.theory.theories.slice(0,3).map(t=>`<span class="uchip">${esc(t.n)}</span>`).join(" ")}`:""}／種付料など ${fmt(p.cost)}万円</span>
   <div class="mt"><button class="btn gold sm" data-breedprop="${p.mareIdx}:${p.sireIdx}" ${S.funds<p.cost?"disabled":""}>この配合で種付けを登録</button> <button class="btn ghost sm" data-breedview="${p.mareIdx}:${p.sireIdx}">配合評価を見る</button>${S.funds<p.cost?` <span class="small">資金不足</span>`:""}</div></div>`).join("")}</div>`;
 }
@@ -7215,7 +7218,14 @@ function writebackWorldHorse(h, own, place, prz, r){
    ・国内重賞を生成馬が勝った場合は、その個体を世界の恒常個体として
      取り込む（recordAwardLedger 内）。使い捨ての勝者を残さない
    ・世界のレーティングは worldRatingCalc の単一計算で都度出し直す
-     （レース当日の ratingOf の最大値を保存する方式は廃止） */
+     （レース当日の ratingOf の最大値を保存する方式は廃止）
+   ・定員審査（優先出走）：プレイヤーが出走するレースの出走枠の最終
+     決定は finalizeField の1箇所に集約する。相手候補は定員ぶん生成し
+     （自厩舎馬の枠を先取りしない）、世界の候補と自厩舎馬を同じ土俵で
+     扱う。候補が定員を超えたら優先順位「重賞勝ち＞収得賞金＞
+     レーティング」で枠を配り、境界の同格は抽選する。外れた自厩舎馬は
+     理由つきでエントリーが解除される。世界の週次消化側の頭数管理
+     （ローテーション・年間上限）とは対象が別で、二重管理にはしない */
 function entryRecordOK(rec, r){
   const wins=rec.wins||0, gWins=rec.gWins||0;
   if(r.cls>=8){
@@ -7870,8 +7880,8 @@ function showYearEnd(data){
   <h3 class="ye-sec">世代更新</h3>
   ${agedHTML}
   ${youngHTML}
-  ${(data.peopleNews&&data.peopleNews.length)?`<h3 class="ye-sec">騎手・調教師の異動</h3><div class="small">${data.peopleNews.map(x=>esc(x)).join("<br>")}</div>`:""}
-  ${(data.familyNews&&data.familyNews.length)?`<h3 class="ye-sec">家族の出来事</h3><div class="small">${data.familyNews.map(x=>esc(x)).join("<br>")}</div>`:""}
+  ${(D.peopleNews&&D.peopleNews.length)?`<h3 class="ye-sec">騎手・調教師の異動</h3><div class="small">${D.peopleNews.map(x=>esc(x)).join("<br>")}</div>`:""}
+  ${(D.familyNews&&D.familyNews.length)?`<h3 class="ye-sec">家族の出来事</h3><div class="small">${D.familyNews.map(x=>esc(x)).join("<br>")}</div>`:""}
   <h3 class="ye-sec">お守り・クラブ</h3>
   ${charmHTML}
   <h3 class="ye-sec">引退勧告</h3>${retireList}${retiredRec}
@@ -9076,6 +9086,12 @@ function showOverlay(html){
     if(a&&a.key){ try{ const el=b.querySelector(a.key); if(el){ const d=el.getBoundingClientRect().top-a.top; if(Math.abs(d)>1){ const sc=(nb&&nb.contains(el))?nb:b; sc.scrollTop+=d; } } }catch(e){} }
   }
 }
+/* シート型モーダル（お見合い候補・人物引退の付け替えが使う共通の土台）。
+   タイトル付きで共通オーバーレイに開き、closeSheet で閉じる。以前はこの
+   2関数が未定義で、呼ぶボタン（候補を見る／付け替えをする等）がすべて
+   無反応になっていた */
+function openSheet(title, html){ showOverlay(`<h2>${title}</h2>${html}`); }
+function closeSheet(){ const ov=$("#overlay"); if(ov) ov.style.display="none"; const b=$("#overlay-box"); if(b) b.classList.remove("wide"); }
 function alert2(t,b){showOverlay(`<h2>${t}</h2><p>${b}</p><button class="btn" onclick="document.getElementById('overlay').style.display='none'">閉じる</button>`);}
 function confirm2(t,b,ok,ng){
   showOverlay(`<h2>${t}</h2><p>${b}</p><div class="flex" style="justify-content:center"><button class="btn red" id="cf-ok">実行する</button><button class="btn ghost" id="cf-ng">やめる</button></div>`);
@@ -9193,7 +9209,7 @@ function frName(field){
   return genUniqueName(field);
 }
 function makeRivals(r){
-  let n=clamp((r.maxField||16)-1,7,17); const out=[]; // 自厩舎馬1頭を加えてフルゲートになる頭数
+  let n=clamp((r.maxField||16),7,18); const out=[]; // 候補は定員ぶん生成する（自厩舎馬の枠は先取りしない）。出走枠の最終決定は finalizeField の定員審査で行う
   const ownedTop=ownedNameSet(); /* 所有馬名の集合はこの呼び出しの間は変わらないため1回だけ作る */
   /* 実在馬の注入（主要G1） */
   if(r.cls===8 && REAL_FIELDS[r.name] && year()<=3){ REAL_FIELDS[r.name].forEach(nm=>{ if(ownedTop.has(nm)) return; const wp=(S.worldHorses||[]).find(x=>x.name===nm&&!x.legend); if(wp&&!worldCanRun(wp, r)) return; /* 実在馬の直接投入も世界のローテーション（間隔・年間上限）に従う。無条件投入だと同じ週の二重出走や年16戦の過密出走が起きる */
@@ -9540,6 +9556,76 @@ function fixGates(all){
   let nxt=1;
   all.forEach(h=>{ if(keep.has(h))return; while(used.has(nxt))nxt++; h._gate=nxt; used.add(nxt); keep.add(h); });
 }
+/* ============ 定員審査（優先出走） ============
+   出走枠の最終決定はこの finalizeField の1箇所に集約する（出馬表・
+   馬券・レース開始・オート消化のすべてがここを通る）。相手候補は
+   makeRivals が定員ぶん生成し、自厩舎馬の枠は先取りしない：世界の
+   候補と自厩舎馬を同じ土俵に並べ、候補総数が定員（maxField）を
+   超えた場合だけ審査が働く。
+   優先順位（現実の優先出走をこのゲームの物差しに置き換えたもの）：
+     1. 重賞勝ち数（gWins）
+     2. 収得賞金（earnings）
+     3. レーティング（ratingOf）
+   3要素すべて一致する同格が定員の境界に並んだ場合は抽選で決める。
+   審査結果（順位・抽選対象・除外）はその週の固定表（fx.screen）に
+   凍結し、再描画や再計算で出馬表が変わらないようにする。外れた
+   自厩舎馬のうち今週が開催週のエントリーを持つ馬は、理由を通知
+   （pushCancelNotice）と記録に残してエントリーを解除する（解除により
+   週送りのブロックも解ける）。資格判定（eligibleAt／entryRecordOK）の
+   単一経路には一切触れない */
+function screenKeyOf(h){ let rt=0; try{ rt=ratingOf(h); }catch(e){ rt=(h&&h.rating)||0; } return [h.gWins||0, h.earnings||0, rt]; }
+function finalizeField(r, ownList){
+  const fx=fixedEntryFor(r);
+  const rivals=fx.rivals||[];
+  const owns=(ownList||[]).filter(h=>h&&!rivals.includes(h));
+  const maxF=r.maxField||16;
+  const cand=rivals.concat(owns);
+  if(cand.length<=maxF){ if(fx.screen) delete fx.screen; return cand.slice(); }
+  const ownKey=owns.map(h=>h.id).sort((a,b)=>a-b).join(",");
+  let sc=fx.screen;
+  if(!sc||sc.ownKey!==ownKey){
+    const items=cand.map(h=>({h, key:screenKeyOf(h), own:owns.includes(h)}));
+    items.sort((a,b)=>(b.key[0]-a.key[0])||(b.key[1]-a.key[1])||(b.key[2]-a.key[2]));
+    const ranks={}, lotteryNames=new Set(), keptNames=new Set(), excluded=[];
+    let kept=0, i=0;
+    while(i<items.length){
+      let j=i+1; const k=items[i].key;
+      while(j<items.length&&items[j].key[0]===k[0]&&items[j].key[1]===k[1]&&items[j].key[2]===k[2]) j++;
+      const grp=items.slice(i,j), rank=i+1, room=maxF-kept;
+      grp.forEach(it=>{ ranks[it.h.name]=rank; });
+      if(grp.length<=room){ grp.forEach(it=>{ keptNames.add(it.h.name); }); kept+=grp.length; }
+      else if(room>0){ /* 定員の境界をまたぐ同格グループは抽選で枠を配る */
+        const sh=grp.slice();
+        for(let x=sh.length-1;x>0;x--){ const y=Math.floor(Math.random()*(x+1)); const t=sh[x]; sh[x]=sh[y]; sh[y]=t; }
+        sh.forEach((it,ix)=>{ lotteryNames.add(it.h.name); if(ix<room){ keptNames.add(it.h.name); kept++; } else excluded.push({name:it.h.name, own:it.own, hid:it.h.id, rank, lottery:true}); });
+      } else {
+        grp.forEach(it=>excluded.push({name:it.h.name, own:it.own, hid:it.h.id, rank, lottery:false}));
+      }
+      i=j;
+    }
+    sc={ownKey, maxF, total:cand.length, ranks, lotteryNames, keptNames, excluded};
+    fx.screen=sc;
+    /* 除外された自厩舎馬：今週が開催週のエントリーは理由つきで解除する */
+    excluded.forEach(ex=>{
+      if(!ex.own) return;
+      const h=S.horses.find(x=>x.id===ex.hid);
+      if(h&&h.entry&&h.entry.name===r.name&&h.entry.absWeek<=S.week){
+        const why= ex.lottery? `定員${maxF}頭の審査で同格抽選に落選（優先順位${ex.rank}位タイ）` : `定員${maxF}頭の審査で優先順位${ex.rank}位のため除外`;
+        log(`🚫 ${h.name} は「${r.name}」の定員審査で除外されました ― ${why}。エントリーは解除されました`);
+        pushCancelNotice(h.name, r.name, why);
+        h.entry=null; h.nextPlan="";
+      }
+    });
+  }
+  return cand.filter(h=>sc.keptNames.has(h.name));
+}
+/* 次走提案用：定員審査で除外されやすいかの見通し。重賞の相手候補は
+   重賞勝ち・収得賞金を積んだ馬が中心で、両方が薄い馬は優先順位が
+   最下位層になり、定員超過時に真っ先に漏れる */
+function exclusionRisk(h,r){
+  if(!h||!r||(r.cls||0)<6) return false;
+  return (h.gWins||0)===0 && (h.earnings||0)<8000;
+}
 function drawCard(r){
   const hid=+($("#entry-horse")?$("#entry-horse").value:0)||S.selected;
   const mine=S.horses.find(x=>x.id===hid);
@@ -9550,8 +9636,9 @@ function drawCard(r){
   const hadFixed=!!(raceState.fixedFields&&raceState.fixedFields.week===S.week&&raceState.fixedFields.map[r.id+"@"+S.week]);
   raceState.rivals=fixedRivalsFor(r); raceState.rivalRace=r.id;
   if(!hadFixed) PG.cardtable=0;
-  const all=[...raceState.rivals];
-  cardOwns.forEach(x=>all.push(x));
+  /* 出走枠の最終決定は定員審査（finalizeField）に集約する：候補が定員を
+     超える場合は優先順位で枠が配られ、外れた自厩舎馬はここで除外される */
+  const all=finalizeField(r, cardOwns);
   cardOwns.forEach(x=>{ x.cardJockey = x.reqJockey!=null? x.reqJockey : x.jockey; }); // 人気算出は実際に騎乗する騎手で
   dedupeRaceJockeys(all, new Set(cardOwns)); // 同レース同一騎手の重複を確定前に解消（自厩舎優先）
   /* 枠順は人気算出より先に確定させ、以降は固定する */
@@ -9563,16 +9650,20 @@ function drawCard(r){
   const trend=determineTrend(r,all); raceState.trend=trend;
   const tb=$("#trend-box"); if(tb){ const ma=mine?ensureTrendApt(mine)[trend.key]:null; tb.innerHTML=`<span class="trendtag ${trend.key}">${TRENDS[trend.key].n}</span> <span class="small">${TRENDS[trend.key].d}／${r.course}直線${trend.straight}m・${r.dist}m・脚質構成から判定${mine?`／${esc(mine.name)}の適応度 <b>${ma}</b>（${ma>=70?"得意な流れ":ma>=50?"標準":"苦手な流れ・能力割引あり"}）`:""}</span>`; }
   const t=$("#card-table"); if(!t)return;
+  /* 定員審査の表示：確定したフィールドの各馬に優先順位（と抽選当選）を付け、
+     除外された候補と理由は表の下にまとめて出す */
+  const scr=(()=>{ try{ return fixedEntryFor(r).screen||null; }catch(e){ return null; } })();
+  const scrTxt=h=>{ if(!scr) return ""; const rk=scr.ranks[h.name]; if(rk==null) return ""; return `／定員審査：優先${rk}位${scr.lotteryNames.has(h.name)?"（同格抽選で当選）":""}`; };
   const formDisp=h=> h.races===0? "初出走" : (h.form&&h.form.length? h.form.join("・") : "―");
   const rentai=h=> h.races>0? Math.round((h.top2||0)/h.races*100)+"%" : "―";
   const wtDisp=h=>{ ensurePublicRecord(h); if(!h.wPrev) return h.weight+"kg"; const d=h.weight-h.wPrev; return `${h.weight}kg（${d>=0?"+":""}${d}）`; };
   const pageOrder=order; /* 全頭をスクロールで表示（ページ送りなし） */
   t.innerHTML=`<tr><th>馬名</th><th class="num">人気</th><th class="r">オッズ</th><th>騎手</th><th>近走</th></tr>`+
    pageOrder.map(h=>`<tr class="crow-main ${h===mine?"mine":""}" data-crow="${h._gate}"><td><b>${h._gate}番</b> ${esc(h.name)}${h===mine?"（自厩舎）":""}<div class="csub">${h.races?`<b>${h.races}戦${h.wins}勝</b>・通算賞金 <b>${fmt(h.earnings||0)}万円</b>`:`<b>初出走</b>`}</div></td><td class="num"><span class="pop">${h._pop}</span></td><td class="r">${h._odds}</td><td>${riderName(h)}</td><td>${formDisp(h)}</td></tr>`+
-   `<tr class="crow-detail" data-crowd="${h._gate}" hidden><td colspan="5"><div class="small" style="line-height:1.7">${h.sex}${h.age}歳／馬体重 ${wtDisp(h)}／連対率 ${rentai(h)}／${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}${h.restW!=null&&h.restW>=10?`／休養${h.restW}週明け`:""}${h._jockeySwapped?`／騎手は重複回避のため ${esc(riderName(h))} に変更`:""}${h.real?`<br>実在馬：${h.realNote||""}`:""}<br>脚質・位置取り：<span data-crowtac="${h.id}">${h.style}・${h===mine?tacOf(h).n+"／"+tac2Of(h).n:tacOf(h).n}</span>${posBarHTML(h,h===mine)}</div>${h===mine&&!eligible(h,r)?`<div class="mt"><button type="button" class="btn gold sm" data-goto-settings="1">作戦・騎手・単勝は「作戦・単勝」タブで設定する</button></div>`:""}</td></tr>`).join("");
+   `<tr class="crow-detail" data-crowd="${h._gate}" hidden><td colspan="5"><div class="small" style="line-height:1.7">${h.sex}${h.age}歳／馬体重 ${wtDisp(h)}／連対率 ${rentai(h)}／${h.races}戦${h.wins}勝${h.gWins?`（重賞${h.gWins}勝）`:""}${h.restW!=null&&h.restW>=10?`／休養${h.restW}週明け`:""}${h._jockeySwapped?`／騎手は重複回避のため ${esc(riderName(h))} に変更`:""}${scrTxt(h)}${h.real?`<br>実在馬：${h.realNote||""}`:""}<br>脚質・位置取り：<span data-crowtac="${h.id}">${h.style}・${h===mine?tacOf(h).n+"／"+tac2Of(h).n:tacOf(h).n}</span>${posBarHTML(h,h===mine)}</div>${h===mine&&!eligible(h,r)?`<div class="mt"><button type="button" class="btn gold sm" data-goto-settings="1">作戦・騎手・単勝は「作戦・単勝」タブで設定する</button></div>`:""}</td></tr>`).join("");
   t.querySelectorAll("tr.crow-main").forEach(rw=>rw.addEventListener("click",()=>{ const d=t.querySelector(`tr.crow-detail[data-crowd="${rw.dataset.crow}"]`); if(d)d.hidden=!d.hidden; }));
   t.querySelectorAll("[data-goto-settings]").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); UI.race="settings"; renderAll(); window.scrollTo(0,0); }));
-  const cpEl=$("#card-pager"); if(cpEl){ cpEl.innerHTML=""; }
+  const cpEl=$("#card-pager"); if(cpEl){ cpEl.innerHTML= scr? `<div style="text-align:left;margin-top:8px"><b>定員審査（優先出走）</b><div class="small">エントリー ${scr.total}頭／定員 ${scr.maxF}頭 ― 優先順位（重賞勝ち＞収得賞金＞レーティング）で枠を配り、同格は抽選しました。</div>${scr.excluded.map(ex=>`<div class="small">🚫 ${esc(ex.name)}${ex.own?"（自厩舎）":""}：${ex.lottery?`同格抽選で落選（優先順位${ex.rank}位タイ）`:`優先順位${ex.rank}位で定員外`}${ex.own?" ― エントリーは解除されました":""}</div>`).join("")}</div>` : ""; }
   const fb=$("#formation-box");
   if(fb){
     const grp=(h2)=>{ const pp=tacOf(h2).pos; return pp>=0.8?"先頭":pp>=0.48?"先団":pp>=0.24?"中団":"後方"; };
@@ -9614,7 +9705,9 @@ function startRace(r,mine,field){
     try{ raceState._redoSnap={json:JSON.stringify(saveData())}; raceState._redoField=null; }catch(e){ raceState._redoSnap=null; }
   }
   let all=field;
-  if(!all){ all=[...fixedRivalsFor(r)]; if(mine&&!all.includes(mine))all.push(mine); fixGates(all); }
+  if(!all){ all=finalizeField(r, mine?[mine]:[]); fixGates(all); }
+  /* 定員審査で除外された馬はフィールドにいない：その馬を主役にレースは始めない */
+  if(mine&&!all.includes(mine)){ alert2("出走できません",`${esc(mine.name)}は「${esc(r.name)}」の定員審査で除外されました。出馬表の審査結果を確認してください。`); return; }
   /* 出走する自厩舎馬（複数頭可）：全頭ぶん出走条件と騎乗料を処理する */
   let owns=all.filter(h=>!h.rival&&S.horses.some(x=>x.id===h.id));
   if(owns.length){
@@ -12496,10 +12589,11 @@ function betOdds(field,race){
   };
 }
 function buildBetField(r){
-  /* 出馬表と同一の固定フィールドを使う（相手馬・枠順をレース画面と一致させる） */
-  const field=[...fixedRivalsFor(r)];
+  /* 出馬表と同一の固定フィールドを使う（相手馬・枠順をレース画面と一致させる）。
+     出走枠の決定も出馬表と同じ定員審査（finalizeField）を通す */
   const mine=S.horses.find(h=>h.id===S.selected);
-  if(betState.includeMine&&mine&&!eligible(mine,r)&&!field.includes(mine)) field.push(mine);
+  const owns=(betState.includeMine&&mine&&!eligible(mine,r))? [mine] : [];
+  const field=finalizeField(r, owns);
   fixGates(field);
   betOdds(field,r);
   betState.field=field; betState.picks=[];
@@ -13345,9 +13439,10 @@ function renderFarm(){
    <div class="uchips"><span class="uchip">速 <span class="uv">${h.spd}</span></span><span class="uchip">ス <span class="uv">${h.sta}</span></span><span class="uchip">パ <span class="uv">${h.pow}</span></span><span class="uchip">瞬 <span class="uv">${h.bst}</span></span><span class="uchip">根 <span class="uv">${h.gut}</span></span><span class="uchip">芝 <span class="uv">${aptMark4(h.turf)}</span></span><span class="uchip">ダート <span class="uv">${aptMark4(h.dirt)}</span></span></div>
    <div class="uchips"><span class="uchip dim">オススメ</span><span class="uchip">秘書 <span class="uv">${h.saleEvals.sec||"―"}</span></span><span class="uchip">牧場長 <span class="uv">${h.saleEvals.mgr||"―"}</span></span><span class="uchip">調教師 <span class="uv">${h.saleEvals.tr||"―"}</span></span><span class="uchip dim">☆＞◎＞○＞△</span></div></div>
    <div class="sc-actions"><button class="btn sm" data-sale-bid="${i}">入札 ${fmt(h.price)}万円</button><button class="btn gold sm" data-sale-buy="${i}">一発購入 ${fmt(Math.round(h.price*1.35))}万円</button></div></div>`); });
-  const saleBuyOn= S.sale.kind==="mare"? !!autoCfg().buyMareOmakase : !!autoCfg().buyYoungOmakase;
+  const saleBuyOn= S.sale.kind==="mare"? buyMareOmakaseOn() : buyYoungOmakaseOn();
+  const saleAsg= delegationAssignee(S.sale.kind==="mare"? "buyMareOmakase" : "buyYoungOmakase");
   const saleBuyLabel= S.sale.kind==="mare"? "繁殖牝馬のおまかせ購入" : "幼駒のおまかせ購入";
-  html+=panelOpen("farm","sale")+`<div id="farm-sale"><h2 class="sec">🔨 ${SN} <span class="tag">開催中（今週のみ）・全${saleCards.length}頭</span></h2><div class="sale-funds" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>資金 ${fmt(S.funds)}万円</span><span style="flex:1"></span><button class="btn red sm" data-sale-end="1">セールを終了する</button></div><div class="entryline" style="margin:6px 0"><span>🤖 <b>${saleBuyLabel}</b>：現在 <b>${saleBuyOn?"ON":"OFF"}</b></span><span class="small">${saleBuyOn?"オート通過時、調教師評価 ☆・◎ の個体だけを自動で買います（資金リザーブ等のガードつき）。手動で買う場合はこのまま下の上場馬から選べます。":"ONにすると、オート通過時に調教師評価 ☆・◎ の個体だけを自動で買います。切り替えは調教タブの「調教師への指示」チェックから。手動購入はこの画面でいつでもできます。"}</span></div><div class="salelist">${pageSlice("farmSale",saleCards,6).join("")}</div></div>`+pagerHTML("farmSale",saleCards.length,6)+`<div class="flex" style="justify-content:flex-end;margin-top:6px"><button class="btn red sm" data-sale-end="1">セールを終了する</button></div>`+panelClose();
+  html+=panelOpen("farm","sale")+`<div id="farm-sale"><h2 class="sec">🔨 ${SN} <span class="tag">開催中（今週のみ）・全${saleCards.length}頭</span></h2><div class="sale-funds" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span>資金 ${fmt(S.funds)}万円</span><span style="flex:1"></span><button class="btn red sm" data-sale-end="1">セールを終了する</button></div><div class="entryline" style="margin:6px 0"><span>🤖 <b>${saleBuyLabel}</b>：現在 <b>${saleBuyOn?"ON":"OFF"}</b>${saleBuyOn&&saleAsg?`（担当：${esc(saleAsg.name)}・相馬眼${esc(saleAsg.ranks.eye||"")}）`:""}</span><span class="small">${saleBuyOn?"オート通過時、担当調教師の評価 ☆・◎ の個体だけを自動で買います（資金リザーブ等のガードつき）。手動で買う場合はこのまま下の上場馬から選べます。":"ONにすると、オート通過時に担当調教師の評価 ☆・◎ の個体だけを自動で買います。切り替えは調教タブの「調教師への指示」チェックから（チェックした人の中で相馬眼が最も高い人が担当）。手動購入はこの画面でいつでもできます。"}</span></div><div class="salelist">${pageSlice("farmSale",saleCards,6).join("")}</div></div>`+pagerHTML("farmSale",saleCards.length,6)+`<div class="flex" style="justify-content:flex-end;margin-top:6px"><button class="btn red sm" data-sale-end="1">セールを終了する</button></div>`+panelClose();
  } else { html+=panelHTML("farm","sale",`<p class="small">現在、セールは開催されていません（8月・12月などに開催されます）。</p>`); }
  /* お守り・カップ・記録 */
  html+=panelOpen("farm","records")+`<div class="panel">
@@ -14432,38 +14527,42 @@ function autoDigestRace(ne){
   /* 出走の自動取消し（勝率／コンディション方針×方針管理エントリー）も消化前に判定する */
   for(const x of owns.slice()){ let cx=false; try{ cx=maybeCancelEntryForForm(x); }catch(e){ cx=false; } if(cx) owns.splice(owns.indexOf(x),1); }
   if(!owns.length) return true; /* 全頭取り消し済み：消化するレースは無いので進行を続ける */
+  /* 定員審査：候補が定員を超える場合は優先順位で枠を配る（finalizeField に集約）。
+     除外された自厩舎馬はエントリーが解除され（理由は通知と記録に残る）、
+     残った馬だけで消化する。全頭除外なら消化するレースは無いので進行を続ける */
+  const field=finalizeField(r, owns);
+  const runOwns=owns.filter(x=>field.includes(x));
+  if(!runOwns.length) return true;
   /* 繰り返しガード：同じレース（同じ週・同じエントリー）の消化が2回目に
      入ったら、前回でエントリーが消費されなかった異常とみなして即失敗にする。
      startRace を再実行しないので、騎乗料だけが毎手引かれ続けることもない */
   if(!AUTO._digestTry) AUTO._digestTry={};
-  const dkey=r.name+"@"+h.entry.absWeek+"@"+owns.map(x=>x.id).sort((a,b)=>a-b).join(",");
+  const dkey=r.name+"@"+(h.entry?h.entry.absWeek:S.week)+"@"+runOwns.map(x=>x.id).sort((a,b)=>a-b).join(",");
   if(AUTO._digestTry[dkey]){ AUTO.digestFailReason=`同じレース（${r.name}）の消化が繰り返されました。前回の消化でエントリーが消費されなかったため、これ以上は進めません`; return false; }
   AUTO._digestTry[dkey]=1;
   /* 事前チェック：騎乗料（＋海外遠征費）が払えるか。払えない場合は startRace の
      警告画面ではなく、理由つきの失敗としてオートを止める */
   let totalFee=0;
-  for(const oh of owns){
+  for(const oh of runOwns){
     const ej=oh.reqJockey!=null? oh.reqJockey : oh.jockey;
     const jk=JOCKEYS[ej];
     if(!jk){ AUTO.digestFailReason=`${oh.name} の騎手が見つかりませんでした`; return false; }
     totalFee+=jk.fee+travelFeeFor(r);
   }
   if(S.funds<totalFee){ AUTO.digestFailReason=`騎乗料${r.overseas?"と遠征費":""}が不足しています（必要 ${fmt(totalFee)}万円／現在 ${fmt(S.funds)}万円）`; return false; }
-  const field=[...fixedRivalsFor(r)];
-  owns.forEach(x=>{ if(!field.includes(x)) field.push(x); });
   fixGates(field);
   raceState.card=field; raceState.rivals=fixedRivalsFor(r); raceState.rivalRace=r.id;
   const prevWatch=S.watchMode;
   S.watchMode="result";
-  const before=new Map(owns.map(x=>[x.id,{races:x.races||0}]));
+  const before=new Map(runOwns.map(x=>[x.id,{races:x.races||0}]));
   let ok=false;
   try{
-    startRace(r, owns[0], field);
+    startRace(r, runOwns[0], field);
     /* 成功の判定は phase だけでは行わない：精算（finishRace）が実際に行われ、
        エントリーが消費され、出走数が増えたことを必ず確認する。
        phase が "done" でも精算が飛ばされた場合は「成功」と扱わず失敗にする
        （成功ログだけ出てエントリーが残り、無限に消化し続ける不具合の再発防止） */
-    ok=(raceState.phase==="done") && owns.every(x=>!x.entry && (x.races||0)>before.get(x.id).races);
+    ok=(raceState.phase==="done") && runOwns.every(x=>!x.entry && (x.races||0)>before.get(x.id).races);
     if(ok){
       const res=(raceState.result&&raceState.result.ownResults)||[];
       res.forEach(o=>log(`🤖 オート：${year()}年${month()}月第${weekInMonth()}週／${o.h.name} は ${r.name} に出走し ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
@@ -14550,12 +14649,14 @@ function youngCap(){ return [10,20,40][Math.min(2,facLv("stable"))]||10; }
 function autoBuySalePass(){
   if(!S.sale||!Array.isArray(S.sale.list)) return 0;
   const cfg=autoCfg(); const kind=S.sale.kind; const isMare=(kind==="mare");
-  if(isMare? !cfg.buyMareOmakase : !cfg.buyYoungOmakase) return 0;
+  const asg=delegationAssignee(isMare? "buyMareOmakase" : "buyYoungOmakase");
+  if(!asg) return 0;
   const reserve=autoReserveFunds();
   const wr=m=>{ if(Array.isArray(S.weekReport)) S.weekReport.push(m); };
   let bought=0; const notes=[];
   [...S.sale.list].forEach(it=>{
-    if(!saleTopByTrainer(it)) return;
+    const mark=saleMarkByEye(it, asg);
+    if(!(mark==="☆"||mark==="◎")) return;
     if(it.charmPrice){ notes.push(`${it.name}：お守り付き（高額）のため自動購入の対象外`); return; }
     const price=Math.round(it.price*1.35);
     if(isMare&&(S.mares||[]).length>=mareCap()){ notes.push(`${it.name}：繁殖牝馬の繋養上限（${mareCap()}頭）に達しているため見送り`); return; }
@@ -14569,8 +14670,8 @@ function autoBuySalePass(){
     if(!Array.isArray(S.saleHist)) S.saleHist=[];
     S.saleHist.unshift({name:it.name, price, week:S.week, buyer:"自厩舎（おまかせ購入）"}); if(S.saleHist.length>12) S.saleHist.length=12;
     bought++;
-    log(`🤖 オート：セールで${isMare?"繁殖牝馬":"幼駒"}「${it.name}」をおまかせ購入（調教師評価 ${it.saleEvals.tr}・一発購入 ${fmt(price)}万円）`);
-    wr(`🤖 おまかせ購入：${it.name}（調教師評価 ${it.saleEvals.tr}）を ${fmt(price)}万円 で購入しました`);
+    log(`🤖 オート：セールで${isMare?"繁殖牝馬":"幼駒"}「${it.name}」をおまかせ購入（担当 ${asg.name}・相馬眼${asg.ranks.eye||""}の評価 ${mark}・一発購入 ${fmt(price)}万円）`);
+    wr(`🤖 おまかせ購入：${it.name}（担当 ${asg.name} の評価 ${mark}）を ${fmt(price)}万円 で購入しました`);
   });
   notes.forEach(n=>log(`🤖 オート：セール購入を見送りました ― ${n}`));
   if(bought||notes.length) wr(`🤖 セールのおまかせ購入：${bought}頭を購入${notes.length?`／見送り ${notes.length}件（記録に理由あり）`:""}`);
@@ -14624,14 +14725,14 @@ function autoCardAction(c,cfg){
     if(autoStopSaleFor(kind,cfg)) return {type:"stop", reason:`${saleDisplayName(kind)}が開催中です（停止条件：セール）。馬主タブのセール会場で購入する馬を選んでください（厩舎ホームの提案「セールを見る」からも移動できます）`};
     /* 停止OFFのセールは通過する。その際、調教師への指示でおまかせ購入が
        ONのセール種別なら、通過前に◎・☆だけを自動購入する（ガードつき） */
-    const buyOn= kind==="mare"? !!cfg.buyMareOmakase : !!cfg.buyYoungOmakase;
+    const buyOn= kind==="mare"? buyMareOmakaseOn() : buyYoungOmakaseOn();
     if(buyOn) return {type:"run", label:"セールのおまかせ購入（調教師評価 ◎・☆のみ）", run:()=>{ autoBuySalePass(); AUTO.skip[c.key+"@"+S.week]=1; }};
     return {type:"skip"};
   }
   if(c.act==="breed"){
     /* 種付けおまかせ（mateOmakase）が OFF のときは代行せず止まる：
        種付けは取り消せない判断なので、建設と同じく同意がある時だけ任せる */
-    if(cfg.mateOmakase===false) return {type:"stop", reason:"繁殖シーズンです。種付けは「オート中は種付けをおまかせにする」がOFFのため停止しました（生産タブで配合を決めてください）"};
+    if(!mateOmakaseOn()) return {type:"stop", reason:"繁殖シーズンです。種付けの代行担当がいないため停止しました（生産タブで配合を決めるか、調教師への指示で誰かに「おまかせ種づけする」のチェックを入れてください）"};
     /* おまかせONのときは繁殖シーズンでも止まらず、調教師の配合提案
        （相馬眼ランクで提案の質が変わる既存の仕組み）どおりに自動で
        種付けを登録し、オートはそのまま進行を続ける。
@@ -14726,9 +14827,9 @@ function autoStepBody(){
      どおりに1頭ずつ種付けを登録し、止まらずに進行を続ける。資金不足など
      登録できない牝馬はその週は見送りとして記録し、空転させない */
   if(month()===5||month()===6){
-    if(cfg.mateOmakase===false){
+    if(!mateOmakaseOn()){
       const hasUnbred=(S.mares||[]).some(m=>!m.pregnant);
-      if(hasUnbred && (S.stallions||[]).length){ autoStop("繁殖シーズンです。種付けは「オート中は種付けをおまかせにする」がOFFのため停止しました（生産タブで配合を決めるか、オート設定でおまかせをONにしてください）"); return; }
+      if(hasUnbred && (S.stallions||[]).length){ autoStop("繁殖シーズンです。種付けの代行担当がいないため停止しました（生産タブで配合を決めるか、調教師への指示で誰かに「おまかせ種づけする」のチェックを入れてください）"); return; }
     }
     if(!AUTO.bredTried) AUTO.bredTried={};
     if(!AUTO.bredLogged) AUTO.bredLogged={};
@@ -14818,8 +14919,8 @@ function showAutoSettings(){
   const fixedN=(S.horses||[]).filter(h=>h.planFixed).length;
   const chip=(on,label,jump)=>`<button class="planchip ${on?"fixed":""}" data-omkjump="${jump||""}" style="margin:2px 2px 2px 0">${on?"●":"○"} ${label}</button>`;
   const summary=`<div class="ticket" style="border-color:var(--gold)"><b>🤝 おまかせ状況（いま任せていること）</b>
-  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(!!cfg.mateOmakase,"おまかせ種づけ（調教師への指示）","trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(!!cfg.buyYoungOmakase,"幼駒のおまかせ購入（調教師への指示）","trainer")} ${chip(!!cfg.buyMareOmakase,"繁殖牝馬のおまかせ購入（調教師への指示）","trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
-  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", cfg.mateOmakase===false?"種付け":"", "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
+  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(mateOmakaseOn(),`おまかせ種づけ（担当：${(delegationAssignee("mateOmakase")||{}).name||"なし"}）`,"trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(buyYoungOmakaseOn(),`幼駒のおまかせ購入（担当：${(delegationAssignee("buyYoungOmakase")||{}).name||"なし"}）`,"trainer")} ${chip(buyMareOmakaseOn(),`繁殖牝馬のおまかせ購入（担当：${(delegationAssignee("buyMareOmakase")||{}).name||"なし"}）`,"trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
+  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", !mateOmakaseOn()?"種付け":"", "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   ${summary}<div class="ticket"><b>💤 スリープ防止</b><br><span class="small">オート実行中は画面スリープを防止します（Wake Lock API${"wakeLock" in navigator?"に対応しています":"未対応の環境では無音動画で防止を試みます"}）。オートを止めると解放されます。</span></div>
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
@@ -14841,8 +14942,8 @@ function showAutoSettings(){
   ${tog("stopOfferLoan","貸付の申し出で止まる（OFFなら見送ります。勝手に貸しません）")}
   ${tog("stopOfferBuy","相手からの売却打診で止まる（OFFなら見送ります。勝手に買いません）")}
   ${tog("stopOfferLease","繁殖牝馬の貸し借りで止まる（OFFなら見送ります。勝手に貸したり借りたりしません）")}
-  <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${cfg.buyYoungOmakase?"ON":"OFF"}</b>／繁殖牝馬 <b>${cfg.buyMareOmakase?"ON":"OFF"}</b>）は調教師への指示で決めます。ONのセール種別は、止まらず通過する時に調教師評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
-  <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${cfg.mateOmakase?"おまかせ種づけする（代行する）":"代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
+  <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${buyYoungOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyYoungOmakase").name)+"）" : "OFF"}</b>／繁殖牝馬 <b>${buyMareOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyMareOmakase").name)+"）" : "OFF"}</b>）は調教師への指示で決めます（チェックを入れた調教師の中で相馬眼が最も高い人が担当します）。ONのセール種別は、止まらず通過する時に担当の評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
+  <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${mateOmakaseOn()? "おまかせ種づけする（担当："+esc(delegationAssignee("mateOmakase").name)+"）" : "代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
   <label class="small" style="display:block;margin-top:10px">代行種付けのシーズン予算上限（5〜6月の合計金額。手動の種付けには適用されません）<br><select id="auto-mate-budget" style="width:100%">${[[0,"上限なし"],[1000,"1,000万円まで"],[2000,"2,000万円まで"],[3000,"3,000万円まで"],[5000,"5,000万円まで"],[10000,"1億円まで"]].map(([v,l])=>`<option value="${v}" ${cfg.mateBudgetSeason===v?"selected":""}>${l}</option>`).join("")}</select></label><p class="small" style="margin-top:4px">今シーズンの代行種付けの使用済み：${fmt(mateSeasonSpent())}万円</p></div>
   ${cfg.facOmakase? `<div class="ticket" style="opacity:.55"><b>施設の建設提案で止まる</b><div class="mt"><button class="btn sm ghost" disabled>おまかせ中は止まりません</button></div><p class="small" style="margin-top:4px">建設おまかせがONのため、この停止条件は無効です。止めたい場合は、先に下の「オート中は建設をおまかせにする」をOFFにしてください。</p></div>` : tog("stopFacility","施設の建設提案で止まる（OFFの場合は建設せず、提案を見送って進行します）")}
   <div class="ticket"><b>オート中は建設をおまかせにする</b><div class="mt"><label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="auto-fac-omakase" ${cfg.facOmakase?"checked":""} style="width:22px;height:22px;flex:none;margin:0"> <span>ONにすると、オート中は施設で止まらず、牧場長の推薦どおりに建設・拡張を自動で実行します（資金が不足する場合は建てません）。何を建てたかは記録に残ります</span></label></div></div>
@@ -14937,6 +15038,36 @@ function setDirective(tid,key,val){
   if(!S.trainerDirectives||typeof S.trainerDirectives!=="object") S.trainerDirectives={};
   if(!S.trainerDirectives[tid]) S.trainerDirectives[tid]={};
   S.trainerDirectives[tid][key]=!!val;
+}
+/* 厩舎全体の代行（種付け・セール購入）の担当決め：その項目にチェックを
+   入れた調教師の中で相馬眼が最も高い人が担当する（同点は主任を優先）。
+   主任だけにチェックする従来の使い方では担当＝主任になり従来どおり動く。
+   以前は主任のチェックしか読まれず、他の調教師に入れたチェックが
+   無言で無効になっていた（ユーザーの「指名して任せる」使い方に合わせる） */
+function delegationAssignee(key){
+  let best=null, bestEye=-1;
+  (employedTrainers()||[]).forEach(d=>{
+    let on=false; try{ on=!!directivesOf(d.id)[key]; }catch(e){}
+    if(!on) return;
+    const e=rankVal(d.ranks&&d.ranks.eye);
+    const isPrim=d.id===(S.trainerId||"jp122");
+    if(!best||e>bestEye||(e===bestEye&&isPrim)){ best=d; bestEye=e; }
+  });
+  return best;
+}
+function mateOmakaseOn(){ return !!delegationAssignee("mateOmakase"); }
+function buyYoungOmakaseOn(){ return !!delegationAssignee("buyYoungOmakase"); }
+function buyMareOmakaseOn(){ return !!delegationAssignee("buyMareOmakase"); }
+/* 配合提案を出す調教師：種付けの担当がいればその人、いなければ主任 */
+function breedProposalTrainer(){ return delegationAssignee("mateOmakase")||trainerData(); }
+/* 購入担当の相馬眼で上場馬を見立てる：相馬眼が高いほど実力どおりに判定し、
+   低いほど見積もりがぶれて ☆・◎ の判定がずれる（目利きが担当者で変わる） */
+function saleMarkByEye(h, trainer){
+  const trueScore=(h.spd+h.sta+h.pow+h.bst+h.gut)/5;
+  const eye=trainer? rankVal(trainer.ranks&&trainer.ranks.eye) : 3;
+  const err=[14,10,7,4,2,0][eye]||0;
+  const est=trueScore+(err? (Math.random()*2-1)*err : 0);
+  return est>=80? "☆" : est>=72? "◎" : est>=64? "○" : est>=56? "△" : "";
 }
 function tacMasterFor(h){ try{ return directivesOf(h&&h.trainerId).tacMaster; }catch(e){ return false; } }
 function fireTrainer(id){
@@ -15054,7 +15185,7 @@ function omakaseReview(){
   });
   /* 繁殖シーズンは配合も調教師の提案どおりに登録する（提案の質は相馬眼で変わる）。
      ただしオート実行中に種付けおまかせがOFFなら、オート側の停止を優先して代行しない */
-  if((month()===5||month()===6) && !(typeof AUTO!=="undefined"&&AUTO.running&&autoCfg().mateOmakase===false)){
+  if((month()===5||month()===6) && !(typeof AUTO!=="undefined"&&AUTO.running&&!mateOmakaseOn())){
     let bprops=[]; try{ bprops=trainerBreedProposals(); }catch(e){}
     for(const p of bprops){
       const cost=(p.cost!=null? p.cost : studFeeFor(p.sire)+150);
