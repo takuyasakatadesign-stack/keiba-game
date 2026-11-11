@@ -3448,14 +3448,22 @@ const HORSE_NAMES2=["シップ","スピード","スター","ドリーム","ホ�
    「・2」「・3」…の枝番で一意性を保証する（定型の連番名は付けない）。 */
 const HORSE_NAMES_B=["アルカディア","ベルベット","グラン","プレミアム","ロワール","ミストラル","アリア","ノーブル","ヴァルキリー","オーロラ","セレナーデ","フィオーレ","ルーチェ","ヴェント","エテルノ","カプリチオ","ラルゴ","アマービレ","ソプラノ","バレッタ","ミラージュ","アンセム","カノン","フィナーレ"];
 const HORSE_NAMES2_B=["ダンサー","ランナー","ソング","メモリー","キセキ","ユメ","ヒカリ","カガヤキ","ブリーズ","グローリー","レガシー","エコー","ハーモニー","リズム","スピリット","トラベラー","ワルツ","メロディ","アルペジオ","セレナーデ","ファンファーレ","コンチェルト"];
-function composeHorseName(){
-  const A=HORSE_NAMES.concat(HORSE_NAMES_B), B=HORSE_NAMES2.concat(HORSE_NAMES2_B);
-  const As=A.filter(x=>x.length<=4);
-  const r=Math.random();
-  if(r<0.46) return pick(A)+pick(B);
-  if(r<0.72) return pick(A)+"ノ"+pick(B);
-  if(r<0.88) return pick(As)+pick(As)+pick(B);
-  return pick(B)+pick(A);
+/* 馬名の完成形は実競馬に倣い9文字以内（NAME_MAX）。自動命名では短い
+   簡単な単語だけを使い、上限を超える組み合わせは生成しない */
+const NAME_MAX=9;
+function composeHorseName(maxLen){
+  const cap=Math.max(4,Math.min(NAME_MAX, maxLen||NAME_MAX));
+  const A=HORSE_NAMES.concat(HORSE_NAMES_B).filter(x=>x.length<=5);
+  const B=HORSE_NAMES2.concat(HORSE_NAMES2_B).filter(x=>x.length<=5);
+  for(let i=0;i<80;i++){
+    const r=Math.random(); let n;
+    if(r<0.55) n=pick(A)+pick(B);
+    else if(r<0.82) n=pick(A)+"ノ"+pick(B);
+    else n=pick(B)+pick(A);
+    if(n.length<=cap) return n;
+  }
+  const sh=arr=>arr.reduce((x,y)=>y.length<x.length?y:x,arr[0]);
+  return sh(A)+sh(B);
 }
 const NAME_TAKEN=new Set(); /* セッション内で払い出した名前（相手馬など保存されない馬も含め重複を防ぐ） */
 function collectUsedNames(extra){
@@ -3497,21 +3505,25 @@ function nameTakenNow(n, extraSet){
   }catch(e){}
   return false;
 }
-function genUniqueName(extra){
+function genUniqueName(extra, maxLen){
   const extraSet=new Set();
   if(extra) (Array.isArray(extra)?extra:[extra]).forEach(x=>{ if(!x)return; const n=typeof x==="string"?x:x.name; if(n) extraSet.add(n); });
   const used=n=>nameTakenNow(n, extraSet);
-  for(let i=0;i<300;i++){ const n=composeHorseName(); if(n&&!used(n)){ NAME_TAKEN.add(n); return n; } }
-  let base=composeHorseName(), n=base, k=2;
-  while(used(n)){ n=base+"・"+k; k++; }
+  for(let i=0;i<300;i++){ const n=composeHorseName(maxLen); if(n&&!used(n)){ NAME_TAKEN.add(n); return n; } }
+  const cap=Math.max(4,Math.min(NAME_MAX, maxLen||NAME_MAX));
+  let base=composeHorseName(maxLen), n=base, k=2;
+  while(used(n)){ const suf="・"+k; n=base.slice(0,Math.max(2,cap-suf.length))+suf; k++; }
   NAME_TAKEN.add(n); return n;
 }
 /* ===== 冠名（第19次）：設定で指定したワードを自厩舎の自動命名に付ける ===== */
-function crownWord(){ try{ return (typeof S!=="undefined"&&S&&typeof S.crownName==="string")? S.crownName.trim() : ""; }catch(e){ return ""; } }
+function crownWord(){ try{ return (typeof S!=="undefined"&&S&&typeof S.crownName==="string")? S.crownName.trim().slice(0,4) : ""; }catch(e){ return ""; } }
 function applyCrownName(name){
   const w=crownWord(); if(!w||!name) return name;
-  if(typeof S!=="undefined"&&S&&S.crownPos==="post"){ return name.endsWith(w)? name : name+w; }
-  return name.startsWith(w)? name : w+name;
+  let out;
+  if(typeof S!=="undefined"&&S&&S.crownPos==="post"){ out=name.endsWith(w)? name : name+w; }
+  else out=name.startsWith(w)? name : w+name;
+  /* 冠込みの完成形が9文字を超える場合は冠を付けない（生成側で通常は収まる） */
+  return out.length<=NAME_MAX? out : name;
 }
 const RIVAL_OWNERS=["社台系","金子系","里見系","友道系","国本系","西山系","松島系","大塚系","前田系","近藤系"];
 const TRAINS=[
@@ -8064,7 +8076,8 @@ function birthCommentCardHTML(h){
 /* ============ 幼駒の命名権オファー（出産時に買い手が提示） ============ */
 /* 買い手は全て架空。実在の富裕層・企業を想起させるオマージュ名だが、実名・商標そのものは使わない。
    factor=提示額の係数（大口ほど高い）／w=出やすさの重み（大口ほど小さい＝レア）／
-   pool=好む言葉の系統／pat=命名パターン（0:冠名＋言葉／1:冠名＋言葉＋ノ＋言葉／2:冠名＋言葉＋言葉／3:言葉＋冠名（後置）／4:冠名＋言葉×3の長名） */
+   pool=好む言葉の系統／pat=命名パターン（3のみ言葉＋冠名の後置、それ以外は冠名＋言葉。
+   いずれも付随する言葉は短い単語1つだけで、冠込みの完成形は9文字以内） */
 const NR_BUYERS=[
  /* ===== IT・通信 ===== */
  {name:"グーゴルネット", crown:"グーゴル", factor:1.5, w:3, pool:"tech", pat:0, intro:"検索と広告で巨万の富を築いた米西海岸のテック巨人"},
@@ -8106,8 +8119,8 @@ const NR_BUYERS=[
  {name:"アンシン生命", crown:"アンシン", factor:1.0, w:6, pool:"dream", pat:0, intro:"安心を売る大手生命保険"},
  {name:"ミツカード", crown:"ミツ", factor:1.1, w:5, pool:"jewel", pat:0, intro:"三つ集まれば、が合言葉のカード会社"},
  /* ===== 食品・飲料 ===== */
- {name:"蒼空フーズ", crown:"ソラフーズ", factor:0.95, w:6, pool:"sky", pat:0, intro:"食品大手。空の青をコーポレートカラーにする"},
- {name:"緑川乳業", crown:"ミドリカワ", factor:0.85, w:6, pool:"sea", pat:0, intro:"川沿いの牧場から始まった乳業メーカー"},
+ {name:"蒼空フーズ", crown:"ソラ", factor:0.95, w:6, pool:"sky", pat:0, intro:"食品大手。空の青をコーポレートカラーにする"},
+ {name:"緑川乳業", crown:"ミドリ", factor:0.85, w:6, pool:"sea", pat:0, intro:"川沿いの牧場から始まった乳業メーカー"},
  {name:"オールドモルト酒造", crown:"モルト", factor:1.3, w:3, pool:"jp", pat:1, intro:"山あいの蒸留所でモルトウイスキーを育てる酒造"},
  {name:"ヒノデビール", crown:"ヒノデ", factor:1.1, w:5, pool:"sky", pat:0, intro:"日の出のラベルで知られるビール大手"},
  {name:"マキバ乳業", crown:"マキバ", factor:0.95, w:6, pool:"food", pat:0, intro:"牧場直営が売りの乳業。馬との縁も深い"},
@@ -8118,13 +8131,13 @@ const NR_BUYERS=[
  {name:"ホシバコーヒー", crown:"ホシバ", factor:1.2, w:4, pool:"sweet", pat:0, intro:"星の看板のコーヒーチェーン。居心地を売る"},
  /* ===== エンタメ・メディア ===== */
  {name:"帝都メディア", crown:"テイト", factor:1.1, w:5, pool:"royal", pat:0, intro:"帝都のメディアグループ。放送と出版を持つ"},
- {name:"ユメノクニ・エンタ", crown:"ユメノクニ", factor:1.6, w:2, pool:"dream", pat:1, intro:"夢の国のテーマパークを運営する娯楽の巨人"},
+ {name:"ユメノクニ・エンタ", crown:"ユメ", factor:1.6, w:2, pool:"dream", pat:1, intro:"夢の国のテーマパークを運営する娯楽の巨人"},
  {name:"オワライ堂", crown:"オワライ", factor:0.9, w:6, pool:"dream", pat:2, intro:"お笑いの総本山。タレントの卵を大量に抱える"},
  {name:"ホシタレント事務所", crown:"ホシタレ", factor:1.2, w:4, pool:"jewel", pat:0, intro:"星の卵を磨く大手タレント事務所"},
  {name:"フジヤマ放送", crown:"フジヤマ", factor:1.1, w:5, pool:"jp", pat:0, intro:"富士の名を冠するキー局"},
  {name:"タカラ映画", crown:"タカラ", factor:1.2, w:4, pool:"jewel", pat:0, intro:"宝の名を持つ老舗映画会社。歌劇団も抱える"},
  {name:"オモチャバコ", crown:"オモチャ", factor:1.3, w:3, pool:"dream", pat:2, intro:"玩具箱をひっくり返したような玩具・映像の大手"},
- {name:"エイペックス音楽", crown:"エイペックス", factor:1.1, w:5, pool:"speed", pat:1, intro:"頂点（エイペックス）を目指す音楽レーベル"},
+ {name:"エイペックス音楽", crown:"リズム", factor:1.1, w:5, pool:"speed", pat:1, intro:"頂点（エイペックス）を目指す音楽レーベル"},
  {name:"デンパ堂", crown:"デンパ", factor:1.3, w:3, pool:"tech", pat:0, intro:"電波の仕事なら何でも受ける広告代理店最大手"},
  /* ===== 不動産・建設・ホテル ===== */
  {name:"星和ホールディングス", crown:"ホシワ", factor:1.15, w:5, pool:"sky", pat:0, intro:"星の和を掲げる不動産・建設の持株会社"},
@@ -8144,24 +8157,24 @@ const NR_BUYERS=[
  {name:"資産家・永森繁道", crown:"ナガモリ", factor:1.4, w:3, pool:"speed", pat:0, intro:"モーター一筋に世界一を獲った精密機器の創業者"},
  {name:"資産家・豊川章一", crown:"トヨカワ", factor:1.3, w:4, pool:"speed", pat:1, intro:"自動車一族の御曹司。自身もレーサー気質"},
  {name:"資産家・稲垣和生", crown:"イナガキ", factor:1.6, w:2, pool:"jp", pat:1, intro:"電子部品と哲学書で知られる京の経営者"},
- {name:"物言う資産家・ムラカミン", crown:"ムラカミン", factor:1.8, w:2, pool:"jewel", pat:2, intro:"物言う投資家として名を馳せるファンド代表"},
+ {name:"物言う資産家・ムラカミン", crown:"ムラカミ", factor:1.8, w:2, pool:"jewel", pat:2, intro:"物言う投資家として名を馳せるファンド代表"},
  {name:"資産家・サチコ", crown:"サチコ", factor:1.35, w:3, pool:"flower", pat:0, intro:"美容帝国を一代で築いた女性実業家"}
 ];
 const NR_POOLS={
  sky:["スカイ","ソラ","ツバサ","カゼ","ハヤテ","クラウド","オーロラ","ホシ","ルナ","コメット"],
  sea:["オーシャン","リバー","ウェーブ","シー","マリン","パール","コーラル","ハーバー","ブルー","テイド"],
- royal:["キング","クイーン","エンペラー","ロイヤル","クラウン","レジェンド","グローリー","ヴィクトリー","チャンピオン","プリンス"],
+ royal:["キング","クイーン","エンペラー","ロイヤル","クラウン","レジェンド","グローリー","プリンス"],
  food:["モモ","リンゴ","ミルク","ハニー","シュガー","コメ","ムギ","ウメ","マロン","ソラマメ"],
  tech:["ネオン","レーザー","サーキット","クォーク","ビット","ノヴァ","ピクセル","オービット","プラズマ","イオン"],
  jewel:["ダイヤ","ルビー","サファイア","エメラルド","トパーズ","オパール","アメジスト","ガーネット","クリスタル","ゴールド"],
  flower:["サクラ","ユリ","バラ","ヒマワリ","コスモス","アヤメ","ツツジ","フジ","ラン","スミレ"],
- speed:["ハヤテ","ライトニング","ソニック","ブレイズ","ストーム","サンダー","アロー","ファルコン","ブレット","ラピッド"],
+ speed:["ハヤテ","ソニック","ブレイズ","ストーム","サンダー","アロー","ファルコン","ブレット","ラピッド"],
  jp:["ヤマト","ミヤビ","ムサシ","ハルカ","ツルギ","マツカゼ","タケル","ヒノキ","スズカゼ","アスカ"],
  sweet:["キャラメル","プリン","カスタード","マカロン","ショコラ","バニラ","メープル","モンブラン","パフェ","タルト"],
- dream:["ドリーム","スター","ホープ","ミライ","ヒカリ","ウィナー","サンライズ","ハーモニー","フロンティア","ブレイヴ"]
+ dream:["ドリーム","スター","ホープ","ミライ","ヒカリ","ウィナー","サンライズ","ハーモニー","ブレイヴ"]
 };
 const NR_CORES=NR_POOLS.dream;
-const NR_PAT_TEXT=["冠名＋言葉の正統派","冠名＋言葉＋ノ＋言葉の二語構成が好み","言葉を2つ繋げる連結式が好み","冠名を後ろに付ける変則派","言葉を3つ重ねる長名派"];
+const NR_PAT_TEXT=["冠名＋短い言葉ひとつの正統派","冠名＋短い言葉ひとつのシンプル派","冠名＋短い言葉ひとつの一語派","短い言葉＋冠名（後置）の変則派","冠名＋短い言葉ひとつの正統派"];
 function nrBuyerDef(o){ if(!o) return null; if(o.bid!=null&&NR_BUYERS[o.bid]) return NR_BUYERS[o.bid]; return NR_BUYERS.find(b=>b.name===o.buyer)||null; }
 function nrPickBuyer(){
   let tot=0; NR_BUYERS.forEach(b=>tot+=(b.w||5));
@@ -8179,16 +8192,13 @@ function nrBuyerName(o){
   let used=new Set(); try{ used=collectUsedNames(); }catch(e){}
   const def=nrBuyerDef(o), crown=(def&&def.crown)||o.crown||"";
   const pool=(def&&NR_POOLS[def.pool])||NR_CORES, pat=def? (def.pat||0) : 0;
-  const build=()=>{
-    const c1=pick(pool); let c2=pick(pool); if(c2===c1) c2=pick(pool); let c3=pick(pool); if(c3===c1||c3===c2) c3=pick(pool);
-    if(pat===1) return crown+c1+"ノ"+c2;
-    if(pat===2) return crown+c1+c2;
-    if(pat===3) return Math.random()<0.5? c1+crown : c1+"ノ"+c2+crown;
-    if(pat===4) return crown+c1+c2+c3;
-    return crown+c1+(Math.random()<0.35?"ノ"+c2:"");
-  };
+  /* 冠に付随する言葉は短い簡単な単語1つだけ。冠込みの完成形は実競馬に
+     倣い9文字以内に収め、上限を超える組み合わせは生成しない */
+  const words=pool.filter(w=>w.length<=5 && crown.length+w.length<=NAME_MAX);
+  const src=words.length? words : NR_CORES.filter(w=>crown.length+w.length<=NAME_MAX);
+  const build=()=>{ const c1=pick(src); return pat===3? c1+crown : crown+c1; };
   for(let i=0;i<80;i++){ const n=build(); if(n&&!used.has(n)&&!NAME_TAKEN.has(n)){ NAME_TAKEN.add(n); return n; } }
-  let n=crown+"ドリーム", k=2; const b=n; while(used.has(n)||NAME_TAKEN.has(n)){ n=b+"・"+k; k++; } NAME_TAKEN.add(n); return n;
+  let n=crown+"ドリーム", k=2; const b=n; while(used.has(n)||NAME_TAKEN.has(n)){ const suf="・"+k; n=b.slice(0,Math.max(2,NAME_MAX-suf.length))+suf; k++; } NAME_TAKEN.add(n); return n;
 }
 function nrQueueOffer(foal){ if(!foal||foal.nrDone) return; const sel=nrPickBuyer(), buyer=sel.b; (S.nrQueue||(S.nrQueue=[])).push({foalId:foal.id, bid:sel.i, buyer:buyer.name, crown:buyer.crown, price:nrPriceFor(foal,buyer)}); }
 function nrMaybeShow(){
@@ -8320,7 +8330,7 @@ function makeFoalFromTheory(p){
  const stRec=(S.stallions||[]).find(x=>x.name===p.sireName); const sireH=stRec?stRec.own:null;
  const base=55+Math.min(7,T.burst)+ri(-5,4);
  const f=newHorse({base, age:0, sire:p.sireName, dam:mare?mare.name:""});
- f.name=applyCrownName(genUniqueName()); /* 仔馬は固有名＋設定があれば冠名を付ける */
+ const _cw=crownWord(); f.name=applyCrownName(genUniqueName(null, _cw? NAME_MAX-_cw.length : NAME_MAX)); /* 仔馬は固有名＋設定があれば冠名を付ける（冠込みで9文字以内に収まる固有名を生成する） */
  if(mare){ ["spd","sta","pow","bst","gut","flx","men","smt","hlt"].forEach(k=>{ const sv=sireH?sireH[k]:(mare[k]+8); f[k]=clamp(Math.round(62+((sv+mare[k])/2-62)*0.88+gauss()*5),25,95); }); f.turf=mare.turf; f.dirt=mare.dirt; f.heavy=mare.heavy; }
  /* 父系因子の活性化：受胎確定時に表示された父系因子は確実に上昇 */
  ((p.theory&&p.theory.sireFactors)||[]).forEach(k=>{ if(ABNAME[k]) f[k]=clamp(f[k]+ri(2,4),20,99); });
@@ -13720,7 +13730,7 @@ function showSettings(){
 <div class="rulecard"><b>目標と敗北</b><p>国内G1全24制覇がエンディング（到達後もプレイ継続可）。殿堂入りは賞金・レーティング・G1勝利数の基準で判定します。資金の立て直し手段が尽きる／融資の延滞が2回続くと破産（敗北）です。</p></div>
 <div class="rulecard"><b>定常指示の優先順位</b><p>プレイヤーの手動設定 ＞ オートの提案 ＞ 調教師のおまかせ見直し。プレイヤーが固定した指示は、おまかせでも上書きされません。</p></div>
 </div></div></details><details class="fold"><summary>セーブ・カメラ</summary><div class="foldbody"><p class="small" style="margin:0 0 8px">オートセーブ頻度は自動保存の間隔、既定カメラはレース開始時の視点です（レース中の切替もできます）。</p><label class="small">オートセーブ頻度<br><select id="set-auto" style="width:100%"><option value="week" ${S.autosaveFreq==="week"?"selected":""}>毎週（従来どおり）</option><option value="month" ${S.autosaveFreq==="month"?"selected":""}>毎月（4週ごと）</option><option value="off" ${S.autosaveFreq==="off"?"selected":""}>切（手動セーブのみ）</option></select></label><br><br><label class="small">レース既定カメラ<br><select id="set-cam" style="width:100%"><option value="leader" ${S.camMode==="leader"?"selected":""}>先頭</option><option value="mine" ${S.camMode==="mine"?"selected":""}>自分の馬</option><option value="all" ${S.camMode==="all"?"selected":""}>全体</option><option value="jockey" ${S.camMode==="jockey"?"selected":""}>騎手視点（自馬に密着）</option></select></label></div></details><details class="fold"><summary>冠名（自厩舎の命名）</summary><div class="foldbody">
-  <label class="small">馬主名（表彰の馬主部門・ランキング・クラブの代表など、あなたを指す名前です）<br><input type="text" id="set-owner" style="width:100%" maxlength="12" value="${esc(ownerName())}"></label><br><br><label class="small">冠名ワード（1単語のみ・6文字まで。空白や区切りを含む言葉は使えません。空欄なら付けません。生産した仔馬など、自厩舎の馬の自動命名に付きます）<br><input type="text" id="set-crown" style="width:100%" maxlength="6" placeholder="例：サクラ" value="${esc(S.crownName||"")}"></label><br><br>
+  <label class="small">馬主名（表彰の馬主部門・ランキング・クラブの代表など、あなたを指す名前です）<br><input type="text" id="set-owner" style="width:100%" maxlength="12" value="${esc(ownerName())}"></label><br><br><label class="small">冠名ワード（短い1単語のみ・4文字まで。空白や区切りを含む言葉は使えません。空欄なら付けません。生産した仔馬など、自厩舎の馬の自動命名に付きます。冠込みの馬名は9文字以内に収まります）<br><input type="text" id="set-crown" style="width:100%" maxlength="4" placeholder="例：サクラ" value="${esc(S.crownName||"")}"></label><br><br>
   <label class="small">付ける位置<br><select id="set-crownpos" style="width:100%"><option value="pre" ${S.crownPos!=="post"?"selected":""}>頭に付ける（例：サクラ＋名前）</option><option value="post" ${S.crownPos==="post"?"selected":""}>尻に付ける（例：名前＋サクラ）</option></select></label>
   <p class="small mt">これから生まれる仔馬の名前に反映されます。すで��いる馬の名前は変わりません。</p></div></details><details class="fold"><summary>観戦方法</summary><div class="foldbody">
   <label class="small">観戦設定マトリクス（レース種別ごとの既定）</label>
@@ -13754,7 +13764,7 @@ function showSettings(){
     if(g("#set-std-retire")!=null||g("#set-std-mare")!=null){ const st=standards(); if(g("#set-std-retire")!=null)st.retire=+g("#set-std-retire"); if(g("#set-std-mare")!=null)st.mare=+g("#set-std-mare"); }
     if(g("#set-policy")!=null)entryPolicy().id=g("#set-policy");
     if(g("#set-policy-fat")!=null)entryPolicy().minFatRest=g("#set-policy-fat")==="1";
-    if(g("#set-owner")!=null){ const on=g("#set-owner").replace(/[<>&"']/g,"").slice(0,12); if(on) S.ownerName=on; } if(g("#set-crown")!=null){ const cv=g("#set-crown").replace(/[<>&"']/g,"").trim(); if(cv&&(/[\s　・／\/、,。.]/.test(cv)||cv.length>6)){ alert2("冠名は1単語だけです","冠名に付けられるのは、空白や区切りを含まない1単語（6文字まで）だけです。もとの設定のままにしました。"); } else S.crownName=cv; } if(g("#set-crownpos")!=null)S.crownPos=g("#set-crownpos")==="post"?"post":"pre";
+    if(g("#set-owner")!=null){ const on=g("#set-owner").replace(/[<>&"']/g,"").slice(0,12); if(on) S.ownerName=on; } if(g("#set-crown")!=null){ const cv=g("#set-crown").replace(/[<>&"']/g,"").trim(); if(cv&&(/[\s　・／\/、,。.]/.test(cv)||cv.length>4)){ alert2("冠名は短い1単語だけです","冠名に付けられるのは、空白や区切りを含まない短い1単語（4文字まで）だけです。もとの設定のままにしました。"); } else S.crownName=cv; } if(g("#set-crownpos")!=null)S.crownPos=g("#set-crownpos")==="post"?"post":"pre";
     if(g("#set-wm-g1")!=null)S.watchMatrix={g1:g("#set-wm-g1"), graded:g("#set-wm-graded"), cond:g("#set-wm-cond")};
     if(g("#set-mark")!=null)S.markOn=g("#set-mark")==="on";
     if(g("#set-snd")!=null)S.sound={on:g("#set-snd")==="on", bgm:(+($("#set-bgm")?$("#set-bgm").value:60))/100, se:(+($("#set-se")?$("#set-se").value:90))/100};
@@ -13830,7 +13840,7 @@ function applySave(d){
   S.autoCfg=(d.autoCfg&&typeof d.autoCfg==="object")?d.autoCfg:null; /* オートの停止条件（旧セーブには無いので null→既定値で補う） */
   S.entryPolicy=(d.entryPolicy&&typeof d.entryPolicy==="object")?d.entryPolicy:null; /* エントリー方針（旧セーブには無いので null→既定値で補う） */
   S.standards=(d.standards&&typeof d.standards==="object")? {retire:clamp(Math.round(+d.standards.retire||0),0,3), mare:clamp(Math.round(+d.standards.mare||0),0,3)} : {retire:1, mare:1}; /* 引退・繁殖入りの基準（旧セーブは既定値で補う） */
-  S.crownName=(typeof d.crownName==="string")?d.crownName.slice(0,8):""; S.crownPos=d.crownPos==="post"?"post":"pre"; /* 冠名（旧セーブには無いので空で補う） */
+  S.crownName=(typeof d.crownName==="string")?d.crownName.slice(0,4):""; S.crownPos=d.crownPos==="post"?"post":"pre"; /* 冠名（旧セーブには無いので空で補う） */
   S.trainerId=(d.trainerId&&TRAINER_ROSTER.some(t=>t.id===d.trainerId))?d.trainerId:"jp122"; S.omakase=!!d.omakase; applyTrainer(); /* 雇用中の調教師（旧セーブは高橋で補う） */
   /* 複数調教師制への移行：雇用リスト（d.trainers）が無い旧セーブは、
      現在の調教師1名体制として全馬を割り当て、既存馬は legacyCover
