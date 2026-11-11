@@ -9943,6 +9943,7 @@ function startRace(r,mine,field){
   raceState.paceVal=pace; raceState.pace1000=pace1000Text(pace);
   const trend=determineTrend(r,all); raceState.trend=trend; raceState.trendInfo=TRENDS[trend.key].n;
   const groundPen=[0,0.012,0.03,0.055][GROUNDS.indexOf(r.ground)];
+  const fSta=all.reduce((a,x)=>a+(x.sta||60),0)/Math.max(1,all.length), fGut=all.reduce((a,x)=>a+(x.gut||60),0)/Math.max(1,all.length);
   all.forEach(h=>{
     ensureFullHorse(h);
     const tac=tacOf(h), t2=tac2Of(h);
@@ -9996,6 +9997,37 @@ function startRace(r,mine,field){
     h._lat0=(((h._gate-1)%6)/5-0.5)*1.1;                               // スタート直後の横の散らばり
     const avgLat=h._latIn+h._latSwing*0.35;
     h._time*= 1 + Math.max(0,avgLat+0.5)*0.0016;                       // 外を回す分だけ距離ロス
+    /* 終盤の伸び／失速（最終局面の力学）：スタミナ・根性・調子・疲労・
+       距離適性・前半のペース負荷・脚質・特性から「最後の400mで何m伸びる／
+       落ちるか」を決め、時計へ反映する（着順は時計順のまま＝結果と映像は
+       一致）。軌跡側は progAt の終盤バンプで同じ量だけ最終局面に寄せて
+       表現するので、直線で伸びる／止まる動きがそのまま画面に出る */
+    { let late=0;
+      /* スタミナは絶対値だと総合能力と相関し「強い馬がさらに伸びる」だけに
+         なるため、「スピード型かスタミナ型か」という馬の形（プロファイル）
+         で入れる：スピード・瞬発寄りの馬は最後に止まり、スタミナ寄りの馬は
+         最後まで伸びる。能力の水準そのものには直交する */
+      late += (h.sta-(h.spd+h.bst)/2)*0.14;                       // スタミナ型ほど伸びる
+      late += (h.gut-(h.spd+h.sta+h.pow+h.bst)/4)*0.08;           // 根性（能力平均からの偏差）
+      late += ((h.cond||60)-60)*0.030;                            // 調子
+      late -= Math.max(0,(h.fat||0)-45)*0.045;                    // 疲労
+      const dmid=((h.dmin||1200)+(h.dmax||2400))/2, dover=r.dist-dmid;
+      late -= Math.abs(dover)/900*(dover>0?1.6:0.8);              // 距離の壁（長すぎる方が失速）
+      if(pace>=0.4&&tac.pos>=0.62) late -= (pace>=0.9?2.3:1.2)*clamp(1-(h.sta-55)*0.02,0.55,1.3); // ハイペースで前に行った馬の消耗
+      late += tac.pos<=0.36? 1.1 : tac.pos>=0.85? -0.9 : 0;       // 脚質の基礎傾向（差し追い込みは伸び、逃げは捕まりやすい）
+      if(traitOf(h,"lastleg")) late+=1.6;
+      if(traitOf(h,"duel")) late+=1.2;
+      if(traitOf(h,"duelkami")) late+=2.0;
+      if(traitOf(h,"goukyaku")&&trend.key==="kire") late+=1.6;
+      if(traitOf(h,"stayer")&&trend.key==="jizoku") late+=1.2;
+      if(traitOf(h,"slowstart")) late+=0.8;                       // 出遅れ分を直線で取り戻す
+      if(traitOf(h,"endure")&&trend.key==="shoumo") late+=1.2;
+      if(traitOf(h,"crowd")&&trend.key==="shoumo") late-=1.2;
+      late = late*1.3 + gauss()*2.0;                              // 較正：終盤の振れ幅（属性由来を主に、当日のブレは小さく）
+      h._lateM=clamp(late,-14,14);                                // 単位はm（最終400mで伸びる／落ちる距離）
+      h._time *= (1 - h._lateM/r.dist);
+      h._lateK = h._lateM/r.dist;                                 // progAt 用の正規化振幅
+    }
     if(!isFinite(h._time)||h._time<=0) h._time=r.dist/16.2;            // 最終ガード：時計が NaN 等の異常値になった馬がいても、その馬だけ標準的な時計に直し、レース全体（tWin・simT）を NaN で止めない
     let skew=(tac.pos-0.48)*0.36 + gauss()*0.018;
     if(t2.id==="late")skew-=0.045; if(t2.id==="front")skew+=0.02;
@@ -10004,7 +10036,7 @@ function startRace(r,mine,field){
     if(h.stride==="ピッチ")skew+=0.008;
     if(h.special==="makuri2")skew+=0.035; if(h.special==="saikouhou")skew-=0.05; if(h.special==="tame")skew+=0.01;
     h._skew=skew;
-    h._last3=clamp(36.5 - (h.bst-60)*0.085 - (tac.pos<=0.36?0.7:0) - (t2.id==="late"?0.5:0) - (traitOf(h,"slowstart")?0.35:0) - (traitOf(h,"duel")?0.3:0) - (traitOf(h,"duelkami")?0.55:0) - (traitOf(h,"lastleg")&&trend.key==="kire"?0.3:0) - (traitOf(h,"goukyaku")&&trend.key==="kire"?0.55:0) + (GROUNDS.indexOf(r.ground))*0.5 + gauss()*0.4, 31.5, 41) + (h._rmL3||0);
+    h._last3=clamp(36.5 - (h.bst-60)*0.085 - (tac.pos<=0.36?0.7:0) - (t2.id==="late"?0.5:0) - (traitOf(h,"slowstart")?0.35:0) - (traitOf(h,"duel")?0.3:0) - (traitOf(h,"duelkami")?0.55:0) - (traitOf(h,"lastleg")&&trend.key==="kire"?0.3:0) - (traitOf(h,"goukyaku")&&trend.key==="kire"?0.55:0) + (GROUNDS.indexOf(r.ground))*0.5 + gauss()*0.4, 31.5, 41) + (h._rmL3||0) - (h._lateM||0)*0.045;
     h._prog=0; h._phase=rnd(0,6.28);
   });
   const sorted=[...all].sort((a,b)=>a._time-b._time);
@@ -10116,7 +10148,13 @@ function progAt(h,t,tWin){
   let D=1;
   const tw=tWin || (typeof raceState!=="undefined" && raceState.sim ? raceState.sim.tWin : 0);
   if(tw){ const q=clamp((t/tw-0.78)/0.22,0,1); D=1-q*q*(3-2*q); }
-  return clamp(u + h._skew*u*(1-u)*D,0,1);
+  /* 終盤バンプ：_time に織り込んだ「伸び／失速」（_lateK）を最終局面に
+     寄せて表現する。伸びる馬は中盤まで平均線より後ろにいて直線で一気に
+     盛り返し、失速する馬は前にいて最後に止まる。バンプは u=1 で 0 に
+     戻るため、ゴール瞬間の並び＝着順（_time順）と一致したままになる */
+  let bump=0; const lk=h._lateK||0;
+  if(lk){ const bn=Math.pow(Math.max(0,u*(1-u)),1.3)*(0.25+1.6*u*u*u)/0.105; bump=-lk*bn; }
+  return clamp(u + h._skew*u*(1-u)*D + bump,0,1);
 }
 /* 終盤の速度の滑らかさ（実測用）：表示用進路（visAt）の速度を 0.05 秒刻みで
    数値微分し、隣接ステップの速度変化（加速度の絶対値）の最大値を返す。
