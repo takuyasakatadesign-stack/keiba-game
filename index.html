@@ -2072,6 +2072,16 @@ html,body{ height:auto; overflow:visible; }
 #racecam-float{ z-index:12 !important; }
 #racestage #raceov{ z-index:3; }
 
+/* ===== レース操作バー左下のタイトル：コントラスト固定（2026-11-11） =====
+   #racectl は白基調の上書きで背景が #fff になったのに、旧テーマの
+   color:#fff が残り、レース名が白背景に白文字で見えなくなっていた。
+   タイトルの文字色はテーマ変数に頼らず、バー背景（白）とセットで
+   ここで最終固定する（このブロックより後に上書きしないこと） */
+#racectl{ color:#3c3c3c; }
+#racectl .rc-title{ color:#1d5c33; font-size:15.5px; font-weight:900; letter-spacing:.01em; }
+#racectl .rc-meta{ color:#5f6b62; font-size:12.5px; font-weight:700; white-space:nowrap; }
+#racectl .spdlbl{ color:#5f6b62; font-weight:700; }
+
 /* HUD収まり調整（≤640px：1段固定のまま全要素を390px/360px幅に収める） */
 @media (max-width:640px){
   #hud{ gap:3px; padding-left:5px; padding-right:5px; }
@@ -3346,7 +3356,7 @@ const FAC_EFF=[0,1,1.8,2.4,2.85];
 function facEffectLv(id, lv){ if(lv<=0) return 0; let m=1; if(S&&S.mgrPost===id) m=1.5; return (FAC_EFF[Math.min(4,lv)]||0)*m; }
 function facUpCost(f, lv){ return Math.round(f.upCost*[0,1,2,5][Math.min(3,Math.max(1,lv))]||f.upCost); }
 function facUpWeeks(f, toLv){ return (f.weeks||2)+Math.max(0,(toLv||2)-2); }
-function facMaintM(f, lv){ return Math.round((f.maint||0)*[0,1,2,3.4,5.2][Math.min(4,Math.max(0,lv))]); }
+function facMaintM(f, lv){ let m=Math.round((f.maint||0)*[0,1,2,3.4,5.2][Math.min(4,Math.max(0,lv))]); if(typeof compEff==="function") m=Math.round(m*(1-0.25*compEff("fac"))); return m; }
 function migrateFacilities(){ if(!S||S.facV2) return; S.facV2=true; const F=S.facilities||{}; Object.keys(F).forEach(id=>{ if(id!=="base"&&F[id]>=2) F[id]=Math.min(4,F[id]+1); }); }
 function facBuilding(id){ return S&&S.building? (S.building[id]||0):0; }
 function facEffect(id){ const lv=facLv(id); if(lv<=0||facBuilding(id)>0) return 0; return facEffectLv(id, lv); }
@@ -4960,14 +4970,14 @@ function upkeepItems(){
     {cat:"feed", n:`飼養費（種牡馬 ${sires}頭 × 8万円）`, v:sires*8},
     {cat:"feed", n:`飼養費（幼駒 ${young}頭 × 3万円）`, v:young*3},
     {cat:"trainer", n:"預託料（調教師）", v:trainerUpkeep()},
-  ].filter(x=>x.v>0);
+  ].filter(x=>x.v>0).map(x=>{ const d=(typeof compEff==="function")? 0.06*compEff("fin") : 0; return d>0? {cat:x.cat, n:x.n+"（CFO経費最適化）", v:Math.max(0,Math.round(x.v*(1-d)))} : x; });
 }
 function upkeep(){ return upkeepItems().reduce((a,x)=>a+x.v,0); }
 /* ============ 月次明細（収支台帳） ============
    主な取引を項目別に月単位で記録し、設定画面から明細として見られるようにする。
    月が替わると前月分は履歴（最大12か月）へ移る */
-const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
-const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
+const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費", salary:"人件費（会社）", event:"イベント費用", insurance:"競走馬保険料",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
+const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金", fanbiz:"ファンビジネス収入", insurancePay:"保険給付金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
 function ledKey(){ return year()+"-"+month(); }
 function ledLabel(k){ const p=String(k||"").split("-"); return (p[0]||"?")+"年目 "+(p[1]||"?")+"月"; }
 function ledger(){
@@ -5413,7 +5423,10 @@ function suggestNextRaces(h){
 /* 従来の単一提案インターフェース（秘書・調教師の案内用） */
 function suggestNextRace(h){
   const s=suggestNextRaces(h);
-  return s.list[0]?{race:s.list[0].race, restNeed:s.restNeed, reasons:s.list[0].reasons, reason:s.list[0].reasons.join("／")}:null;
+  if(!s.list[0]) return null;
+  const reasons=s.list[0].reasons.slice();
+  if(typeof compEff==="function" && compEff("data")>0){ try{ const wp=estWinProb(h, s.list[0].race); reasons.push(`分析：勝率見込み${Math.round(wp*100)}%（データ分析担当）`); }catch(e){} }
+  return {race:s.list[0].race, restNeed:s.restNeed, reasons, reason:reasons.join("／")};
 }
 /* ローテーションプラン：馬ごとに「目標レース（G1）」を固定し、目標から逆算して
    前哨戦（重賞→目標の流れ）を suggestNextRaces のスコアで自動編成する。
@@ -5679,7 +5692,7 @@ function raceRegion(r){ return RACE_REGION[r&&r.course]||null; }
 function ensureOverseasFarm(){ const of=S.overseasFarm; if(!of||of.farms) return; const rg=of.region==="米国"? "us" : "eu"; S.overseasFarm={farms:{[rg]:{built:true, weeks:0}}}; }
 function farmBuilt(rg){ return !!(S.overseasFarm&&S.overseasFarm.farms&&S.overseasFarm.farms[rg]&&S.overseasFarm.farms[rg].built); }
 function overseasUpkeepM(){ if(!S.overseasFarm) return 0; ensureOverseasFarm(); let t=0; ["eu","us"].forEach(rg=>{ if(farmBuilt(rg)) t+=OV_FARMS[rg].upkeep; }); return t; }
-function travelFeeFor(r){ if(!r||!r.overseas) return 0; let base=r.travel||700; const rg=raceRegion(r); if((rg==="eu"&&farmBuilt("eu"))||(rg==="us"&&farmBuilt("us"))) base=Math.round(base*0.5); return base; }
+function travelFeeFor(r){ if(!r||!r.overseas) return 0; let base=r.travel||700; const rg=raceRegion(r); if((rg==="eu"&&farmBuilt("eu"))||(rg==="us"&&farmBuilt("us"))) base=Math.round(base*0.5); if(typeof compEff==="function") base=Math.round(base*(1-0.35*compEff("intl"))); return base; }
 function overseasFoalBonus(foal){ if(farmBuilt("eu")){ foal.sta=clamp((foal.sta||50)+2,0,120); foal.overseasBorn="eu"; } else if(farmBuilt("us")){ foal.pow=clamp((foal.pow||50)+2,0,120); foal.overseasBorn="us"; } }
 /* ============ 種付け料（実額） ============
    自前の種牡馬は無料（種付け権に相当する扱いはこれで統一し、別途の
@@ -5696,6 +5709,7 @@ function studFeeFor(s){ if(!s) return 0; if(s.own) return 0;
   try{ const prog=(S.worldHorses||[]).filter(h=>h.sire===s.name); const g1=prog.reduce((a,h)=>a+(h.g1w||0),0); if(g1) fee=Math.round(fee*(1+Math.min(0.5,g1*0.12))/10)*10; }catch(e){}
   if(s.ext&&/米国/.test(s.name)&&farmBuilt("us")) fee=Math.round(fee*0.8/10)*10;
   if(s.ext&&/欧州/.test(s.name)&&farmBuilt("eu")) fee=Math.round(fee*0.8/10)*10;
+  if(s.ext && typeof compEff==="function") fee=Math.max(300, Math.round(fee*(1-0.2*compEff("intl"))/10)*10);
   return clamp(fee, 300, 40000);
 }
 /* ============ 結婚・家庭 ============
@@ -5835,7 +5849,7 @@ function clubWeekly(){
     const gap=t.target-(o.filledShares||0);
     if(gap<=0) return;
     o.weeks=(o.weeks||0)+1;
-    const rate=clamp(0.16+Math.max(0,t.appeal-58)*0.007, 0.16, 0.46);
+    let rate=clamp(0.16+Math.max(0,t.appeal-58)*0.007, 0.16, 0.46); if(typeof compEff==="function") rate=clamp(rate*(1+0.5*compEff("mkt")), 0.16, 0.7); if(S.company&&S.week<(S.company.clubBoostUntil||0)) rate=clamp(rate*1.5, 0.16, 0.85);
     let gain=Math.max(1,Math.round(gap*rate*rnd(0.7,1.3)));
     gain=Math.min(gain, gap, (o.shares||400)-(o.filledShares||0));
     if(gain<=0) return;
@@ -6289,7 +6303,26 @@ function renderTrain(){
   html+=panelHTML("train","weak",weakInner);
   /* 調教師パネル（雇用・おまかせ） */
   const td2=trainerData(); const tc2=trainerCost(td2);
-  let trainerInner=`<div class="panel"><div class="flex" style="align-items:flex-start">${trainerFaceSVG()}<div style="flex:1;min-width:200px"><b>調教師・${TRAINER.name}</b>${td2.age!=null?` <span class="tag">${td2.age}歳</span>`:""}${td2.age>=66?` <span class="uchip warn xs"><span class="um">▲</span><span>引退間近</span></span>`:""} <span class="small">${TRAINER.desc}</span><br>
+  /* 役割分担（3枠）カード：正・副の付け替えはこのカード内で完結する */
+  const rolesInner=(()=>{ const st=rolesState(); const emps=employedTrainers();
+    const rankLbl=(r,d)=>r.ranks.map(k=>`${({train:"調教",idea:"見極め",eye:"相馬眼",cond:"体調",weight:"体重"})[k]} ${d.ranks[k]||""}`).join("・");
+    return `<div class="panel"><b>🎽 役割分担（3枠）</b>
+    <p class="small" style="margin:4px 0">各枠は正担当1名＋副担当は制限なし。1人が複数枠を兼任できます。カバー頭数は正・副の能力で決まり、馬が増えて上限を超えた分には、その役割の効果が届きません。</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">
+    ${ROLES.map(r=>{ const cur=st[r.id]; const main=trainerById(cur.main)||trainerData(); const cov=roleCoverage(r.id); const short=cov.total-cov.covered;
+      const subs=(cur.subs||[]).map(id=>trainerById(id)).filter(Boolean);
+      return `<div class="ticket" style="margin:0;${short>0?"border:2px solid #c0392b;background:rgba(192,57,43,.06)":""}">
+      <b>${r.name}</b> <span class="small">${r.rankNames}が効く</span><br>
+      <span class="small">${r.desc}</span>
+      <div style="margin-top:6px"><span class="small">正担当</span><br><b style="font-size:16px">${esc(main.name)}</b> <span class="small">（${rankLbl(r,main)}／カバー上限 ${roleCapMain(r,main)}頭）</span></div>
+      <div class="uchips" style="margin-top:3px"><span class="uchip ${short>0?"warn":""}">カバー <span class="uv">${cov.covered}／${cov.total}頭</span></span>${short>0?`<span class="uchip warn">⚠ ${short}頭不足 ― 副担当を足してください</span>`:`<span class="uchip">全頭カバー中</span>`}</div>
+      <div style="margin-top:6px"><span class="small">副担当（${subs.length}名）</span><div class="uchips" style="margin-top:2px">${subs.length? subs.map(d=>`<span class="uchip">${esc(d.name)}<span>+${roleCapSub(r,d)}頭</span></span>`).join("") : `<span class="uchip dim">なし</span>`}</div></div>
+      <div class="mt"><label class="small">正担当を付け替える<br><select data-role-main="${r.id}" style="width:100%;min-height:44px">${emps.map(d=>`<option value="${d.id}" ${d.id===cur.main?"selected":""}>${esc(d.name)}（${rankLbl(r,d)}／上限 ${roleCapMain(r,d)}頭）</option>`).join("")}</select></label></div>
+      <details style="margin-top:6px"><summary class="small" style="cursor:pointer;min-height:32px">副担当を付け替える</summary>
+      ${emps.filter(d=>d.id!==cur.main).map(d=>`<label class="small" style="display:flex;gap:8px;align-items:center;cursor:pointer;padding:5px 0;border-top:1px solid var(--line)"><input type="checkbox" data-role-sub="${r.id}" data-rtid="${d.id}" ${(cur.subs||[]).includes(d.id)?"checked":""} style="width:20px;height:20px;flex:none;margin:0"> <span>${esc(d.name)}（${rankLbl(r,d)}／+${roleCapSub(r,d)}頭）</span></label>`).join("") || `<p class="small">ほかに雇用中の調教師がいません</p>`}
+      </details></div>`; }).join("")}
+    </div></div>`; })();
+  let trainerInner=rolesInner+`<div class="panel"><div class="flex" style="align-items:flex-start">${trainerFaceSVG()}<div style="flex:1;min-width:200px"><b>主任調教師・${TRAINER.name}</b>${td2.age!=null?` <span class="tag">${td2.age}歳</span>`:""}${td2.age>=66?` <span class="uchip warn xs"><span class="um">▲</span><span>引退間近</span></span>`:""} <span class="small">${TRAINER.desc}</span><br>
   <span class="small">能力：</span>${rankTilesHTML(TRAINER.ranks, [["train","調教"],["eye","相馬眼"],["idea","閃き"],["cond","体調"],["weight","体重"]])}
   <br><span class="small">距離適性：</span>${rankTilesHTML(TRAINER.dist, [["sprint","短距離"],["mile","マイル"],["middle","中距離"],["long","長距離"]])}
   <br><span class="small">特性：</span>${TRAINER.traits.map(t=>`<span class="trait plus">${t}</span>`).join(" ")}
@@ -6298,25 +6331,26 @@ function renderTrain(){
   <p class="small" style="margin:6px 0 0">${S.omakase? `🤝 <b>おまかせ中</b>：${TRAINER.name} が定常指示の設定・変更と週次の手当てを代行しています。能力（調教・閃き）が高い調教師ほど、見る頭数と判断の幅が広がります。` : "おまかせ中は、調教師が定常指示の設定・変更や週次の手当てを代行するので、こちらは何もしなくて大丈夫です。オート（提案どおりに進行）とは役割が別です。"}</p>
   </div></div></div>
   <div class="panel"><b>📋 調教師への指示（オート／おまかせで代行させること）</b>
-  <p class="small" style="margin:4px 0">チェックは調教師ごとに持ちます。種付け・セール購入のような厩舎全体の代行は、その項目にチェックを入れた調教師の中で<b>相馬眼が最も高い人</b>が担当します（同点の場合は主任を優先）。担当者の相馬眼で、購入の目利きと配合提案の質が決まります。外した項目は代行しません（種付けは提案のみになり、オートは繁殖シーズンに止まります）。設定はセーブに保存されます。</p>
+  <p class="small" style="margin:4px 0">チェックは調教師ごとに持ちます。種付け・セール購入のような厩舎全体の代行は、その項目にチェックを入れた人の中で<b>見極め担当（正→副）→相馬眼の高い人</b>の順で担当が決まります。担当者の相馬眼で、購入の目利きと配合提案の質が決まります。外した項目は代行しません（種付けは提案のみになり、オートは繁殖シーズンに止まります）。設定はセーブに保存されます。</p>
   <p class="small" style="margin:2px 0 4px">現在の代行担当：${[["mateOmakase","種付け"],["buyYoungOmakase","幼駒の購入"],["buyMareOmakase","繁殖牝馬の購入"]].map(([k,l])=>{ const a=delegationAssignee(k); return `${l}：<b>${a? esc(a.name)+"（相馬眼 "+esc(a.ranks.eye||"")+"）" : "未設定"}</b>`; }).join("／")}</p>
   <label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;padding:6px 0;border-top:1px solid var(--line)"><input type="checkbox" data-tdel="omakase" ${S.omakase?"checked":""} style="width:22px;height:22px;flex:none;margin:0"> <span><b>定常指示の見直しとレース調整を任せる（おまかせ）</b><br>毎週の指示の見直し、出走に向けた逆算調整と当日の最終調整を、各馬の担当調教師が代行します</span></label>
   </div>
   <div class="panel" id="train-trainer"><b>👥 雇用中の調教師（${employedTrainers().length}名）</b>
-  <p class="small" style="margin:4px 0">担当上限は能力合計で決まります（上限＝6＋能力合計）。上限を超えた分と担当のいない馬には、おまかせ（見直し・逆算・最終調整）が効きません。調教師への支払いは預託料（担当馬1頭ごとの月額、単価は能力合計で変動）で、現在 合計 ${fmt(trainerUpkeep())}万円/週です。調教師は牧場のスタッフではなく、馬主が預託する独立した契約相手です（牧場の持分が0%でも契約して出走できます）。</p>
-  ${employedTrainers().map(d=>{ const list=assignedHorses(d.id); const cap=trainerCap(d); const dir=directivesOf(d.id); const isPrim=d.id===trainerData().id;
+  <p class="small" style="margin:4px 0">担当は上の「役割分担（3枠）」で決まります（馬ごとの担当制は役割制に統合しました）。カバーから外れた馬には、その役割の効果（調教担当＝おまかせ見直し／コンディション担当＝逆算・最終調整）が届きません。調教師への支払いは預託料（調教担当が受け持つ馬1頭ごとの月額、単価は能力合計で変動）で、現在 合計 ${fmt(trainerUpkeep())}万円/週です。調教師は牧場のスタッフではなく、馬主が預託する独立した契約相手です（牧場の持分が0%でも契約して出走できます）。</p>
+  ${employedTrainers().map(d=>{ const list=assignedHorses(d.id); const dir=directivesOf(d.id); const isPrim=d.id===trainerData().id; const st=rolesState();
+    const roleBadges=ROLES.map(r=>{ if(st[r.id].main===d.id) return `<span class="aptchip strong">${r.name}・正</span>`; if((st[r.id].subs||[]).includes(d.id)) return `<span class="aptchip">${r.name}・副</span>`; return ""; }).filter(Boolean).join(" ");
     const row=(key,label,desc,checked)=>`<label class="small" style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;padding:5px 0;border-top:1px solid var(--line)"><input type="checkbox" data-tdel="${key}" data-ttid="${d.id}" ${checked?"checked":""} style="width:20px;height:20px;flex:none;margin:0"> <span><b>${label}</b> ― ${desc}</span></label>`;
-    return `<div class="ticket" style="margin-top:8px"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${isPrim?` <span class="aptchip strong">主任</span>`:""} <span class="uchip">契約調教師（独立）</span> <span class="small">担当 ${list.length}／上限 ${cap}頭${list.length>cap?` <b style="color:#c0392b">上限超過 ${list.length-cap}頭（超過分はおまかせ対象外）</b>`:""}／預託料 単価${fmt(trainerUnitM(d))}万円/月・頭 × ${list.length}頭 ＝ ${fmt(trainerFeeWeek(d))}万円/週</span>
-    <div class="uchips" style="margin-top:3px">${list.length? list.map(h=>`<span class="uchip">${esc(h.name)}${omakaseCovered(h)?"":"（対象外）"}</span>`).join("") : `<span class="uchip dim">担当馬はいません</span>`}</div>
+    return `<div class="ticket" style="margin-top:8px"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${isPrim?` <span class="aptchip strong">主任</span>`:""} <span class="uchip">契約調教師（独立）</span> ${roleBadges} <span class="small">調教担当の受持ち ${list.length}頭／預託料 単価${fmt(trainerUnitM(d))}万円/月・頭 × ${list.length}頭 ＝ ${fmt(trainerFeeWeek(d))}万円/週</span>
+    <div class="uchips" style="margin-top:3px">${list.length? list.map(h=>`<span class="uchip">${esc(h.name)}${omakaseCovered(h)?"":"（調教カバー外）"}</span>`).join("") : `<span class="uchip dim">調教担当の受持ちはいません</span>`}</div>
     ${row("tacMaster","得意作戦を極める","担当馬の得意作戦の訓練を優先", dir.tacMaster)}
-    ${row("mateOmakase","おまかせ種づけする", "厩舎全体の種付け代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.mateOmakase)}
-    ${row("buyYoungOmakase","幼駒のおまかせ購入", "厩舎全体の幼駒購入代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.buyYoungOmakase)}
-    ${row("buyMareOmakase","繁殖牝馬のおまかせ購入", "厩舎全体の繁殖牝馬購入代行（チェックした人の中で相馬眼が最も高い人が担当）", dir.buyMareOmakase)}
+    ${row("mateOmakase","おまかせ種づけする", "厩舎全体の種付け代行（見極め担当を優先して担当が決まります）", dir.mateOmakase)}
+    ${row("buyYoungOmakase","幼駒のおまかせ購入", "厩舎全体の幼駒購入代行（見極め担当を優先して担当が決まります）", dir.buyYoungOmakase)}
+    ${row("buyMareOmakase","繁殖牝馬のおまかせ購入", "厩舎全体の繁殖牝馬購入代行（見極め担当を優先して担当が決まります）", dir.buyMareOmakase)}
     <div class="flex mt">${isPrim?"":`<button class="btn sm" data-tprimary="${d.id}">主任にする</button>`}${employedTrainers().length>1?`<button class="btn ghost sm" data-tfire="${d.id}">契約を終了する</button>`:""}</div></div>`; }).join("")}
   </div>
-  <div class="panel"><b>🔀 担当の付け替え</b>
-  <p class="small" style="margin:4px 0">馬ごとに担当調教師を選べます。新しく増えた馬は、空きのある調教師へ自動で割り当てられます。</p>
-  ${(S.horses||[]).filter(h=>!h.retired).map(h=>`<div class="flex" style="padding:4px 0;border-top:1px solid var(--line)"><span style="flex:1;min-width:120px"><b>${esc(h.name)}</b> ${omakaseCovered(h)?"":`<span class="small" style="color:#c0392b">おまかせ対象外</span>`}</span><select data-assign="${h.id}" style="min-height:40px">${employedTrainers().map(d=>`<option value="${d.id}" ${h.trainerId===d.id?"selected":""}>${esc(d.name)}（${assignedHorses(d.id).length}/${trainerCap(d)}）</option>`).join("")}</select></div>`).join("") || `<p class="small">競走馬がいません</p>`}
+  <div class="panel"><b>🐴 馬ごとのカバー状況</b>
+  <p class="small" style="margin:4px 0">役割ごとに、どの馬を誰がカバーしているかの一覧です。カバーは厩舎の並び順に、正担当→副担当の順で埋まります。</p>
+  ${(S.horses||[]).filter(h=>!h.retired).map(h=>{ const th=roleHolderFor("train",h), ch=roleHolderFor("cond",h); return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);flex-wrap:wrap;gap:4px"><span style="flex:1;min-width:110px"><b>${esc(h.name)}</b></span><span class="uchips"><span class="uchip ${th?"":"warn"}">調教<span>${th? esc(th.name) : "カバー外"}</span></span><span class="uchip ${ch?"":"warn"}">コンディション<span>${ch? esc(ch.name) : "カバー外"}</span></span></span></div>`; }).join("") || `<p class="small">競走馬がいません</p>`}
   </div>`;
   html+=panelHTML("train","trainer",trainerInner);
   el.innerHTML=html;
@@ -6332,6 +6366,21 @@ function renderTrain(){
   }));
   el.querySelectorAll("[data-tprimary]").forEach(b=>b.addEventListener("click",()=>setPrimaryTrainer(b.dataset.tprimary)));
   el.querySelectorAll("[data-tfire]").forEach(b=>b.addEventListener("click",()=>fireTrainer(b.dataset.tfire)));
+  el.querySelectorAll("[data-role-main]").forEach(sel=>sel.addEventListener("change",()=>{ const r=roleDef(sel.dataset.roleMain); const st=rolesState(); const before=st[r.id].main; st[r.id].main=sel.value; st[r.id].subs=(st[r.id].subs||[]).filter(id=>id!==sel.value); _roleCovCache={}; syncRoleAssignments(); const d=trainerById(sel.value); log(`🎽 ${r.name}の正担当を ${d? d.name : ""} に変更しました（カバー上限 ${roleCapMain(r,d)}頭）`); saveAuto(true); renderAll(); }));
+  /* 会社パネルの操作 */
+  const bf0=document.getElementById("btn-found-company"); if(bf0) bf0.addEventListener("click",()=>foundCompany());
+  el.querySelectorAll("[data-comp-main]").forEach(sel=>sel.addEventListener("change",()=>setCompMain(sel.dataset.compMain, sel.value)));
+  el.querySelectorAll("[data-comp-sub]").forEach(cb=>cb.addEventListener("change",()=>toggleCompSub(cb.dataset.compSub, +cb.value, cb.checked)));
+  el.querySelectorAll("[data-comp-hire]").forEach(b=>b.addEventListener("click",()=>hireStaff(+b.dataset.compHire)));
+  el.querySelectorAll("[data-comp-fire]").forEach(b=>b.addEventListener("click",()=>fireStaff(+b.dataset.compFire)));
+  el.querySelectorAll("[data-comp-evtype]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.type=b.dataset.compEvtype; renderAll(); }));
+  el.querySelectorAll("[data-comp-evsize]").forEach(b=>b.addEventListener("click",()=>{ compEvSel.size=+b.dataset.compEvsize; renderAll(); }));
+  const bev=document.getElementById("btn-comp-event"); if(bev) bev.addEventListener("click",()=>runEvent());
+  const binv=document.getElementById("btn-comp-invest"); if(binv) binv.addEventListener("click",()=>compInvest());
+  const bwd=document.getElementById("btn-comp-withdraw"); if(bwd) bwd.addEventListener("click",()=>compWithdraw());
+  const bins=document.getElementById("btn-comp-ins"); if(bins) bins.addEventListener("click",()=>{ const c=compState(); if(!c) return; c.insOn=!c.insOn; log(c.insOn?"🛡 競走馬保険に加入しました（掛金は毎月、故障時に給付金）":"競走馬保険を解約しました"); saveAuto(); renderAll(); });
+  const brf=document.getElementById("btn-comp-refresh"); if(brf) brf.addEventListener("click",()=>{ const c=compState(); if(!c) return; if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); compRefreshCandidates(); log("🏢 雇用候補を入れ替えました"); saveAuto(); renderAll(); });
+  el.querySelectorAll("[data-role-sub]").forEach(cb=>cb.addEventListener("change",()=>{ const r=roleDef(cb.dataset.roleSub); const st=rolesState(); const tid=cb.dataset.rtid; st[r.id].subs=st[r.id].subs||[]; if(cb.checked&&!st[r.id].subs.includes(tid)) st[r.id].subs.push(tid); if(!cb.checked) st[r.id].subs=st[r.id].subs.filter(id=>id!==tid); _roleCovCache={}; syncRoleAssignments(); const d=trainerById(tid); log(`🎽 ${r.name}の副担当に ${d? d.name : ""} を${cb.checked? "加えました（+"+roleCapSub(r,d)+"頭)" : "から外しました"}`); saveAuto(true); renderAll(); }));
   el.querySelectorAll("[data-assign]").forEach(sel=>sel.addEventListener("change",()=>{ const h=S.horses.find(x=>x.id===+sel.dataset.assign); if(!h) return; h.trainerId=sel.value; h.legacyCover=false; log(`🔀 ${h.name} の担当を ${trainerOf(h).name} に変更しました`); saveAuto(true); renderAll(); }));
   const bom=$("#btn-omakase"); if(bom) bom.addEventListener("click",toggleOmakase);
   el.querySelectorAll("[data-tr]").forEach(b=>b.addEventListener("click",()=>{ pendingTrain=null; doTrain(b.dataset.tr); }));
@@ -6489,11 +6538,14 @@ function doTrain(tid, quiet, targetH){
   S.funds-=t.cost; ledOut("train",t.cost); if(!quiet)h.trainsLeft--; // quiet=指示による自動実行（週送り側で回数管理）。調教費は月次明細にも記録する（以前は台帳に載らず、資金残高と明細の合計が調教費の分だけ食い違っていた）
   ensureFullHorse(h);
   const weakKey=weakestStatKey(h); // 弱点補正：最も低い能力は対応調教で伸びが1.6倍
-  let tMul=(TRAINER.ranks? (0.9+rankVal(TRAINER.ranks.train)*0.04):1) * (h.personality==="真面目"?1.12:1);
+  /* 調教の質は調教担当（その馬をカバーする正・副担当）の調教ランクで決まる。
+     カバー外の馬は担当なしとして、ランク補正・特性の恩恵を受けない */
+  const _th=roleHolderFor("train",h);
+  let tMul=(0.9+(_th? rankVal(_th.ranks.train):0)*0.04) * (h.personality==="真面目"?1.12:1);
   if(h.trainLike&&h.trainLike===tid) tMul*=1.18; // 遺伝した「得意な調教」は効果が伸びる
-  if(TRAINER.traits.includes("スパルタ")&&!["rest","bokujou"].includes(tid)&&tid!=="pool"){ tMul*= (h.hlt>=65&&!(h.flags||[]).includes("leganx"))?1.25:0.8; }
-  if(TRAINER.traits.includes("軽め調教")&&["rest","bokujou","pool"].includes(tid)){ tMul*=1.2; }
-  if(TRAINER.traits.includes("気性難")&&(h.temper==="激"||h.temper==="荒い")){ tMul*=1.1; }
+  if(_th&&_th.traits.includes("スパルタ")&&!["rest","bokujou"].includes(tid)&&tid!=="pool"){ tMul*= (h.hlt>=65&&!(h.flags||[]).includes("leganx"))?1.25:0.8; }
+  if(_th&&_th.traits.includes("軽め調教")&&["rest","bokujou","pool"].includes(tid)){ tMul*=1.2; }
+  if(_th&&_th.traits.includes("気性難")&&(h.temper==="激"||h.temper==="荒い")){ tMul*=1.1; }
   /* 伸びの天井：能力が高いほど1回の伸びが細る（72から逓減、95以上はほぼ止まる）。
      以前は回数を重ねるだけで全能力99に到達し、無敵化していた */
   const ceilMul=v=> v>=95?0.08 : v>=91?0.18 : v>=86?0.32 : v>=80?0.5 : v>=72?0.75 : 1;
@@ -6549,7 +6601,7 @@ function doTrain(tid, quiet, targetH){
   if(tid==="bokujou"){h.fat-=60; h.cond=ri(50,65); h.weight=clamp(h.weight+ri(-8,8),420,540); if(h.injured>0)h.injured=Math.max(0,h.injured-2); msg="放牧でリフレッシュ";}
   h.fat=clamp(h.fat * (1-facEffect("steamer")*0.02),0,100); h.cond=clamp(h.cond,0,100);
   if(h.fat>=92 && !["rest","bokujou"].includes(tid) && Math.random()<(0.4-((h.hlt||60)-60)*0.004 - facEffect("vet")*0.03 - ((h.flags||[]).includes("leganx")?-0.08:0))){
-    h.injured=Math.max(1,ri(3,6)-Math.floor(facEffect("vet"))); msg+=" ― しかし故障が発生！ 休養が必要";
+    h.injured=Math.max(1,ri(3,6)-Math.floor(facEffect("vet"))); msg+=" ― しかし故障が発生！ 休養が必要"; try{ insurancePayout(h, h.injured); }catch(e){}
     log(`${h.name} が調教中に故障（${h.injured}週休養）`);
   } else log(`${h.name}：${msg}`);
   if(!quiet)renderAll();
@@ -6614,7 +6666,7 @@ function breedEvalHTML(s,m){
   </div>
   <div class="evalgrid">
    <div class="evalbox"><div class="el">トレードオフ（得意と引き換え）</div><div class="small">${(()=>{ const ups=[],dns=[]; if(ev.expect.spd>=72)ups.push("スピード型で切れ味が出やすい"); if(ev.expect.sta>=72)ups.push("スタミナ型で距離が持つ"); if(ev.explosion>=70)ups.push("爆発力が高い"); if(th.danger>=3)dns.push("近親リスクで健康・気性に注意"); if(ev.expect.sta<58)dns.push("スタミナ不足で長距離は不利"); if(ev.expect.spd<58)dns.push("スピード不足で短距離は不利"); return `<span class="uchips" style="margin:0">${(ups.length?ups:["突出した強みは薄い"]).map(u=>`<span class="uchip ok"><span class="um">✓</span><span>${esc(u)}</span></span>`).join("")}<span class="uchip dim">⇄</span>${(dns.length?dns:["目立った弱みなし"]).map(d2=>`<span class="uchip warn"><span class="um">▲</span><span>${esc(d2)}</span></span>`).join("")}</span>`; })()}</div></div>
-   <div class="evalbox"><div class="el">遺伝しやすい要素</div><div class="small">${(()=>{ const g=[]; const gt=(m.growth||""); if(gt)g.push("成長型："+gt); if((m.temper||"")!=="")g.push("気性："+(m.temper||"普通")); if((m.flags||[]).includes("fragile"))g.push("体質：脚部不安が出やすい"); if(facProb.length)g.push("得意調教の素地："+facProb.slice(0,2).map(x=>ABNAME[x.f]).join("・")); return g.length? `<span class="uchips" style="margin:0">${g.map(x=>`<span class="uchip">${esc(x)}</span>`).join("")}</span>` : "目立った遺伝要素なし"; })()}</div><div class="small">評価の精度は調教師の相馬眼で変わります（現在 ${TRAINER.ranks.eye}級：${TRAINER.ranks.eye==="S"||TRAINER.ranks.eye==="A"?"数値はほぼ正確":TRAINER.ranks.eye==="B"?"±3ほどのブレ":TRAINER.ranks.eye==="C"?"±6ほどのブレ":"±10ほどのブレがあり得ます"}）</div></div>
+   <div class="evalbox"><div class="el">遺伝しやすい要素</div><div class="small">${(()=>{ const g=[]; const gt=(m.growth||""); if(gt)g.push("成長型："+gt); if((m.temper||"")!=="")g.push("気性："+(m.temper||"普通")); if((m.flags||[]).includes("fragile"))g.push("体質：脚部不安が出やすい"); if(facProb.length)g.push("得意調教の素地："+facProb.slice(0,2).map(x=>ABNAME[x.f]).join("・")); return g.length? `<span class="uchips" style="margin:0">${g.map(x=>`<span class="uchip">${esc(x)}</span>`).join("")}</span>` : "目立った遺伝要素なし"; })()}</div><div class="small">評価の精度は見極め担当の相馬眼で変わります（現在 ${eyeTopTrainer().ranks.eye}級：${eyeTopTrainer().ranks.eye==="S"||eyeTopTrainer().ranks.eye==="A"?"数値はほぼ正確":eyeTopTrainer().ranks.eye==="B"?"±3ほどのブレ":eyeTopTrainer().ranks.eye==="C"?"±6ほどのブレ":"±10ほどのブレがあり得ます"}）</div></div>
   </div>
   <details class="fold"><summary>配合理論・血統表をくわしく見る</summary><div class="foldbody"><div class="mt"><b>成立する配合理論</b>${th.theories.length? th.theories.map(x=>`<div class="theoryrow"><span class="trait plus">${x.n}</span> <span class="stars">${starsStr(x.spdStar||0)}</span> <span class="small">爆発力寄与 ${x.spdStar? "★×"+x.spdStar : "スピード以外"}</span><br><span class="small">${x.txt}</span></div>`).join("") : `<div class="small">成立する理論はありません</div>`}</div>
   <div class="mt"><b>活力源化</b><div class="small">${vigor.length? `<span class="uchips" style="margin:0">${vigor.map(a=>`<span class="uchip"><span>${esc(a.name)}（${a.gen}代${a.grade?"・"+a.grade+"種牡馬":""}）</span>${(a.factors||[]).length? (a.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ") : `<span class="uv">因子なし</span>`}</span>`).join("")}</span>` : "対象となる先祖はいません"}<br>格付けのある先祖や因子を持つ先祖が、産駒の生命力（競走寿命）を底上げします。</div></div>
@@ -7977,11 +8029,11 @@ function showYearEnd(data){
    土台が崩れた馬を当日だけで満点に戻すことはしない） */
 function omakaseFinalAdjust(h){
   if(!S.omakase || !h || h.planFixed) return false;
-  if(!omakaseCovered(h)) return false; /* 担当外・上限超過の馬には最終調整も効かない */
+  if(!condCovered(h)) return false; /* コンディション担当のカバー外の馬には最終調整も効かない */
   const key=h.entry? h.entry.absWeek : S.week;
   if(h._finalAdjFor===key) return false;
   h._finalAdjFor=key;
-  const peak=rankVal(trainerOf(h).ranks.cond); /* 体調管理ランク 0(E)〜5(S)：担当調教師の能力で決まる */
+  const peak=rankVal((roleHolderFor("cond",h)||roleMain("cond")).ranks.cond); /* 体調ランク 0(E)〜5(S)：コンディション担当の能力で決まる */
   /* H-1の非対称是正：目標は「好調ラインの上端まで」に抑え、相手（重賞の
      管理分布＝調子52〜94・中心74）と分布が重なる水準にする。S級でも
      目標73＝好調（55〜74）の上限であり、絶好調一色にはしない。
@@ -8012,7 +8064,7 @@ function runPlan(h){
    /* おまかせ中は出走週も「休養で調子を落とす」ことはせず、最終調整で
       調子をピークへ合わせて疲労を抜いてレースへ送る。固定指示は対象外。
       実処理は omakaseFinalAdjust（レース開始時と共通・1エントリー1回） */
-   if(S.omakase && !h.planFixed && omakaseCovered(h)){
+   if(S.omakase && !h.planFixed && condCovered(h)){
      omakaseFinalAdjust(h);
      S.weekReport.push(`${h.name}：おまかせ最終調整 ― 出走週、調子をピークに合わせて疲労を抜いた（調子${Math.round(h.cond)}／疲労${Math.round(h.fat)}）`);
      return;
@@ -8031,8 +8083,8 @@ function runPlan(h){
     軽い仕上げで調子をピークへ持っていく。上げ幅は調教師の体調管理
     ランクで決まり、高いほどピークの精度と安定度が上がる。
     プレイヤーが固定した指示（planFixed）の馬は従来どおり一切触らない */
- if(S.omakase && !h.planFixed && ent && omakaseCovered(h)){
-   const peak=rankVal(trainerOf(h).ranks.cond); /* 体調管理ランク 0(E)〜5(S)：担当調教師の能力 */
+ if(S.omakase && !h.planFixed && ent && condCovered(h)){
+   const peak=rankVal((roleHolderFor("cond",h)||roleMain("cond")).ranks.cond); /* 体調ランク 0(E)〜5(S)：コンディション担当の能力 */
    if(weeksLeft===1 && entryIsOverseas(ent)){
      /* 出国の移動週：3週ブロック前提で、追い切りは2週前に済ませ、
         この週は移動として扱う（無理な追い切りは入れない） */
@@ -8239,7 +8291,7 @@ function nrPriceFor(foal,buyer){
   let peak=60; try{ peak=aimScoreParts(foal).peak; }catch(e){}
   const base=Math.pow(Math.max(0,peak-38),2.2)*1.1;
   let heat=1; try{ heat=lineHeatOf(foal.sire); }catch(e){}
-  return Math.max(50, Math.round(base*Math.max(0.7,Math.min(1.4,heat))*(buyer.factor||1)/10)*10);
+  let mult=1; if(typeof compEff==="function"){ mult*= (1+0.25*compEff("pr")+0.2*compEff("legal")); if(S.company&&S.week<(S.company.nrBoostUntil||0)) mult*=1.2; } return Math.max(50, Math.round(base*Math.max(0.7,Math.min(1.4,heat))*(buyer.factor||1)*mult/10)*10);
 }
 function nrBuyerName(o){
   let used=new Set(); try{ used=collectUsedNames(); }catch(e){}
@@ -8443,7 +8495,7 @@ function nextWeekBody(){
   S.funds-=upkeep();
   upkeepItems().forEach(x=>ledOut(x.cat,x.v)); // 月次明細へ項目別に記録
   /* 施設の月維持費（月初週に徴収） */
-  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } }
+  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } try{ companyMonthly(); }catch(e){} }
   /* 施設の工事進行 */
   Object.keys(S.building||{}).forEach(id=>{ if(S.building[id]>0){ S.building[id]--; if(S.building[id]<=0){ const f=FACILITIES.find(x=>x.id===id); log(`🏗 施設「${f?f.n:id}」が完成した`); } } });
   if(S.overseasFarm&&S.overseasFarm.farms){ ["eu","us"].forEach(rg=>{ const f=S.overseasFarm.farms[rg]; if(f&&!f.built&&f.weeks>0){ f.weeks--; if(f.weeks<=0){ f.built=true; log(`🌍 ${OV_FARMS[rg].name}が完成しました（遠征費の割引・現地の種牡馬割引・産駒の適性底上げが有効になります）`); } } }); }
@@ -8468,11 +8520,13 @@ function nextWeekBody(){
     h.trainsLeft=2;
     if(h.races>0) h.restW=(h.restW==null?1:h.restW+1);
     h.fat=clamp(h.fat-ri(4,10)-facEffect("shoyo")*1.5,0,100);
-    h.cond=clamp(h.cond+ri(-6,6)+ (TRAINER.ranks? (rankVal(TRAINER.ranks.cond)-3):0),15,100);
+    /* 調子・体重の週次変動はコンディション担当（その馬の担当者）の能力で寄る。カバー外の馬には効かない */
+    const _ch=roleHolderFor("cond",h);
+    h.cond=clamp(h.cond+ri(-6,6)+ (_ch? (rankVal(_ch.ranks.cond)-3):0),15,100);
     /* 馬体重の週次変動：調教した週は締まり、休養・故障中は増えやすく、
        出走週は輸送と調整で少し減る。飼養管理でベスト体重へ少しずつ寄る */
     {
-      let wD=ri(-2,2) - (TRAINER.ranks? (rankVal(TRAINER.ranks.weight)-3):0);
+      let wD=ri(-2,2) - (_ch? (rankVal(_ch.ranks.weight)-3):0);
       if(h.injured>0) wD+=ri(2,5);
       else if(manual) wD-=ri(0,2);
       if(h.entry&&h.entry.absWeek===S.week) wD-=ri(0,2);
@@ -8565,12 +8619,12 @@ function yearlyPrizeIncome(){ let sum=0; try{ const hs=[S.ledger].concat(S.ledge
 /* 総資産の概算：資金＋所有馬・繁殖牝馬・幼駒の評価額＋施設の取得額 */
 function stableAssetValue(){ let v=Math.max(0,S.funds||0); try{ (S.horses||[]).forEach(h=>{ v+=horseSellPrice(h); }); }catch(e){} try{ (S.mares||[]).forEach(m=>{ v+=mareSellPrice(m); }); }catch(e){} try{ (S.youngStock||[]).forEach(y=>{ v+=Math.max(100,Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*10)); }); }catch(e){} try{ FACILITIES.forEach(f=>{ v+=facLv(f.id)*(f.cost||0); }); }catch(e){} return v; }
 /* 借入限度額＝基礎枠＋名声×150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）。規模に連動し、収入・資産の裏付けの範囲に収める */
-function loanLimit(){ const base=4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + (S.horses||[]).length*300; return Math.min(60000, base + (S.fame||0)*150 + Math.floor(stableAssetValue()*0.10) + Math.floor(yearlyPrizeIncome()*0.5)); }
+function loanLimit(){ const base=4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + (S.horses||[]).length*300; let lim=Math.min(60000, base + (S.fame||0)*150 + Math.floor(stableAssetValue()*0.10) + Math.floor(yearlyPrizeIncome()*0.5)); if(typeof compEff==="function") lim=Math.round(lim*(1+0.25*compEff("fin"))); return lim; }
 function loanCapacity(){ return Math.max(0, loanLimit()-loanOutstanding()); }
 /* スポンサー支援の受取額（融資画面に明示する）：基礎1,500万円＋重賞ウィナー1頭あたり500万円。
    上限は10,000万円（1億円）。代償は受取後12週間の賞金の30%控除、再利用は48週に1回まで */
 const SPONSOR_CAP=30000;
-function sponsorGrant(){ return Math.min(SPONSOR_CAP, 1500 + (S.champions||0)*500 + (S.fame||0)*60 + Math.floor(yearlyPrizeIncome()*0.03)); }
+function sponsorGrant(){ let g=1500 + (S.champions||0)*500 + (S.fame||0)*60 + Math.floor(yearlyPrizeIncome()*0.03); if(typeof compEff==="function") g=Math.round(g*(1+0.5*compEff("sales"))); return Math.min(SPONSOR_CAP, g); }
 function sponsorAvailable(){ return S.week>=(S.sponsorReadyWeek||0); }
 function horseSellPrice(h){ const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5; return Math.max(200, Math.round((ab*10 + (h.earnings||0)*0.3) * lineHeatOf(h.sire))); }
 /* 売却した馬をライバル牧場が買い取る：馬は世界から消えず、買い手の
@@ -9085,7 +9139,7 @@ function takeLoan(amt){
   amt=Math.floor(+amt||0);
   if(amt>cap) amt=cap;
   if(amt<100){ toast(cap<100? "借入限度額に達しているため、これ以上は借りられません" : "借入金額は100万円以上で入力してください"); return; }
-  const total=Math.ceil(amt*1.15); // 利息15%を上乗せした返済総額
+  const rate=(typeof compEff==="function")? Math.max(9, 15-Math.round(6*compEff("fin"))) : 15; const total=Math.ceil(amt*(1+rate/100)); // 利息15%を上乗せした返済総額
   const rem=loanOutstanding()+total;
   undoPush("融資を受ける前");
   S.loan={remaining:rem, weekly:Math.ceil(rem/12), weeksLeft:12, missed:0};
@@ -9098,7 +9152,7 @@ function takeSponsor(){
   if(!sponsorAvailable()) return;
   const g=sponsorGrant();
   undoPush("スポンサー支援を受ける前");
-  S.funds+=g; ledIn("finance",g); S.sponsorReadyWeek=S.week+48; S.sponsorCutUntil=S.week+12;
+  S.funds+=g; ledIn("finance",g); S.sponsorReadyWeek=S.week+Math.max(36, 48-Math.round(10*((typeof compEff==="function")?compEff("sales"):0))); S.sponsorCutUntil=S.week+12;
   log(`🤝 スポンサー支援 ${fmt(g)}万円を受けた（条件：12週間、レース賞金の30%をスポンサーへ／次回は48週後）`);
   saveAuto(true); renderAll();
   if(S.funds<0) showDistress(); else { $("#overlay").style.display="none"; toast("スポンサー支援を受けました"); }
@@ -11100,12 +11154,16 @@ function rebuildGLCourse(r){
      背景が流れなかった。経路沿いの実位置に固定し、流れていくようにする */
   {
     const spots=[];
+    const zoneS=(P.arcS||0)-20; // 最終コーナー入口〜ゴール後：真横カメラの視界コリドー
     for(let s=24;s<P.total-8;s+=26){
       const A=pathAt(s+((s*37)%13));
+      const inZone=s>=zoneS;
       const oOff=-(P.sign)*(16+((s*29)%24));
-      spots.push({x:A.x+A.px*oOff, z:A.z+A.pz*oOff, sc:0.85+((s*17)%40)/45});
-      if(s%78<26){ const iOff=(P.sign)*(20+((s*41)%26)); spots.push({x:A.x+A.px*iOff, z:A.z+A.pz*iOff, sc:0.8+((s*23)%40)/50}); }
-      if(s%130<26){ const iOff2=(P.sign)*(34+((s*53)%30)); spots.push({x:A.x+A.px*iOff2, z:A.z+A.pz*iOff2, sc:0.95+((s*31)%40)/48}); }
+      /* カメラは常に +px 側に付く。直線区間でカメラ側（+px）にある樹木は
+         馬群を遮るため、その区間だけカメラ側の樹木を置かない（反対側は残す） */
+      if(!(inZone&&oOff>0)) spots.push({x:A.x+A.px*oOff, z:A.z+A.pz*oOff, sc:0.85+((s*17)%40)/45});
+      if(s%78<26){ const iOff=(P.sign)*(20+((s*41)%26)); if(!(inZone&&iOff>0)) spots.push({x:A.x+A.px*iOff, z:A.z+A.pz*iOff, sc:0.8+((s*23)%40)/50}); }
+      if(s%130<26){ const iOff2=(P.sign)*(34+((s*53)%30)); if(!(inZone&&iOff2>0)) spots.push({x:A.x+A.px*iOff2, z:A.z+A.pz*iOff2, sc:0.95+((s*31)%40)/48}); }
     }
     if(spots.length){
       const trunkI2=new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14,0.22,1.7,6), new THREE.MeshStandardMaterial({color:0x6b4a2c, roughness:1}), spots.length);
@@ -11128,8 +11186,9 @@ function rebuildGLCourse(r){
     }
     /* 低木：両側のラチのすぐ外に連ね、コースの縁取りを濃くする */
     const bushSpots=[];
-    for(let s=10;s<P.total-6;s+=22){ const A=pathAt(s+((s*19)%7)); bushSpots.push({x:A.x+A.px*(P.sign*8.9), z:A.z+A.pz*(P.sign*8.9), sc:0.8+((s*13)%30)/40}); }
-    for(let s=16;s<P.total-6;s+=34){ const A=pathAt(s+((s*23)%9)); bushSpots.push({x:A.x+A.px*(-P.sign*8.7), z:A.z+A.pz*(-P.sign*8.7), sc:0.8+((s*17)%30)/40}); }
+    const bZoneS=(P.arcS||0)-20;
+    for(let s=10;s<P.total-6;s+=22){ const A=pathAt(s+((s*19)%7)); const bo=P.sign*8.9; if(s>=bZoneS&&bo>0) continue; bushSpots.push({x:A.x+A.px*bo, z:A.z+A.pz*bo, sc:0.8+((s*13)%30)/40}); }
+    for(let s=16;s<P.total-6;s+=34){ const A=pathAt(s+((s*23)%9)); const bo=-P.sign*8.7; if(s>=bZoneS&&bo>0) continue; bushSpots.push({x:A.x+A.px*bo, z:A.z+A.pz*bo, sc:0.8+((s*17)%30)/40}); }
     if(bushSpots.length){
       const bushI=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.62,0), new THREE.MeshStandardMaterial({color:0xffffff, roughness:1}), bushSpots.length);
       const m4=new THREE.Matrix4(), q0=new THREE.Quaternion(), v3=new THREE.Vector3(), s3=new THREE.Vector3();
@@ -11143,21 +11202,27 @@ function rebuildGLCourse(r){
      内側のオフセットは回り方向で決まる内馬場側（P.sign 側） */
   const facePhi=A=>Math.atan2(A.px, A.pz);
   const inOff=(P.sign>0? 6.3 : -7.5); // 内ラチ（+5.4／-6.6）の内側
+  const farOff=-7.8; // 真横カメラは常に +px 側に付くので、「馬の向こう」は常に -px 側（-6.6 のラチのさらに外）
   const mkPost=(s,label,off)=>{
     const A=pathAt(s);
-    const grp=new THREE.Group(); grp.position.set(A.x+A.px*(off==null?inOff:off),0,A.z+A.pz*(off==null?inOff:off));
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.4,8), postMat); pole.position.y=1.7; pole.castShadow=true; grp.add(pole);
+    /* 距離標は真横カメラの反対側（馬の向こう側）に、小さく立てる。
+       以前は内側に高さ3.4m＋大きな円板で、200m標などが最後の直線で
+       カメラと馬の間に入り視界を遮っていた */
+    const grp=new THREE.Group(); grp.position.set(A.x+A.px*(off==null?farOff:off),0,A.z+A.pz*(off==null?farOff:off));
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.2,8), postMat); pole.position.y=1.1; pole.castShadow=true; grp.add(pole);
     if(label){ const cv2=document.createElement("canvas"); cv2.width=cv2.height=128; const c2=cv2.getContext("2d");
       c2.fillStyle="#c22f24"; c2.beginPath(); c2.arc(64,64,58,0,7); c2.fill(); c2.fillStyle="#fff"; c2.font="bold 62px sans-serif"; c2.textAlign="center"; c2.fillText(label,64,84);
-      const disc=new THREE.Mesh(new THREE.CircleGeometry(0.8,20), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2), transparent:true, side:THREE.DoubleSide}));
-      disc.position.set(0,3.1,0); disc.rotation.y=facePhi(A); grp.add(disc); }
+      const disc=new THREE.Mesh(new THREE.CircleGeometry(0.55,20), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv2), transparent:true, side:THREE.DoubleSide}));
+      disc.position.set(0,2.0,0); disc.rotation.y=facePhi(A); grp.add(disc); }
     g.add(grp);
   };
   /* 決勝柱：実際の競馬場と同じく、ゴールラインの内馬場側に立つ1本の柱と、
      その頂部の円板（ゴール板）。以前の「柱2本＋コースを横切る赤い板」
      （ゲート状の表現）は実物と違うため廃止した */
   { const A=pathAt(r.dist);
-    const grp=new THREE.Group(); grp.position.set(A.x+A.px*inOff, 0, A.z+A.pz*inOff);
+    /* 決勝柱は真横カメラの反対側（馬の向こう側）に立てる：ゴールライン上で
+       カメラと馬の間に入らず、馬の向こうに円板が見える実況中継の構図にする */
+    const grp=new THREE.Group(); grp.position.set(A.x+A.px*farOff, 0, A.z+A.pz*farOff);
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.14,4.4,10), postMat); pole.position.y=2.2; pole.castShadow=true; grp.add(pole);
     const cvG=document.createElement("canvas"); cvG.width=cvG.height=256; const cg2=cvG.getContext("2d");
     cg2.fillStyle="#f6f2e7"; cg2.beginPath(); cg2.arc(128,128,125,0,7); cg2.fill();
@@ -11176,8 +11241,11 @@ function rebuildGLCourse(r){
     const homeLen=(r.straight||P.home||350);
     const A=pathAt(Math.max(0, r.dist-homeLen*0.45));
     const stand=new THREE.Group();
-    stand.position.set(A.x+A.px*36, 0, A.z+A.pz*36);
-    stand.rotation.y=-A.th;
+    /* スタンドは真横カメラの反対側（-px側）に置く。以前は常に +px 側で、
+       右回りでは内馬場・左回りでは外側のカメラ側になり、全体視点では
+       スタンド自体が最後の直線の視界を塞いでいた */
+    stand.position.set(A.x-A.px*38, 0, A.z-A.pz*38);
+    stand.rotation.y=-A.th+Math.PI;
     const cvS=document.createElement("canvas"); cvS.width=512; cvS.height=96;
     const cg=cvS.getContext("2d"); cg.fillStyle="#31435c"; cg.fillRect(0,0,512,96);
     const dotCols=["#e8e2d2","#c9534a","#5b8dd9","#e9bc2e","#7fb069","#f2f2f2","#35424f"];
@@ -11207,27 +11275,10 @@ function rebuildGLCourse(r){
     stand.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=true; } });
     g.add(stand);
     /* 遠景パノラマもホーム直線基準の実位置に固定する（毎フレーム追従させない） */
-    if(GL.backdrop){ GL.backdrop.position.set(A.x+A.px*200, 26, A.z+A.pz*200); GL.backdrop.rotation.y=Math.atan2(A.px, A.pz); }
+    if(GL.backdrop){ GL.backdrop.position.set(A.x-A.px*200, 26, A.z-A.pz*200); GL.backdrop.rotation.y=Math.atan2(-A.px, -A.pz); }
   }
-  /* --- コーナー標識：各コーナーの入口の向こう側に世界固定の看板を立てる。
-     「今どこを走っているか」が景色からも分かるようにする --- */
-  {
-    const arcs=P.segs.filter(sg=>sg.ty==="a");
-    const mkSign=(s,label)=>{
-      const A=pathAt(s);
-      const cvS=document.createElement("canvas"); cvS.width=512; cvS.height=128;
-      const c2=cvS.getContext("2d"); c2.fillStyle="#173f2a"; c2.fillRect(0,0,512,128);
-      c2.strokeStyle="#f3d67b"; c2.lineWidth=8; c2.strokeRect(6,6,500,116);
-      c2.fillStyle="#ffe9a8"; c2.font="bold 54px sans-serif"; c2.textAlign="center"; c2.fillText(label,256,84);
-      const tex=new THREE.CanvasTexture(cvS); tex.encoding=THREE.sRGBEncoding;
-      const board=new THREE.Mesh(new THREE.PlaneGeometry(12,3), new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide}));
-      board.position.set(A.x+A.px*11.5, 2.9, A.z+A.pz*11.5); board.rotation.y=Math.atan2(A.px, A.pz); g.add(board);
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,2.9,6), postMat);
-      pole.position.set(A.x+A.px*11.5, 1.45, A.z+A.pz*11.5); g.add(pole);
-    };
-    if(arcs.length===1) mkSign(arcs[0].s0+4, "最終コーナー");
-    else if(arcs.length>=2){ mkSign(arcs[0].s0+4, "第1コーナー"); mkSign(arcs[arcs.length-1].s0+4, "最終コーナー"); }
-  }
+  /* コーナー標識の看板は撤去した：最終コーナー入口の内側に立つ 12m×3m の
+     ボードが、真横カメラと馬群の間に入って直線の入り口を遮っていた */
   /* --- 遠景の丘と雲 ---
      照明塔・内馬場の池・花壇・大型スクリーンは「余計なモニュメント」と
      して撤去した（残すのは馬場・ラチ・スタンド・樹木・丘・雲だけ） */
@@ -12271,6 +12322,7 @@ const FAME_CAP=120;
 function fameYrState(){ const y=year(); if(!S.fameYr||S.fameYr.year!==y) S.fameYr={year:y, low:0, chal:0}; return S.fameYr; }
 function addFame(pts, reason){
   if(!(pts>0)) return 0;
+  if(typeof compEff==="function") pts=Math.round(pts*(1+0.6*compEff("pr")));
   const before=S.fame||0;
   S.fame=Math.min(FAME_CAP, before+pts);
   const gained=S.fame-before;
@@ -12613,7 +12665,7 @@ function renderRaceScreen(el){
   const r=raceState.race;
   if(raceState.phase==="run"){
     el.innerHTML=`<div id="racewrap"><div id="racetitle-bar"><span class="rt-grade">${CLASSES[r.cls]}</span><span class="rt-name">${esc(r.name)}</span><span class="rt-meta">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span></div><div id="racestage"><canvas id="racecv"></canvas><div id="photo-banner" role="status" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(20,20,20,.8);color:#fff;font-weight:900;font-size:14px;padding:7px 16px;border-radius:999px;pointer-events:none;white-space:nowrap">📸 写真判定スローモーション</div><canvas id="racegl" style="position:absolute;inset:0;width:100%;height:100%;display:none"></canvas><canvas id="raceov" style="position:absolute;top:0;left:0;pointer-events:none"></canvas><div id="racecam-float" role="group" aria-label="視点切り替え（レース映像上）"><span class="rcf-lbl">視点</span><button class="btn ghost sm cambtn" data-cam="leader">先頭</button><button class="btn ghost sm cambtn" data-cam="mine" ${raceState.mine?"":"disabled"}>自馬${(raceState.owns||[]).length>1?`（${raceState.mine._gate}番・切替）`:""}</button><button class="btn ghost sm cambtn" data-cam="all">全体</button><button class="btn ghost sm cambtn" data-cam="jockey" ${raceState.mine?"":"disabled"}>騎手</button></div></div><div id="racehud"></div><div id="commentary">まもなく発走…</div><div class="posbar" id="posbar" style="display:none"></div>
-    <div id="racectl"><b>${r.name}</b><span class="small">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
+    <div id="racectl"><b class="rc-title">${esc(r.name)}</b><span class="rc-meta">${r.course} ${r.surf}${r.dist}m・馬場${r.ground}</span><span style="flex:1"></span>
     <div class="spdctl"><span class="spdlbl">再生速度</span><button class="btn ghost sm spd" data-rate="1">そのまま（1倍）</button><button class="btn ghost sm spd" data-rate="2">早送り 2倍</button><button class="btn ghost sm spd" data-rate="4">早送り 4倍</button></div>
     <button class="btn ghost sm mapbtn" id="btn-form">隊列図 OFF</button>
     <button class="btn ghost sm mapbtn" id="btn-posbar">順位表示 OFF</button>
@@ -12938,7 +12990,7 @@ const SAVE_KEY="keibaGemu_";
    切り捨て・破損したセーブを検出して、バックアップ復旧につなげる） */
 function saveChecksum(d){ try{ return fnv1a([d.v,d.week,d.funds,(d.horses||[]).length,(d.horses||[]).map(h=>h&&h.name).join(","),(d.mares||[]).length,(d.youngStock||[]).length,(d.worldHorses||[]).length].join("|")); }catch(e){ return ""; } }
 function saveCkOk(d){ return !d || !d.ck || d.ck===saveChecksum(d); }
-function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", trainers:Array.isArray(S.trainers)?S.trainers.slice():null, trainerDirectives:S.trainerDirectives||null, omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, standards:S.standards||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
+function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", trainers:Array.isArray(S.trainers)?S.trainers.slice():null, trainerDirectives:S.trainerDirectives||null, roles:S.roles||null, company:S.company||null, omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, standards:S.standards||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0, fameYr:S.fameYr||null, yeRetirePending:S.yeRetirePending||[],
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
@@ -13608,6 +13660,7 @@ function renderFarm(){
  html+=panelOpen("farm","club")+`<h2 class="sec">クラブ <span class="tag">資金・所有馬・収支はここで確認できます</span></h2>`+clubPanelHTML()+panelClose();
   html+=panelOpen("farm","family")+`<h2 class="sec">家庭 <span class="tag">結婚・配偶者・子供</span></h2>`+familyPanelHTML()+panelClose();
   html+=panelOpen("farm","biz")+`<h2 class="sec">経営 <span class="tag">牧場の持分・配当・預かり事業</span></h2>`+bizPanelHTML()+panelClose();
+  html+=panelOpen("farm","company")+`<h2 class="sec">会社 <span class="tag">経営組織・12担当枠・牧場イベント</span></h2>`+companyPanelHTML()+panelClose();
  html+=`</div>`;
  el.innerHTML=html;
  el.querySelectorAll("[data-fmark]").forEach(b=>b.addEventListener("click",()=>{ selFac=b.dataset.fmark; UI.farm="fac"; renderAll(); }));
@@ -13619,7 +13672,7 @@ function renderFarm(){
   el.querySelectorAll("[data-childpol]").forEach(sel=>sel.addEventListener("change",()=>{ const c=S.family&&S.family.children? S.family.children[+sel.dataset.childpol] : null; if(c){ c.policy=sel.value; log(`👨‍👩‍👧 ${c.name} の育成方針を「${sel.value==="study"?"勉強":sel.value==="sport"?"運動":"牧場"}」にしました`); renderAll(); } }));
   el.querySelectorAll("[data-eqbuy]").forEach(b=>b.addEventListener("click",()=>{ const eq=farmEquityPct(); const want=b.dataset.eqbuy==="rest"? 100-eq : +b.dataset.eqbuy; const pct=Math.min(want, 100-eq); if(pct<=0) return; const price=Math.round(farmValue()*pct/100); if(S.funds<price){ alert2("資金不足", `持分の購入には ${fmt(price)}万円 が必要です。`); return; } undoPush(`牧場持分の購入前（${pct}%）`); S.funds-=price; ledOut("equity",price); S.farmEquity=eq+pct; log(`🏦 牧場の持分を ${pct}% 購入しました（${fmt(price)}万円）。現在の持分は ${S.farmEquity}% です`); renderAll(); }));
  el.querySelectorAll("[data-fac-sel]").forEach(r=>r.addEventListener("click",e=>{ if(e.target.closest("button")||e.target.closest("a")||e.target.closest("select"))return; selFac= selFac===r.dataset.facSel? null : r.dataset.facSel; renderAll(); }));
- el.querySelectorAll("[data-fac-build]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facBuild); if(S.funds<f.cost)return; undoPush(`施設建設の前（${f.n}）`); S.funds-=f.cost; ledOut("build",f.cost); S.facilities[f.id]=1; S.building[f.id]=f.weeks; log(`🏗 施設「${f.n}」の建設を開始（${f.weeks}週）`); renderAll(); }));
+ el.querySelectorAll("[data-fac-build]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facBuild); const fc=Math.round(f.cost*(1-0.3*((typeof compEff==="function")?compEff("fac"):0))); const fw=Math.max(1, f.weeks-(((typeof compRank==="function")&&compRank("fac")>=3)?1:0)); if(S.funds<fc)return; undoPush(`施設建設の前（${f.n}）`); S.funds-=fc; ledOut("build",fc); S.facilities[f.id]=1; S.building[f.id]=fw; log(`🏗 施設「${f.n}」の建設を開始（${fw}週）`); renderAll(); }));
  el.querySelectorAll("[data-fac-up]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facUp); const c=facUpCost(f,facLv(f.id)); if(S.funds<c)return; undoPush(`施設拡張の前（${f.n}）`); S.funds-=c; ledOut("build",c); S.facilities[f.id]=facLv(f.id)+1; S.building[f.id]=facUpWeeks(f,S.facilities[f.id]); log(`🏗 施設「${f.n}」を拡張（Lv.${S.facilities[f.id]}・${facUpWeeks(f,S.facilities[f.id])}週）`); renderAll(); }));
  el.querySelectorAll("[data-fac-del]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facDel); S.facilities[f.id]=0; delete S.building[f.id]; log(`施設「${f.n}」を撤去`); renderAll(); }));
  el.querySelectorAll("[data-sale-bid]").forEach(b=>b.addEventListener("click",()=>saleBuy(+b.dataset.saleBid,false)));
@@ -13782,6 +13835,8 @@ function showSettings(){
 <div class="rulecard"><b>名声</b><p>舞台で決まります。勝利：G1 +5／G2 +3／G3 +2。重賞以外の勝利は +1 ずつでも年間+4までで頭打ち。重賞で2〜5着に入着すると G1 +2／G2・G3 +1、G1に出走して掲示板外でも +1（挑戦由来は年間+8まで）。上限120・減衰なし。条件戦の勝利を重ねるだけでは頭打ちになり、大きな舞台で勝ち・挑むほど伸びます。牧場スペースが名声5ごとに+1、海外牧場は名声30以上、クラブ牧場は名声20以上で開設可。</p></div>
 <div class="rulecard"><b>維持費の単価（週）</b><p>競走馬 18万円（エサ代8＋厩舎管理6＋装蹄・獣医4）／繁殖牝馬 5万円／自家種牡馬 8万円／幼駒 3万円。施設の月維持費は月初週に別途かかります。</p></div>
 <div class="rulecard"><b>種付料</b><p>自前の種牡馬は無料。外部の種牡馬は質と系統の人気で決まり、無名で数百万円、人気馬で数千万円、トップクラスで2〜3億円。手数料として一律150万円が加わります。逆に、自分の種牡馬が世界の生産者に使われると種付け料収入が入ります（需要に応じて年最大3件まで）。</p></div>
+<div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→経営）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
+<div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。種付け・購入の代行担当も、チェックを入れた人の中で見極め担当を優先して決まります。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
 <div class="rulecard"><b>馬主・牧場・調教師・クラブの役割と金の流れ</b><p>馬主（あなた）は馬を所有し、賞金を受け取る側です。購入代金・種付け料・海外遠征費・預託料を払います。牧場はあなたが経営する生産と育成・休養の場所で、産駒の生産と売却を担います。調教師はトレーニングセンターの厩舎で現役馬を預かり、馬主は担当馬1頭ごとの月額で預託料を払います（単価は調教師の能力で変動）。牧場は持分で所有するもので、新規開始の時点では持っていません。牧場にいる馬は預かり料（繋養料）を払い、持分を買うと事業収益の配当が入り、100%の買収で自分の馬の預かり料が止まって、他馬主の馬を預かる収入が入ります。馬の所在は、在厩（調教師の厩舎）／育成中（牧場）／休養中（牧場）／繁殖（牧場）で表示します。クラブは馬主の集まりで、クラブ馬の生産・育成の本拠はあなたの牧場、デビュー後は在厩として世界のレースを回ります。</p></div>
 <div class="rulecard"><b>融資</b><p>枠＝基礎4,000万円＋重賞ウィナー1,500万円/頭＋G1勝利500万円/勝＋所有馬300万円/頭。金利15%は借入額に対する固定率（返済総額＝借入額×1.15、12週分割）。延滞が2回続くと破産です。</p></div>
 <div class="rulecard"><b>スポンサー支援</b><p>受取額＝基礎1,500万円＋重賞ウィナー500万円/頭＋名声60万円/1＋直近1年の賞金収入の3%（上限3億円）。対価として12週間、賞金の30%を支払います（48週間ごとに再利用可）。</p></div>
@@ -13911,6 +13966,13 @@ function applySave(d){
      （上限超過でもおまかせ効果を剥がさない）にする。新方式のセーブは
      各馬の担当を引き継ぎ、担当が無い／解雇済みの馬だけ自動割当する */
   S.trainerDirectives=(d.trainerDirectives&&typeof d.trainerDirectives==="object")? d.trainerDirectives : {};
+  /* 役割制への移行：S.roles が無い旧セーブは rolesState() が各枠の正担当を
+     該当能力のトップで自動決定する（副担当なし）。壊れた割当も同関数が
+     雇用中の調教師へ寄せて修復する */
+  S.roles=(d.roles&&typeof d.roles==="object")? d.roles : null;
+  try{ rolesState(); syncRoleAssignments(); }catch(e){}
+  S.company=(d.company&&typeof d.company==="object")? d.company : null;
+  try{ if(S.company) compState(); }catch(e){}
   if(Array.isArray(d.trainers)&&d.trainers.length){
     S.trainers=d.trainers.filter(id=>TRAINER_ROSTER.some(t=>t.id===id));
     if(!S.trainers.length) S.trainers=[S.trainerId];
@@ -14111,9 +14173,10 @@ function buildGuide(){
     if(farmEquityPct()<100 && S.funds>=Math.round(farmValue()*0.05)*3) cards.push({key:"eqbuy0", who:"秘書・佐倉 澪", face:"sec", text:`資金に余裕があります。牧場の持分の購入を検討しませんか（現在 ${farmEquityPct()}%）。持分が増えるほど預かり料の負担が減り、配当が増えます。`, btn:"経営を見る", act:"eqbuy"});
     if(pc.y+pc.r>0) cards.push({key:"yepending", who:"秘書・佐倉 澪", face:"sec", text:`年末の処理が残っています（${pc.y?`明け2歳の処遇 ${pc.y}頭`:""}${pc.y&&pc.r?"／":""}${pc.r?`引退の判断 ${pc.r}頭`:""}）。今からでも処理できます`, btn:"未処理の馬を見る", act:"yepending"});
   }catch(e){}
-  /* 担当のいない／上限超過の馬がいると、おまかせが効かないので知らせる */
-  try{ const un=uncoveredHorses();
-    if(un.length) cards.push({key:"trainerassign"+S.week, who:"秘書・佐倉 澪", face:"sec", text:`担当のいない馬がいます（${un.length}頭：${un.slice(0,3).map(h=>h.name).join("、")}${un.length>3?" ほか":""}）。この馬にはおまかせが効いていません`, btn:"調教師・担当を見る", act:"view", view:"train", anchor:"train-trainer"});
+  /* 役割のカバーが不足している枠があると、その役割の効果が届かないので
+     枠ごとに具体的に知らせる（例：コンディション担当のカバーが○頭不足） */
+  try{ const shorts=ROLES.map(r=>({ r, n: roleUncovered(r.id).length })).filter(x=>x.n>0);
+    if(shorts.length) cards.push({key:"trainerassign"+S.week, who:"秘書・佐倉 澪", face:"sec", text: shorts.map(x=>`${x.r.name}のカバーが ${x.n}頭 不足しています`).join("／")+"。カバー外の馬にはその役割の効果が届いていません。調教師画面の役割分担で副担当を足してください", btn:"役割分担を見る", act:"view", view:"train", anchor:"train-trainer"});
   }catch(e){}
   /* 種付け期：今季まだ種付けしていない繁殖牝馬がいる時だけ案内する（全頭種付け済みなら出さない）。
      調教師の配合提案（牝馬×種牡馬の具体案）がある場合はそちらを提案カードにし、
@@ -15139,25 +15202,243 @@ function employedTrainers(){
 function trainerById(id){ return TRAINER_ROSTER.find(t=>t.id===id)||null; }
 function trainerCap(d){ if(!d) return 0; const total=["train","eye","idea","cond","weight"].reduce((s,k)=>s+rankVal(d.ranks[k]),0); return 6+total; }
 function assignedHorses(tid){ return (S.horses||[]).filter(h=>!h.retired&&(h.trainerId||null)===tid); }
-function trainerOf(h){ return trainerById(h&&h.trainerId) || trainerData(); }
-function omakaseCovered(h){
-  if(!h||h.retired) return false;
-  if(h.legacyCover) return true; /* 移行時の既存馬は上限超過でも剥がさない */
-  const tid=h.trainerId; if(!tid) return false;
-  const d=trainerById(tid); if(!d) return false;
-  if(!employedTrainers().some(x=>x.id===tid)) return false;
-  const list=assignedHorses(tid);
-  return list.indexOf(h) < trainerCap(d);
+/* ============ 調教師の役割制（3枠） ============
+   体制は3つの役割枠をメインにする（1人が複数枠の正・副を兼任できる）：
+   ・調教担当：調教＋見極め（閃き）が効く ― 定常指示の調教の質と調教まわりの提案
+   ・見極め担当：相馬眼が効く ― 購入の目利き、配合提案、評価コメントの話者
+   ・コンディション担当：体重＋体調が効く ― おまかせの調子・体重調整（最終調整含む）
+   各枠は正担当1名＋副担当は人数制限なし。役割の効果は自厩舎の全頭に
+   及ぶのが基本だが、枠ごとにカバー頭数の上限があり（正担当の能力で
+   決まる）、馬が増えて上限を超えた分にはその役割の効果が届かない。
+   副担当を足すと、その副担当の能力ぶんカバー頭数が増える。
+   旧来の「馬ごとの担当調教師・担当上限」はこの役割制に統合した：
+   h.trainerId は調教担当の割当（正→副の順に枠を埋めた結果）を写す
+   互換フィールドで、預託料と表示はこちら基準で従来どおり数える。
+   移行：S.roles が無いセーブ（旧セーブ含む）は、各枠の正担当を該当
+   能力のトップで自動決定し、副担当なしから始める */
+const ROLES=[
+  {id:"train", name:"調教担当", ranks:["train","idea"], rankNames:"調教・見極め", desc:"定常指示の調教の質と、おまかせの指示見直し・調教まわりの提案"},
+  {id:"eye", name:"見極め担当", ranks:["eye"], rankNames:"相馬眼", desc:"購入の目利き・配合提案の質と、評価コメントの話者"},
+  {id:"cond", name:"コンディション担当", ranks:["cond","weight"], rankNames:"体調・体重", desc:"おまかせの調子・体重の調整（レース前の最終調整を含む）"},
+];
+function roleDef(roleId){ return ROLES.find(r=>r.id===roleId)||ROLES[0]; }
+function roleScore(r,d){ return r.ranks.reduce((s,k)=>s+rankVal(d&&d.ranks? d.ranks[k] : 0),0); }
+function roleCapMain(r,d){ const s=roleScore(r,d); return 6 + s*(r.ranks.length===1?4:2); } /* 正担当のカバー上限：関連能力が高いほど多い */
+function roleCapSub(r,d){ const s=roleScore(r,d); return 3 + s*(r.ranks.length===1?2:1); } /* 副担当1人ぶんの追加カバー */
+
+/* ============ 会社（経営組織・12枠） ============
+   調教師の役割制と同じ流儀：各枠に正担当1名＋副担当は制限なし、兼任OK。
+   枠ごとに「業務量（現役馬＋繁殖牝馬から算出）」に対するカバー制があり、
+   正担当の能力でカバー上限が決まり、足りなければ副担当を足す。
+   人材は架空スタッフプールから雇用し、給与が毎月かかる（資金の受け皿）。
+   各枠の効果は既存システムにのみ接続する（新規通貨は作らない）。 */
+const COMP_ROLES=[
+ {id:"fin", name:"CFO（財務担当）", group:"経営", ranks:["fin"], rankName:"財務", desc:"融資の金利・枠の交渉／経費の最適化／余剰資金の運用"},
+ {id:"legal", name:"法務担当", group:"経営", ranks:["legal"], rankName:"法務", desc:"命名権・馬主間取引など契約条件の改善とトラブル回避"},
+ {id:"plan", name:"事業担当", group:"事業", ranks:["plan"], rankName:"企画", desc:"牧場イベントの企画。イベントの質と規模の上限を決める"},
+ {id:"mkt", name:"マーケティング担当", group:"事業", ranks:["mkt"], rankName:"マーケティング", desc:"有名馬グッズ等のファンビジネス収入とクラブ会員の募集"},
+ {id:"sales", name:"営業担当", group:"事業", ranks:["sales"], rankName:"営業", desc:"スポンサー契約の金額と再契約までの期間"},
+ {id:"pr", name:"広報担当", group:"事業", ranks:["pr"], rankName:"広報", desc:"成績・イベントの反響を増幅（名声の伸び・命名権の関心）"},
+ {id:"ops", name:"運営担当", group:"運営支援", ranks:["ops"], rankName:"運営", desc:"イベント実施の成否と集客の質"},
+ {id:"fac", name:"施設管理担当", group:"運営支援", ranks:["fac"], rankName:"施設管理", desc:"施設の建設費・工期・運営効率"},
+ {id:"intl", name:"輸送・国際担当", group:"運営支援", ranks:["intl"], rankName:"国際", desc:"海外遠征の費用割引と、海外種牡馬の種付け料の割引"},
+ {id:"ins", name:"保険・リスク担当", group:"運営支援", ranks:["ins"], rankName:"保険", desc:"競走馬保険の掛金と、故障時の給付金"},
+ {id:"data", name:"データ分析担当", group:"運営支援", ranks:["data"], rankName:"分析", desc:"次走提案に勝率見込みなどの分析情報を付ける"},
+ {id:"hr", name:"採用担当", group:"運営支援", ranks:["hr"], rankName:"採用", desc:"雇用候補の数と質（良い人材が現れる確率）"},
+];
+const COMP_ABILITIES=[["plan","企画"],["ops","運営"],["pr","広報"],["sales","営業"],["hr","採用"],["fin","財務"],["legal","法務"],["mkt","販促"],["fac","施設"],["intl","国際"],["ins","保険"],["data","分析"]];
+const COMP_GROUPS=["経営","事業","運営支援"];
+const STAFF_SUR=["佐藤","鈴木","高橋","田中","渡辺","伊藤","山本","中村","小林","加藤","吉田","山田","佐々木","山口","松本","井上","木村","林","斎藤","清水","森","池田","橋本","阿部","石川","前田","藤田","後藤","岡田","長谷川","村上","近藤","石井","遠藤","青木","坂本","福田","太田","西村","藤井","金子","岡本","中島","原田","和田","中野","小島","高木","安藤","島田","工藤","宮崎","酒井","市川","野口","千葉","岩崎","菅原","木下","松井","野村","河野","菊地","杉本","新井","平野","宮本","戸田","大塚","平井","望月"];
+const STAFF_GIV=["健太","直樹","裕太","真一","翔太","拓也","大輝","和也","亮介","誠","由美","恵子","真理","沙織","美咲","彩花","麻衣","里奈","千尋","陽子","健一","正樹","浩二","智也","祐介","梓","楓","栞","葵","凪","颯","蓮","悠","航","陸","空"];
+const FOUND_COST=20000, FOUND_FAME=10;
+function compRoleDef(id){ return COMP_ROLES.find(r=>r.id===id); }
+function compRankOf(st, role){ if(!st||!st.ranks) return 0; return role.ranks.reduce((a,k)=>a+(st.ranks[k]||0),0); }
+function compStaffById(id){ const c=S.company; return c&&Array.isArray(c.staff)? c.staff.find(s=>s.id===id)||null : null; }
+function compState(){ const c=S.company; if(!c) return null;
+  if(!Array.isArray(c.staff))c.staff=[]; if(!Array.isArray(c.candidates))c.candidates=[]; if(!c.roles||typeof c.roles!=="object")c.roles={}; if(c.invest==null)c.invest=0;
+  const ids=new Set(c.staff.map(s=>s.id));
+  for(const r of COMP_ROLES){ let cur=c.roles[r.id]; if(!cur||typeof cur!=="object"){cur={main:null,subs:[]};c.roles[r.id]=cur;}
+    if(cur.main==null||!ids.has(cur.main)){ const best=c.staff.slice().sort((a,b)=>compRankOf(b,r)-compRankOf(a,r)||(a.id-b.id))[0]; cur.main=best?best.id:null; }
+    if(!Array.isArray(cur.subs))cur.subs=[]; cur.subs=cur.subs.filter(id=>ids.has(id)&&id!==cur.main);
+  }
+  return c; }
+function compWorkload(){ return 10+Math.ceil(((S.horses||[]).length+(S.mares||[]).length)/2); }
+function compCapMain(role, st){ return st? 6+compRankOf(st,role)*3 : 0; }
+function compCapSub(role, st){ return st? 3+compRankOf(st,role) : 0; }
+function compCoverage(roleId){ const c=compState(); const W=compWorkload(); if(!c) return {covered:0,need:W,short:Math.max(0,W),frac:0,main:null};
+  const role=compRoleDef(roleId), cur=c.roles[roleId]; const main=compStaffById(cur.main);
+  let cap=compCapMain(role,main); const subs=(cur.subs||[]).map(compStaffById).filter(Boolean); subs.forEach(s=>cap+=compCapSub(role,s));
+  const covered=Math.min(W,cap); return {covered, need:W, short:Math.max(0,W-cap), frac:W>0?covered/W:1, main, cap}; }
+function compMain(roleId){ const c=compState(); if(!c) return null; return compStaffById(c.roles[roleId].main); }
+function compRank(roleId){ const m=compMain(roleId); return m? compRankOf(m, compRoleDef(roleId)) : 0; }
+/* 効果係数 0..1（正担当の能力×カバー率）。未設立・未配置は0 */
+function compEff(roleId){ const c=S.company; if(!c||!Array.isArray(c.staff)||!c.staff.length) return 0; const m=compMain(roleId); if(!m) return 0; const r=compRankOf(m, compRoleDef(roleId)); if(r<=0) return 0; const cv=compCoverage(roleId); return clamp((0.45+0.11*r)*cv.frac, 0, 1); }
+function compSalaryTotal(){ const c=S.company; return c&&Array.isArray(c.staff)? c.staff.reduce((a,s)=>a+(s.salary||0),0) : 0; }
+let _staffSeq=1;
+function genStaffCandidate(){ const c=S.company; const hrEff=c? compEff("hr") : 0;
+  const used=new Set(); if(c){ c.staff.forEach(s=>used.add(s.name)); c.candidates.forEach(s=>used.add(s.name)); }
+  let name=""; for(let t=0;t<300;t++){ const cand=pick(STAFF_SUR)+pick(STAFF_GIV); if(!used.has(cand)){ name=cand; break; } }
+  if(!name) name=pick(STAFF_SUR)+pick(STAFF_GIV)+pick(STAFF_GIV);
+  const ranks={}; COMP_ABILITIES.forEach(([k])=>{ let r=ri(0,2); if(Math.random()<0.22+hrEff*0.35) r+=ri(1,2); if(Math.random()<0.05+hrEff*0.12) r=5; ranks[k]=clamp(r,0,5); });
+  const sp1=pick(COMP_ABILITIES)[0]; let sp2=pick(COMP_ABILITIES)[0]; if(sp2===sp1) sp2="fin";
+  ranks[sp1]=clamp(ranks[sp1]+ri(1,2),0,5); ranks[sp2]=clamp(ranks[sp2]+1,0,5);
+  const total=COMP_ABILITIES.reduce((a,[k])=>a+ranks[k],0);
+  return {id: 5000+(_staffSeq++)*7+ri(0,6), name, ranks, salary: 25+total*10, total};
 }
+function compRefreshCandidates(free){ const c=compState(); if(!c) return; const n=3+compRank("hr"); c.candidates=[]; for(let i=0;i<n;i++) c.candidates.push(genStaffCandidate()); if(!free){} }
+function foundCompany(){ const c=S.company; if(c) return; if((S.fame||0)<FOUND_FAME){ toast(`会社化には名声${FOUND_FAME}以上が必要です`); return; } if(S.funds<FOUND_COST){ toast("資金が不足しています"); return; }
+  undoPush("会社設立の前"); S.funds-=FOUND_COST; ledOut("build",FOUND_COST);
+  S.company={founded:S.week, staff:[], roles:{}, candidates:[], invest:0, insOn:false, lastReport:null, eventCdUntil:0, clubBoostUntil:0, nrBoostUntil:0};
+  compState(); compRefreshCandidates(true);
+  log(`🏢 会社を設立しました（設立費 ${fmt(FOUND_COST)}万円）。スタッフを雇って12の担当枠を埋めましょう`); toast("会社を設立しました"); saveAuto(); renderAll(); }
+function hireStaff(id){ const c=compState(); if(!c) return; const i=c.candidates.findIndex(s=>s.id===id); if(i<0) return; const st=c.candidates[i]; const sign=st.salary*2;
+  if(S.funds<sign){ toast("契約金が不足しています"); return; }
+  undoPush(`スタッフ雇用（${st.name}）の前`); S.funds-=sign; ledOut("salary",sign);
+  c.staff.push(st); c.candidates.splice(i,1); compState();
+  /* 担当が不足している枠へ副担当として自動で入れる */
+  for(const r of COMP_ROLES){ const cv=compCoverage(r.id); if(cv.short>0 && c.roles[r.id].main!==st.id && !c.roles[r.id].subs.includes(st.id)) c.roles[r.id].subs.push(st.id); }
+  while(c.candidates.length<3+compRank("hr")) c.candidates.push(genStaffCandidate());
+  log(`🏢 ${st.name} を雇用しました（月給 ${fmt(st.salary)}万円／契約金 ${fmt(sign)}万円）`); saveAuto(); renderAll(); }
+function fireStaff(id){ const c=compState(); if(!c) return; const st=compStaffById(id); if(!st) return;
+  confirm2(`${st.name} を解雇しますか？`, "担当枠からは外れます。", ()=>{ c.staff=c.staff.filter(s=>s.id!==id); compState(); log(`🏢 ${st.name} を解雇しました`); saveAuto(); renderAll(); }); }
+function setCompMain(roleId, sid){ const c=compState(); if(!c) return; const cur=c.roles[roleId]; if(!cur) return;
+  const prev=cur.main; cur.main=(sid===""||sid==null)? null : +sid;
+  if(prev!=null && prev!==cur.main && !cur.subs.includes(prev)) cur.subs.push(prev);
+  cur.subs=cur.subs.filter(x=>x!==cur.main);
+  const st=compStaffById(cur.main); log(`🏢 ${compRoleDef(roleId).name} の正担当を ${st?st.name:"（未配置）"} にしました`); saveAuto(); renderAll(); }
+function toggleCompSub(roleId, sid, on){ const c=compState(); if(!c) return; const cur=c.roles[roleId]; if(!cur) return;
+  cur.subs=cur.subs.filter(x=>x!==sid); if(on) cur.subs.push(sid); saveAuto(); renderAll(); }
+function compInvest(){ const c=compState(); if(!c) return; const amt=Math.floor(S.funds*0.10); if(amt<=0){ toast("運用に回せる資金がありません"); return; }
+  const cap=Math.floor(S.funds*0.30); if((c.invest||0)+amt>cap){ toast("運用額は資金の30%が上限です"); return; }
+  c.invest=(c.invest||0)+amt; log(`🏢 余剰資金 ${fmt(amt)}万円 を運用に回しました（運用中 ${fmt(c.invest)}万円）`); saveAuto(); renderAll(); }
+function compWithdraw(){ const c=compState(); if(!c||!(c.invest>0)) return; S.funds+=c.invest; ledIn("finance", c.invest); log(`🏢 運用資金 ${fmt(c.invest)}万円 を全額引き出しました`); c.invest=0; saveAuto(); renderAll(); }
+/* 月次決算：給与・ファンビジネス収入・保険料・運用益（月初週に呼ばれる） */
+function companyMonthly(){ const c=S.company; if(!c||!Array.isArray(c.staff)) return;
+  const sal=compSalaryTotal(); if(sal>0){ S.funds-=sal; ledOut("salary",sal); }
+  if(compMain("mkt")){ const fb=Math.min(8000, Math.round(((S.fame||0)*6+(S.champions||0)*300+(S.g1Wins||0)*80)*(0.3+0.14*compRank("mkt"))*compEff("mkt")/compCoverage("mkt").frac||0)); if(fb>0){ S.funds+=fb; ledIn("fanbiz",fb); } }
+  if(c.insOn){ const per=Math.max(2, Math.ceil(10*(1-0.3*compEff("ins")))); const prem=per*(S.horses||[]).length; if(prem>0){ S.funds-=prem; ledOut("insurance",prem); } }
+  if(c.invest>0){ const gain=Math.max(0, Math.round(c.invest*(0.001+0.0004*compRank("fin"))*rnd(0.7,1.3))); if(gain>0){ c.invest+=gain; } c._lastGain=gain; }
+}
+/* 保険給付（調教中の故障発生時に呼ばれる） */
+function insurancePayout(h, weeks){ const c=S.company; if(!c||!c.insOn) return 0; const pay=Math.min(4000, Math.round(weeks*70*(0.7+0.5*compEff("ins")))); if(pay>0){ S.funds+=pay; ledIn("insurancePay",pay); log(`🛡 ${h.name} の故障に保険金 ${fmt(pay)}万円 が支払われました`); } return pay; }
+/* ---- 牧場イベント ---- */
+const EVENT_TYPES=[
+ {id:"tour", name:"牧場見学会", desc:"観光収入と牧場の知名度", unit:5},
+ {id:"fan", name:"ファン感謝祭", desc:"クラブ会員の募集効果と名声", unit:3.5},
+ {id:"marche", name:"地域マルシェ", desc:"観光収入と地域の反響", unit:4.5},
+ {id:"charity", name:"チャリティオークション", desc:"命名権・スポンサーへの関心と名声", unit:7},
+];
+const EVENT_SIZES=[{id:1,name:"小規模",cost:3000,att:900},{id:2,name:"中規模",cost:15000,att:3200},{id:3,name:"大規模",cost:60000,att:9500}];
+let compEvSel={type:"tour", size:1};
+function eventSizeAllowed(sz){ const c=S.company; if(!c) return false; if(sz===1) return true; const pr=compRank("plan"); if(sz===2) return pr>=1; return pr>=3 && compCoverage("plan").short<=0; }
+function runEvent(){ const c=compState(); if(!c) return; if(S.week<(c.eventCdUntil||0)){ toast("前回のイベントから間が空いていません（4週あけてください）"); return; }
+  if(!compMain("plan")){ toast("事業担当（正）を配置してください"); return; }
+  const t=EVENT_TYPES.find(x=>x.id===compEvSel.type)||EVENT_TYPES[0]; const sz=EVENT_SIZES.find(x=>x.id===compEvSel.size)||EVENT_SIZES[0];
+  if(!eventSizeAllowed(sz.id)){ toast("その規模は事業担当の企画力・カバーが足りません"); return; }
+  if(S.funds<sz.cost){ toast("資金が不足しています"); return; }
+  undoPush(`イベント（${t.name}）の前`); S.funds-=sz.cost; ledOut("event",sz.cost);
+  const planE=compEff("plan"), opsE=compEff("ops"), prE=compEff("pr");
+  const att=Math.round(sz.att*(0.5+0.55*opsE)*(0.6+0.65*prE)*rnd(0.85,1.15));
+  const income=Math.round(att*t.unit*(0.5+0.5*planE)*rnd(0.9,1.1)/10)*10;
+  if(income>0){ S.funds+=income; ledIn("biz",income); }
+  let fameGain=0; const notes=[];
+  if(t.id==="tour"){ fameGain=Math.round((1+sz.id)*prE); notes.push("見学者の評判が牧場の知名度を押し上げました"); }
+  if(t.id==="fan"){ c.clubBoostUntil=S.week+8; fameGain=Math.round((1+sz.id)*(0.5+prE)); notes.push("クラブ募集の後押しが8週間続きます"); }
+  if(t.id==="marche"){ fameGain=Math.round(sz.id*prE); notes.push("地元メディアに取り上げられました"); }
+  if(t.id==="charity"){ c.nrBoostUntil=S.week+12; if(S.sponsorReadyWeek) S.sponsorReadyWeek=Math.max(S.week, S.sponsorReadyWeek-4); fameGain=Math.round((1+sz.id)*(0.5+prE)); notes.push("命名権への関心が高まり（12週間）、スポンサーとの距離も縮まりました"); }
+  if(fameGain>0) addFame(fameGain, `イベント「${t.name}」の反響`);
+  c.eventCdUntil=S.week+4;
+  c.lastReport={week:S.week, type:t.name, size:sz.name, att, income, cost:sz.cost, fame:fameGain, notes};
+  log(`🎪 イベント「${t.name}」（${sz.name}）を実施：来場 ${att.toLocaleString()}人／収入 ${fmt(income)}万円／費用 ${fmt(sz.cost)}万円／収支 ${income-sz.cost>=0?"+":""}${fmt(income-sz.cost)}万円`);
+  toast(`イベント実施：収支 ${income-sz.cost>=0?"+":""}${fmt(income-sz.cost)}万円`);
+  saveAuto(); renderAll(); }
+/* ---- 会社パネルUI ---- */
+function compRoleCardHTML(r){ const c=S.company; const cur=c.roles[r.id]; const main=compStaffById(cur.main); const cv=compCoverage(r.id); const short=cv.short>0;
+  const rankChips=st=>COMP_ABILITIES.filter(([k])=>(st.ranks[k]||0)>=3).slice(0,4).map(([k,n])=>`<span class="tag">${n}${st.ranks[k]}</span>`).join(" ");
+  const opts=c.staff.map(s=>`<option value="${s.id}" ${cur.main===s.id?"selected":""}>${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・カバー${compCapMain(r,s)}頭）</option>`).join("");
+  const subs=c.staff.filter(s=>s.id!==cur.main);
+  return `<div class="panel" style="margin:0;${short?"border:2px solid #d23b2e":""}">
+   <div class="flex" style="justify-content:space-between;align-items:flex-start"><b>${r.name}</b>${short?`<span class="tag" style="background:#d23b2e;color:#fff">⚠ ${cv.short}頭分不足</span>`:`<span class="tag">カバー充足</span>`}</div>
+   <div class="small">${r.desc}</div>
+   <div class="small" style="margin-top:4px">業務量 ${cv.need} 頭相当 ／ カバー上限 <b>${cv.cap}頭</b>（実効 ${cv.covered}頭）</div>
+   <div style="margin-top:6px"><span class="small">正担当</span><br>${main?`<b>${esc(main.name)}</b> <span class="tag">${r.rankName} ${compRankOf(main,r)}</span> ${rankChips(main)}`:`<span class="small">未配置</span>`}</div>
+   <label class="small">正担当を変更 <select data-comp-main="${r.id}" style="max-width:100%">${opts||'<option value="">（スタッフなし）</option>'}</select></label>
+   ${subs.length?`<details style="margin-top:4px"><summary class="small">副担当（${cur.subs.length}名）― カバーを広げる</summary>${subs.map(s=>`<label class="small" style="display:block"><input type="checkbox" data-comp-sub="${r.id}" value="${s.id}" ${cur.subs.includes(s.id)?"checked":""}> ${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・+${compCapSub(r,s)}頭）</label>`).join("")}</details>`:`<div class="small">副担当候補：他のスタッフを雇用すると選べます</div>`}
+  </div>`; }
+function companyPanelHTML(){ const c=S.company;
+  if(!c){ const canF=(S.fame||0)>=FOUND_FAME; return `<div class="panel"><h3 style="margin:0 0 4px">🏢 会社化</h3><div class="small">経営を会社として組織化すると、事業・運営・広報・営業・採用・財務など12の担当枠に人材を配置でき、牧場イベントやファンビジネスが開けます。人件費は継続的にかかります。</div><div class="flex mt"><button class="btn gold" id="btn-found-company" ${canF&&S.funds>=FOUND_COST?"":"disabled"}>会社を設立する（${fmt(FOUND_COST)}万円）</button>${!canF?`<span class="small">名声${FOUND_FAME}以上が必要（現在 ${S.fame||0}）</span>`:S.funds<FOUND_COST?`<span class="small">資金が不足しています</span>`:""}</div></div>`; }
+  compState();
+  const sal=compSalaryTotal(); const W=compWorkload();
+  const groupsHtml=COMP_GROUPS.map(g=>{ const rs=COMP_ROLES.filter(r=>r.group===g); return `<div class="small" style="margin:8px 0 4px"><b>${g}部門</b></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">${rs.map(compRoleCardHTML).join("")}</div>`; }).join("");
+  const rep=c.lastReport;
+  const evBtns=EVENT_TYPES.map(t=>`<button class="btn sm ${compEvSel.type===t.id?"gold":""}" data-comp-evtype="${t.id}">${t.name}</button>`).join(" ");
+  const szBtns=EVENT_SIZES.map(s=>`<button class="btn sm ${compEvSel.size===s.id?"gold":""}" data-comp-evsize="${s.id}" ${eventSizeAllowed(s.id)?"":"disabled"}>${s.name}（${fmt(s.cost)}万円）</button>`).join(" ");
+  const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> <span class="tag">月給 ${fmt(st.salary)}万円</span><div class="small" style="margin:3px 0">${COMP_ABILITIES.map(([k,n])=>`<span class="tag">${n}${st.ranks[k]||0}</span>`).join(" ")}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
+  return `<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
+   <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmt(sal)}万円</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmt(c.invest||0)}万円${c._lastGain?`（先月 +${fmt(c._lastGain)}万円）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span></div>
+   ${groupsHtml}
+   <div class="flex mt"><button class="btn sm" id="btn-comp-invest">余剰資金の10%を運用に回す（CFO）</button><button class="btn sm" id="btn-comp-withdraw" ${c.invest>0?"":"disabled"}>運用を全額引き出す</button><button class="btn sm" id="btn-comp-ins">${c.insOn?"競走馬保険を解約する":"競走馬保険に加入する（保険担当）"}</button></div>
+   <h4 style="margin:10px 0 4px">🎪 牧場イベント</h4>
+   <div class="small">種類と規模を選んで実施（4週に1回まで）。事業担当の企画、運営担当の実施、広報担当の反響が結果を左右します。</div>
+   <div class="flex mt">${evBtns}</div><div class="flex mt">${szBtns}</div>
+   <div class="flex mt"><button class="btn gold" id="btn-comp-event" ${compMain("plan")&&S.week>=(c.eventCdUntil||0)?"":"disabled"}>イベントを実施する</button>${S.week<(c.eventCdUntil||0)?`<span class="small">次回まであと ${(c.eventCdUntil||0)-S.week} 週</span>`:!compMain("plan")?`<span class="small">事業担当（正）が必要です</span>`:""}</div>
+   ${rep?`<div class="panel" style="margin-top:8px"><b>📋 前回のイベント結果：${esc(rep.type)}（${esc(rep.size)}）</b><div class="small">来場 ${rep.att.toLocaleString()}人／収入 ${fmt(rep.income)}万円／費用 ${fmt(rep.cost)}万円／収支 <b>${rep.income-rep.cost>=0?"+":""}${fmt(rep.income-rep.cost)}万円</b>／名声 +${rep.fame}</div><div class="small">${rep.notes.map(esc).join("／")}</div></div>`:""}
+   <h4 style="margin:10px 0 4px">🧑‍💼 スタッフ</h4>
+   ${c.staff.length? `<div class="flex">${c.staff.map(st=>`<span class="tag">${esc(st.name)}（月給${fmt(st.salary)}万円）<button class="btn sm" data-comp-fire="${st.id}" style="margin-left:4px">解雇</button></span>`).join("")}</div>`:`<div class="small">まだスタッフがいません。下の候補から雇用してください。</div>`}
+   <div class="small" style="margin-top:6px">雇用候補（${c.candidates.length}名／採用担当の質で候補が変わります） <button class="btn sm" id="btn-comp-refresh">候補を入れ替える（${fmt(50)}万円）</button></div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:6px">${candHtml}</div>
+  </div>`; }
+
+function rolesState(){
+  const emps=employedTrainers();
+  if(!S.roles||typeof S.roles!=="object") S.roles={};
+  ROLES.forEach(r=>{
+    let cur=S.roles[r.id];
+    const top=()=>{ let best=emps[0]; emps.forEach(d=>{ const s=roleScore(r,d), bs=roleScore(r,best); if(s>bs||(s===bs&&d.id===(S.trainerId||"jp122"))) best=d; }); return best; };
+    if(!cur||typeof cur!=="object"||!cur.main){ cur={main:(top()||trainerData()).id, subs:[]}; S.roles[r.id]=cur; }
+    if(!emps.some(d=>d.id===cur.main)) cur.main=(top()||trainerData()).id; /* 引退・解雇で正担当が抜けたら能力トップへ自動で引き継ぐ */
+    cur.subs=(Array.isArray(cur.subs)? cur.subs : []).filter(id=>id!==cur.main&&emps.some(d=>d.id===id));
+  });
+  return S.roles;
+}
+function roleMain(roleId){ const st=rolesState(); const d=trainerById(st[roleId]&&st[roleId].main); return d||trainerData(); }
+function roleHolders(roleId){ const st=rolesState(); const out=[]; const m=trainerById(st[roleId].main); if(m) out.push(m); (st[roleId].subs||[]).forEach(id=>{ const d=trainerById(id); if(d&&!out.includes(d)) out.push(d); }); return out; }
+let _roleCovCache={};
+function roleCoverage(roleId){
+  const r=roleDef(roleId), st=rolesState();
+  const horses=(S.horses||[]).filter(h=>!h.retired);
+  const sig=roleId+"|"+st[roleId].main+"|"+(st[roleId].subs||[]).join(",")+"|"+horses.map(h=>h.id).join(",");
+  if(_roleCovCache.sig===sig&&_roleCovCache[roleId]) return _roleCovCache[roleId];
+  const holders=roleHolders(roleId);
+  const map={}; let idx=0, covered=0;
+  holders.forEach((d,hi)=>{
+    const cap= hi===0? roleCapMain(r,d) : roleCapSub(r,d);
+    for(let k=0;k<cap&&idx<horses.length;k++,idx++){ map[horses[idx].id]=d.id; covered++; }
+  });
+  const res={map, covered, total:horses.length, capTotal: holders.reduce((s,d,hi)=>s+(hi===0? roleCapMain(r,d):roleCapSub(r,d)),0)};
+  if(_roleCovCache.sig!==sig) _roleCovCache={sig};
+  _roleCovCache[roleId]=res;
+  return res;
+}
+function roleHolderFor(roleId,h){ if(!h) return null; const cov=roleCoverage(roleId); const tid=cov.map[h.id]; return tid? trainerById(tid) : null; }
+function roleCovered(roleId,h){ if(!h||h.retired) return false; if(h.legacyCover) return true; return !!roleHolderFor(roleId,h); }
+function condCovered(h){ return roleCovered("cond",h); }
+function roleUncovered(roleId){ const cov=roleCoverage(roleId); return (S.horses||[]).filter(h=>!h.retired&&!h.legacyCover&&!cov.map[h.id]); }
+function syncRoleAssignments(){ /* h.trainerId（互換フィールド）を調教担当の割当に合わせる */
+  const cov=roleCoverage("train");
+  (S.horses||[]).forEach(h=>{ if(h.retired) return; const tid=cov.map[h.id]; if(tid) h.trainerId=tid; else if(!h.trainerId||!employedTrainers().some(d=>d.id===h.trainerId)) h.trainerId=roleMain("train").id; });
+}
+function trainerOf(h){ return roleHolderFor("train",h) || trainerById(h&&h.trainerId) || trainerData(); }
+function omakaseCovered(h){ return roleCovered("train",h); }
 function uncoveredHorses(){
-  return (S.horses||[]).filter(h=>!h.retired && !omakaseCovered(h));
+  const un=new Map();
+  roleUncovered("train").forEach(h=>un.set(h.id,h));
+  roleUncovered("cond").forEach(h=>un.set(h.id,h));
+  return [...un.values()];
 }
 function assignTrainerAuto(h){
   if(!h) return;
-  const emps=employedTrainers();
-  let best=null, bestScore=Infinity;
-  emps.forEach(d=>{ const n=assignedHorses(d.id).length, cap=trainerCap(d); if(n<cap){ const sc=n/cap; if(sc<bestScore){ bestScore=sc; best=d; } } });
-  h.trainerId=(best||trainerData()).id;
+  h.trainerId=(roleHolderFor("train",h)||roleMain("train")).id;
 }
 /* 調教師への指示は調教師ごとに持つ。主任（S.trainerId）の分は従来の
    autoCfg フィールドに保持し（おまかせ状況・オート側の参照と互換）、
@@ -15179,13 +15460,17 @@ function setDirective(tid,key,val){
    以前は主任のチェックしか読まれず、他の調教師に入れたチェックが
    無言で無効になっていた（ユーザーの「指名して任せる」使い方に合わせる） */
 function delegationAssignee(key){
-  let best=null, bestEye=-1;
+  /* 代行担当は見極め担当の割当と統合する：チェックを入れた人の中で、
+     見極め担当の正担当→副担当→その他の順に優先し、同格では相馬眼の
+     高い人（同点は主任を優先）を選ぶ */
+  let best=null, bestKey=null;
+  const eyeMainId=(rolesState().eye||{}).main, eyeSubs=(rolesState().eye||{}).subs||[];
   (employedTrainers()||[]).forEach(d=>{
     let on=false; try{ on=!!directivesOf(d.id)[key]; }catch(e){}
     if(!on) return;
-    const e=rankVal(d.ranks&&d.ranks.eye);
-    const isPrim=d.id===(S.trainerId||"jp122");
-    if(!best||e>bestEye||(e===bestEye&&isPrim)){ best=d; bestEye=e; }
+    const rolePrio= d.id===eyeMainId? 2 : eyeSubs.includes(d.id)? 1 : 0;
+    const k=[rolePrio, rankVal(d.ranks&&d.ranks.eye), d.id===(S.trainerId||"jp122")?1:0];
+    if(!best||k[0]>bestKey[0]||(k[0]===bestKey[0]&&(k[1]>bestKey[1]||(k[1]===bestKey[1]&&k[2]>bestKey[2])))){ best=d; bestKey=k; }
   });
   return best;
 }
@@ -15197,13 +15482,10 @@ function buyMareOmakaseOn(){ return !!delegationAssignee("buyMareOmakase"); }
    主任ではなく厩舎で一番の目利きが語り、判定の質もその相馬眼で決まる。
    調教師が1人だけなら従来どおりその人が担当する */
 function eyeTopTrainer(){
-  let best=null, bestEye=-1;
-  (employedTrainers()||[]).forEach(d=>{
-    const e=rankVal(d.ranks&&d.ranks.eye);
-    const isPrim=d.id===(S.trainerId||"jp122");
-    if(!best||e>bestEye||(e===bestEye&&isPrim)){ best=d; bestEye=e; }
-  });
-  return best||trainerData();
+  /* 評価・判断系コメントの話者は「見極め担当の正担当」に統一する
+     （旧規則の相馬眼トップは、役割の初期割当＝相馬眼トップが正担当に
+     なることで引き継がれる。付け替えれば話者もその人になる） */
+  return roleMain("eye");
 }
 /* 配合提案を出す調教師：種付けの代行担当がいればその人（担当はチェックを
    入れた中で相馬眼が最も高い人）、いなければ相馬眼が最も高い調教師。
@@ -15243,12 +15525,15 @@ function hireTrainer(id){
   S.funds-=cost.hire; ledOut("trainer",cost.hire);
   if(!Array.isArray(S.trainers)||!S.trainers.length) S.trainers=[S.trainerId||"jp122"];
   S.trainers.push(d.id);
-  /* 担当のいない馬・上限超過の馬がいれば、新しい調教師へ自動で割り当てる */
-  let moved=0;
-  (S.horses||[]).forEach(h=>{ if(h.retired) return; if(!omakaseCovered(h)){ const before=h.trainerId; h.trainerId=null; assignTrainerAuto(h); if(h.trainerId===d.id&&before!==d.id) moved++; } });
-  log(`🤝 調教師に ${d.name} を迎えた（雇用費 ${fmt(cost.hire)}万円／維持費 ${fmt(cost.upkeep)}万円・週／担当上限 ${trainerCap(d)}頭）${moved?` ― 担当外だった ${moved}頭 を ${d.name} に割り当て`:""}`);
+  /* 役割のカバーが不足している枠があれば、迎えた調教師をその枠の副担当に
+     自動で加える（カバー不足の解消が雇用の主目的のため。付け替えは
+     調教師画面の役割分担カードでいつでも変更できる） */
+  const st=rolesState(); const addedRoles=[];
+  ROLES.forEach(r=>{ if(roleUncovered(r.id).length>0 && st[r.id].main!==d.id && !(st[r.id].subs||[]).includes(d.id)){ st[r.id].subs.push(d.id); addedRoles.push(r.name); } });
+  if(addedRoles.length){ _roleCovCache={}; syncRoleAssignments(); }
+  log(`🤝 調教師に ${d.name} を迎えた（雇用費 ${fmt(cost.hire)}万円／維持費 ${fmt(cost.upkeep)}万円・週）${addedRoles.length?` ― カバー不足の ${addedRoles.join("・")} の副担当に加えました`:""}`);
   saveAuto(true); $("#overlay").style.display="none"; renderAll();
-  toast(`${d.name} を調教師に迎えました（担当上限 ${trainerCap(d)}頭）`);
+  toast(`${d.name} を調教師に迎えました${addedRoles.length?`（${addedRoles.join("・")}の副担当）`:""}`);
 }
 const TRUI={region:"jp", page:0, q:"", sort:"tot", dist:"", band:""};
 function showTrainers(){
@@ -15279,7 +15564,7 @@ function showTrainers(){
   ${items.map(d=>{ const cost=trainerCost(d); const isPrimary=d.id===cur.id; const isEmp=employedTrainers().some(x=>x.id===d.id); const dis=locked||(!isEmp&&S.funds<cost.hire);
     return `<div class="ticket"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${d.age>=66?` <span class="uchip warn xs"><span class="um">▲</span><span>引退間近</span></span>`:""} <span class="small">${d.region==="jp"?`${esc(d.kana)}／${esc(d.base)}所属・${esc(d.debut)}年デビュー`:`${esc(d.kana)}拠点`}／方針：${esc(d.policy)}</span><br>
     <span class="small">能力：${rankRow(d.ranks,[["train","調教"],["eye","相馬眼"],["idea","閃き"],["cond","体調"],["weight","体重"]])}／距離：${rankRow(d.dist,[["sprint","短"],["mile","マ"],["middle","中"],["long","長"]])}${d.ageApt?` <span class="uchips" style="margin:0"><span class="uchip xs dim">年代</span>${[["2歳",d.ageApt[0]],["3歳",d.ageApt[1]],["古馬",d.ageApt[2]],["牝馬",d.ageApt[3]]].map(([n,v])=>`<span class="uchip xs">${n} <span class="uv">${v}</span></span>`).join("")}</span>`:""}</span><br>
-    <span class="small">特性：${d.traits.length? d.traits.map(t=>`<span class="trait plus">${esc(t)}</span>`).join(" ") : "なし"}</span><span class="uchips"><span class="uchip">雇用費 <span class="uv">${fmt(cost.hire)}万円</span></span><span class="uchip">維持費 <span class="uv">${fmt(cost.upkeep)}万円/週</span></span><span class="uchip">担当上限 <span class="uv">${trainerCap(d)}頭</span></span>${isEmp?`<span class="uchip">現在 <span class="uv">${assignedHorses(d.id).length}頭</span>を担当</span>`:""}</span>
+    <span class="small">特性：${d.traits.length? d.traits.map(t=>`<span class="trait plus">${esc(t)}</span>`).join(" ") : "なし"}</span><span class="uchips"><span class="uchip">雇用費 <span class="uv">${fmt(cost.hire)}万円</span></span><span class="uchip">維持費 <span class="uv">${fmt(cost.upkeep)}万円/週</span></span><span class="uchip">役割カバー <span class="uv">正 ${roleCapMain(roleDef("train"),d)}頭／副 +${roleCapSub(roleDef("train"),d)}頭（調教担当）</span></span>${isEmp?`<span class="uchip">現在 <span class="uv">${assignedHorses(d.id).length}頭</span>を担当</span>`:""}</span>
     ${!isEmp?`<div class="small">雇用後の資金見通し：12週 約${fmt((S.funds-cost.hire)-(fundsForecast(12).perWeek+cost.upkeep)*12)}万円／1年 約${fmt((S.funds-cost.hire)-(fundsForecast(48).perWeek+cost.upkeep)*48)}万円（収入なし試算・維持費は人数分かかります）</div>`:""}
     <div class="mt">${isEmp?`<button class="btn sm" disabled>${isPrimary?"雇用中（主任）":"雇用中"}</button>`:`<button class="btn gold sm" data-hire="${d.id}" ${dis?"disabled":""}>この調教師と預託契約する（契約金 ${fmt(cost.hire)}万円）</button>${locked?` <span class="small">海外牧場が必要</span>`:(S.funds<cost.hire?` <span class="small">資金不足</span>`:"")}`}</div></div>`; }).join("")}
   <div class="small mt">${list.length===allRegion.length? `全${list.length}名を表示しています` : `条件に合う ${list.length}名を表示しています（この地域の全員は ${allRegion.length}名）`}</div>
