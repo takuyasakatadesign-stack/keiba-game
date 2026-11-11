@@ -4170,7 +4170,7 @@ function ratingOf(h){
    「基準未満」と分かり、引退した牝馬は基準未満なら繁殖入りせず
    売却に回る。基準はセーブに保存。評価は都度計算なので、既存セーブの
    馬にも読み込み直後から新しい基準がそのまま適用される */
-const AIM_LEVELS=["厳しい","条件戦でやれる","重賞を狙える","G1を狙える"];
+const AIM_LEVELS=["厳しい","条件戦でやれる","重賞を狙える","G1を狙える","スーパーホース"];
 function aimCoreAvg(src){ return (((src&&src.spd)||0)+((src&&src.sta)||0)+((src&&src.pow)||0)+((src&&src.bst)||0)+((src&&src.gut)||0))/5; }
 function aimScoreParts(h){
   ensureFullHorse(h);
@@ -4226,6 +4226,22 @@ function aimLevel(h){
     else if(score>=81) lv=Math.max(lv,2);
     else if(score>=67) lv=Math.max(lv,1);
   }
+  /* 最上位「スーパーホース」：G1を狙える層のさらに上位を分けた段。
+     潜在能力と実績の両面で厳しく判定する（以前「全部G1を狙える
+     表示になる、甘くない？」と指摘された経緯があるため、素質だけ・
+     G1 1勝だけでは付けない。較正は分布で確認：狙えるレベル全体の
+     うち最上位はごく少数に限る）：
+     ・実績：レーティング108以上（G1複数勝ちと高い勝率が両方要る
+       水準）、またはG1を3勝以上
+     ・素質：潜在ピーク98.5以上（ランダム配合の上位約2%）。ただし
+       実績のない馬に付けるのは未出走〜浅いキャリアの例外的な
+       素材だけに限り、走って勝てなければ下の実績キャップで
+       通常の段へ落ちる */
+  if(lv>=3){
+    const eliteRecord= (r!=null && r>=108) || g1w>=3;
+    const eliteTalent= !!h.pot && score>=98.5 && races<3;
+    if(eliteRecord||eliteTalent) lv=4;
+  }
   /* 実績キャップ：戦って勝ち切れていない馬は格上げしない。
      レーティング連動にすると、相手馬の生成戦績（薄い記録）まで
      一律に切り下げてしまうため、勝ち星と出走数で判定する */
@@ -4238,8 +4254,10 @@ function aimLevel(h){
 function aimLabel(h){ return AIM_LEVELS[aimLevel(h)]||AIM_LEVELS[0]; }
 function standards(){
   if(!S.standards||typeof S.standards!=="object") S.standards={retire:1, mare:1};
-  S.standards.retire=clamp(Math.round(+S.standards.retire||0),0,3);
-  S.standards.mare=clamp(Math.round(+S.standards.mare||0),0,3);
+  S.standards.retire=clamp(Math.round(+S.standards.retire||0),0,4);
+  S.standards.mare=clamp(Math.round(+S.standards.mare||0),0,4);
+  /* 旧セーブの基準値（0〜3）は段の意味がそのまま対応する（最上位の
+     「スーパーホース」は新しい段として上に足しただけ）ので移行は不要 */
   return S.standards;
 }
 function growthFactor(age,gt){
@@ -4312,7 +4330,7 @@ function classOf(h){
 function classLabel(h){
   if(h.races===0) return "新馬";
   if(h.wins===0) return "未勝利";
-  if(h.wins>=5) return "オープン";
+  if(h.wins>=4) return "オープン"; /* クラス判定（eligibleAt の hc／世界のクラス帯）と一致：4勝以上はオープン。以前は5勝からで、4勝馬が「4勝クラス」と表示されながらオープン戦しか走れない不整合があった */
   return h.wins+"勝クラス";
 }
 function aptMul(g){return {S:1.07,A:1.03,B:0.98,C:0.92}[g]||1;}
@@ -5548,6 +5566,12 @@ function renderStable(){
      初期は閉じて見出し＋件数だけ。オート中の再描画・週送り・タブ切替でも
      勝手に開かない） */
   if(S.weekReport&&S.weekReport.length){ horsesInner+=accHTML("homeWeekTrain", `🗓 今週の調教（定常指示による自動実行・${S.weekReport.length}件）`, `<div class="wklist">${S.weekReport.slice(0,4).map(x=>`<div class="wkrow">${esc(x)}</div>`).join("")}</div>`); }
+  /* 誕生の知らせ：今年生まれた幼駒のうち未確認のものは、調教師の誕生
+     コメントつきでホームに残す。誕生コメントは従来ログと週報（調教
+     アコーディオン内）にしか出ず、命名権モーダルやオートの消化で
+     流れて見えなかったため、確認するまで消えないカードにした。
+     オートで命名権を見送った場合も、このカードで後から読める */
+  (S.youngStock||[]).filter(y=>y.birthComment&&!y.birthSeen&&y.birthComment.year>=year()).forEach(y=>{ horsesInner+=`<div class="panel" style="border:2px solid var(--gold)"><b>🎉 幼駒が誕生しました</b><div class="small" style="margin:3px 0">${esc(y.name)}（父 ${esc(y.sire||"―")} × 母 ${esc(y.dam||"―")}）が牧場で育成中です。</div>${birthCommentCardHTML(y)}<div class="flex" style="margin-top:6px"><button class="btn ghost sm" data-birth-ok="${y.id}">確認した</button></div></div>`; });
   /* 馬主からの譲渡オファー（所有権の譲渡。命名権オファーとは別物と明示する） */
   (S.transferOffers||[]).filter(o=>o.expiresWeek>=S.week).forEach(o=>{ horsesInner+=`<div class="panel" style="border:2px solid var(--gold)"><b>🤝 馬主からの譲渡オファー（所有権の譲渡）</b><div class="small" style="margin:3px 0">${esc(o.buyer)} が幼駒「${esc(o.horseName)}」を <b>${fmt(o.price)}万円</b> で譲ってほしいと申し出ています（市場評価 ${fmt(o.market)}万円／買い手の方針：${esc(stablePolicyName(o.buyer))}／期限：あと ${Math.max(0,o.expiresWeek-S.week)} 週）。受けると馬は ${esc(o.buyer)} の所属馬として世界で走ります。命名権の売却とは別の、馬そのものの譲渡です。</div><div class="flex"><button class="btn gold sm" data-to-accept="${o.id}">譲渡する（${fmt(o.price)}万円）</button><button class="btn ghost sm" data-to-decline="${o.id}">見送る</button></div></div>`; });
   /* 馬主イベント（貸付／売却打診／繁殖牝馬の貸し借り）の提案カード */
@@ -5559,7 +5583,7 @@ function renderStable(){
   const ownCtl=`<div class="panel" style="padding:8px 10px"><div class="flex" style="gap:6px;flex-wrap:wrap;align-items:center">
     <input type="search" id="own-q" placeholder="馬名で検索" value="${esc(ownFilter.q||"")}" style="flex:1;min-width:130px">
     <label class="small">並び替え <select id="own-sort">${[["earn","獲得賞金"],["rating","レーティング"],["age","年齢"],["wins","勝ち星"],["name","名前"]].map(([v,n])=>`<option value="${v}" ${ownFilter.sort===v?"selected":""}>${n}</option>`).join("")}</select></label>
-    <label class="small">クラス <select id="own-cls"><option value="all" ${ownFilter.cls==="all"?"selected":""}>すべて</option>${["新馬","未勝利","1勝クラス","2勝クラス","3勝クラス","4勝クラス","オープン"].map(c=>`<option value="${c}" ${ownFilter.cls===c?"selected":""}>${c}</option>`).join("")}</select></label>
+    <label class="small">クラス <select id="own-cls"><option value="all" ${ownFilter.cls==="all"?"selected":""}>すべて</option>${["新馬","未勝利","1勝クラス","2勝クラス","3勝クラス","オープン"].map(c=>`<option value="${c}" ${ownFilter.cls===c?"selected":""}>${c}</option>`).join("")}</select></label>
     <label class="small">状態 <select id="own-st"><option value="all" ${ownFilter.st==="all"?"selected":""}>すべて</option><option value="entry" ${ownFilter.st==="entry"?"selected":""}>エントリー中</option><option value="inj" ${ownFilter.st==="inj"?"selected":""}>故障中</option><option value="fit" ${ownFilter.st==="fit"?"selected":""}>好調（調子75+）</option></select></label>
     <span class="small">${ownListCache.length}頭を表示</span></div></div>`;
   horsesInner+= S.horses.length? ownCtl+(()=>{ const list=ownListCache; const active=ownFilter.q||ownFilter.cls!=="all"||ownFilter.st!=="all"||ownFilter.sort!=="earn";
@@ -5587,6 +5611,7 @@ function renderStable(){
   el.innerHTML=html;
   wireGuide(el);
   wireEntryButtons(el);
+  el.querySelectorAll("[data-birth-ok]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>String(x.id)===String(b.dataset.birthOk)); if(y){ y.birthSeen=true; saveAuto(true); } renderAll(); }));
   el.querySelectorAll("[data-to-accept]").forEach(b=>b.addEventListener("click",()=>acceptTransferOffer(b.dataset.toAccept)));
   el.querySelectorAll("[data-to-decline]").forEach(b=>b.addEventListener("click",()=>declineTransferOffer(b.dataset.toDecline)));
   el.querySelectorAll("[data-oe-accept]").forEach(b=>b.addEventListener("click",()=>acceptOwnerEvent(b.dataset.oeAccept)));
@@ -6486,6 +6511,17 @@ function pruneWorldData(){
   (S.horses||[]).forEach(h=>{ if(Array.isArray(h.metRivals)&&h.metRivals.length>24)h.metRivals.splice(0,h.metRivals.length-24); if(Array.isArray(h.hist)&&h.hist.length>12)h.hist.splice(0,h.hist.length-12); });
   const world=S.worldHorses||[];
   if(world.length>280){ const cands=world.map((w,i)=>({w,i})).filter(x=>(x.w.age||0)>=6&&!x.w.legend).sort((a,b)=>wRating(a.w)-wRating(b.w)); const idxs=cands.slice(0,world.length-280).map(x=>x.i).sort((a,b)=>b-a); idxs.forEach(i=>world.splice(i,1)); }
+  /* 年間台帳の馬エントリ間引き：台帳は全出走馬を名前で記録するため、
+     使い捨ての生成馬まで残すと1年で数MBに膨らみ、セーブ自体を
+     壊しかねない（実測：台帳だけで約5.6MB）。表彰の候補・表示に
+     必要なのは自厩舎馬、世界の恒常個体、重賞勝ち馬だけなので、
+     それ以外の生成馬の条件戦記録は保存時に落とす。人物・馬主・
+     生産者の集計は別マップに集計済みで、ここでは消えない */
+  if(S.awardLedger&&S.awardLedger.horses){
+    const keep=new Set(world.filter(w=>!w.legend).map(w=>w.name));
+    const H=S.awardLedger.horses;
+    Object.keys(H).forEach(nm=>{ const e=H[nm]; if(!e.own&&!keep.has(nm)&&(e.gWins||0)===0&&(e.g1Wins||0)===0) delete H[nm]; });
+  }
   (S.rivalStables||[]).forEach(st=>{ st.funds=clamp(Math.round(st.funds||0),0,60000); });
  }catch(e){}
 }
@@ -6538,7 +6574,7 @@ function worldYearStep(prevY){
     w.yr={year:prevY+1, races:0, wins:0, gWins:0, g1Wins:0, earn:0};
     const drift= w.age<=3? ri(1,3) : w.age===4? ri(0,2) : w.age===5? ri(-1,1) : w.age===6? ri(-2,0) : w.age===7? ri(-3,-1) : ri(-4,-2);
     if(drift!==0){ ["spd","sta","bst","pow","flx","gut"].forEach(k=>{ if(w[k]!=null) w[k]=clamp(w[k]+drift,25,99); }); }
-    w.rating=wRating(w);
+    w.rating=worldRatingCalc(w); /* 衰退・成長をレーティングにも反映する（保存済みの最大値を引き継がない） */
   }); /* 歴代名馬は現役ではないので年齢を進めない（殿堂・ランキング用の記録として残す） */
   /* 実在の現役馬も年を取って引退し、世界で生まれた馬へ世代が移る（時代分離） */
   let retiredN=0;
@@ -6591,7 +6627,7 @@ function worldYearStep(prevY){
   /* 世界の頭数の安全弁：何十年遊んでもセーブが肥大化しないよう、
      世界生産馬が増えすぎたら評価の低い古馬から世代交代させる */
   if(world.length>280){
-    const cands=world.map((w,i)=>({w,i})).filter(x=>x.w.worldBred&&(x.w.age||0)>=6).sort((a,b)=>wRating(a.w)-wRating(b.w));
+    const cands=world.map((w,i)=>({w,i})).filter(x=>(x.w.worldBred||x.w.adopted)&&(x.w.age||0)>=6).sort((a,b)=>wRating(a.w)-wRating(b.w));
     const idxs=cands.slice(0, world.length-280).map(x=>x.i).sort((a,b)=>b-a);
     idxs.forEach(i=>world.splice(i,1));
   }
@@ -6716,19 +6752,25 @@ function stableTrainerName(stable){
    現役実在馬は実データの主戦を優先する） */
 function worldMainJockey(w){ if(!w) return null; if(w.mainJockey==null){ let hs=0; const s=w.name||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; w.mainJockey=hs%JOCKEYS.length; } return w.mainJockey; }
 function worldStableFallback(w){ let hs=0; const s=(w&&w.name)||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; return ["北嶺牧場","青浜ファーム","高原ステーブル","帝都レーシング"][hs%4]; }
+/* 世界の個体のレーティングは単一の物差し（能力3項目の平均＋勝利数）で
+   都度計算する。以前はレース当日の ratingOf（プレイヤー側の物差し）の
+   最大値を保存していたため、尺度の違う数値が混ざり、衰えた古馬でも
+   レーティングだけが高いまま残る不整合があった */
+function worldRatingCalc(w){ return Math.round(((w.spd||60)+(w.sta||60)+(w.bst||60))/3 + (w.wins||0)*2); }
 function writebackWorldHorse(h, own, place, prz, r){
   if(own||!h) return;
   const wname=h.worldRef||h.name; if(!wname) return;
   const w=(S.worldHorses||[]).find(x=>x.name===wname&&!x.legend);
   if(!w) return;
-  w.races=(w.races||0)+1; w.earn=(w.earn||0)+prz; w.lastRaceWeek=S.week;
+  w.races=(w.races||0)+1; w.earn=(w.earn||0)+prz; w.earnings=w.earn; w.lastRaceWeek=S.week;
   if(!w.yr||w.yr.year!==year()) w.yr={year:year(),races:0,wins:0,gWins:0,g1Wins:0,earn:0};
   w.yr.races++; w.yr.earn+=prz;
   if(r.cls>=6) w.yr.gRaces=(w.yr.gRaces||0)+1; /* 方針別監査用：年間の重賞出走数 */
+  if(r.cls>=8&&place<=3) w.g1t=(w.g1t||0)+1; /* 海外遠征の資格判定（overseasOK）と G1好走の記録。プレイヤー側の finishRace と同じ数え方 */
   if(place===1){ w.wins=(w.wins||0)+1; w.yr.wins++;
     if(r.cls>=6){ w.gWins=(w.gWins||0)+1; w.yr.gWins++; }
-    if(r.cls>=8){ w.g1Wins=(w.g1Wins||0)+1; w.yr.g1Wins++; } }
-  try{ const rt=ratingOf(h); if(rt>(w.rating||0)) w.rating=rt; }catch(e){}
+    if(r.cls>=8){ w.g1Wins=(w.g1Wins||0)+1; w.yr.g1Wins++; w.g1w=w.g1Wins; } }
+  w.rating=worldRatingCalc(w);
 }
 /* ============ 世界の制度（2026-11-11 制度化） ============
    世界（プレイヤー以外の全て）は次の単一ルールで回る：
@@ -6741,7 +6783,27 @@ function writebackWorldHorse(h, own, place, prz, r){
      適性部門（芝ダート・距離）に基づき worldSelectScore で出走先が選ばれる。
      上位馬は部門内の複数G1に参戦し、G1勝ち馬が分散しすぎない。
    ・結果は台帳（recordAwardLedger）が唯一の正本で、各馬の戦績・収得賞金・
-     レーティングへ一方向に書き戻す */
+     レーティングへ一方向に書き戻す
+   ・ローテーション（worldCanRun が一元判定）：重賞は中5週・オープンは
+     中4週・条件戦は中3週の間隔と、年間出走数の上限（2歳6／3歳8／
+     4歳以上9、コンディション優先は間隔+2週・上限−2）。条件戦の選定は
+     その年の出走数が少ない順に回し、出走数が一部の馬へ偏らないようにする
+   ・世界の週次消化では、国内重賞の生成枠は「その他大勢」として勝ち切れ
+     ない位置に置く。使い捨ての生成馬が重賞を勝つと台帳に「1戦1勝の
+     重賞勝ち馬」が残るため（生成馬の見かけの戦績は台帳の正本ではない）
+   ・表彰には実績ゲートを置く：その年の台帳記録が3戦未満の馬は部門賞の
+     候補にしない（候補が皆3戦未満の部門だけ従来どおり選ぶ）
+   ・クラス帯（条件戦の勝ち上がり）はプレイヤーのクラス判定と一致させる
+     （3勝＝3勝クラス、4勝以上＝オープン。格下げ出走も不可）。海外レース
+     の実績条件もプレイヤーと同じ overseasOK を通す（判定に必要な
+     G1好走数 g1t・G1勝ち数 g1w は書き戻しで個体に維持する）
+   ・重賞の選定には適性フロア（worldFitOK）を置く：馬場適性Cや適性距離
+     から大きく外れたレースに上位馬を使い回さない（適性馬が皆無の
+     レースでは通常候補へフォールバックする）
+   ・国内重賞を生成馬が勝った場合は、その個体を世界の恒常個体として
+     取り込む（recordAwardLedger 内）。使い捨ての勝者を残さない
+   ・世界のレーティングは worldRatingCalc の単一計算で都度出し直す
+     （レース当日の ratingOf の最大値を保存する方式は廃止） */
 function entryRecordOK(rec, r){
   const wins=rec.wins||0, gWins=rec.gWins||0;
   if(r.cls>=8){
@@ -6755,16 +6817,54 @@ function entryRecordOK(rec, r){
   }
   return "";
 }
-/* 世界の出走割り当て用：資格（entryRecordOK）＋クラス帯（勝ち上がり制） */
+/* 世界の出走割り当て用：資格（entryRecordOK）＋クラス帯（勝ち上がり制）。
+   クラス帯はプレイヤー側のクラス判定（eligibleAt の hc）と完全に一致させる：
+   0勝＝未勝利／1勝＝1勝クラス／2勝＝2勝クラス／3勝＝3勝クラス／4勝以上＝
+   オープン。帯より下のクラスへの出走（格下げ）も、帯より上への出走も不可。
+   海外レースはプレイヤーと同じ overseasOK（重賞実績の段階制）を通す */
 function worldEntryOK(w, r){
   if(entryRecordOK(w, r)) return false;
+  if(r.overseas && !overseasOK(w, r)) return false;
   const wins=w.wins||0, races=w.races||0;
   if(r.cls>=6) return true;
-  if(r.cls===5||r.cls===4) return wins>=3;
+  if(r.cls===5) return wins>=4;
+  if(r.cls===4) return wins===3;
   if(r.cls===3) return wins===2;
   if(r.cls===2) return wins===1;
   if(r.cls===1) return wins===0;
   if(r.cls===0) return races===0;
+  return true;
+}
+/* 世界の個体のローテーション（出走間隔と年間出走数の上限）。
+   間隔：重賞は中5週、オープン・3勝クラスは中4週、それ以下は中3週空ける。
+   コンディション優先の馬主はさらに2週空ける。
+   年間上限：2歳6戦／3歳8戦／4歳以上9戦（コンディション優先は2戦少ない）。
+   上限と間隔が無いと、上位馬が短い間隔で回り続けて年14戦になったり、
+   逆に選定から漏れた馬が年1戦だけで重賞を勝つ形になる。判定は
+   simulateWorldWeek と makeRivals（プレイヤーのレースの相手選定）で共有する */
+function worldYrStarts(w){ return (w.yr&&w.yr.year===year())? (w.yr.races||0) : 0; }
+function worldRestOK(w, r){
+  if(w.lastRaceWeek==null) return true;
+  let gap= r.cls>=6? 5 : r.cls>=4? 4 : 3;
+  if(stablePolicyOf(w.stable||"")==="cond") gap+=2;
+  return S.week-w.lastRaceWeek>=gap;
+}
+function worldCanRun(w, r){
+  if(!worldRestOK(w, r)) return false;
+  let cap= (w.age||4)<=2? 6 : (w.age||4)===3? 8 : 9;
+  if(stablePolicyOf(w.stable||"")==="cond") cap-=2;
+  return worldYrStarts(w)<cap;
+}
+/* 重賞の適性フロア：馬場適性が最低（C）のレースや、適性距離から大きく
+   外れたレースには世界の個体を回さない。不適性のレースにまで上位馬を
+   使い回すと、休養の偏りで「適性のある重賞に恒常個体が1頭もいない」
+   週が生まれ、生成馬だけの決着になる。適性馬が皆無のレースでは
+   呼び出し側がフロア無しの候補へフォールバックする */
+function worldFitOK(w, r){
+  if(r.cls<6) return true;
+  const sg= r.surf==="芝"? w.turf : w.dirt;
+  if(sg==="C") return false;
+  if(w.dmin!=null&&w.dmax!=null&&(r.dist<w.dmin-500||r.dist>w.dmax+500)) return false;
   return true;
 }
 /* ライバル馬主の方針（プレイヤーのエントリー方針と同じ4種）。馬主ごとに
@@ -6803,6 +6903,7 @@ function worldSelectScore(w, r){
 function simulateWorldWeek(){
   const races=S.races||[]; if(!races.length) return;
   const played=S._playedRaceIds||{};
+  const worldNames=new Set((S.worldHorses||[]).filter(w=>!w.legend).map(w=>w.name));
   const t0=(typeof performance!=="undefined"? performance.now() : Date.now());
   let n=0;
   races.forEach(r=>{
@@ -6815,17 +6916,22 @@ function simulateWorldWeek(){
          海外は現地馬が厚いので日本の個体は最大3頭）。生成馬は残りの枠を埋める。
          出走間隔は通常3週、コンディション優先の馬主は6週を空ける */
       try{
-        const cap= r.overseas? 3 : r.cls>=8? 10 : r.cls>=6? 6 : 4;
+        const cap= r.overseas? 3 : r.cls>=8? 8 : r.cls>=6? 6 : 4;
         const have=new Set(field.map(x=>x.name));
         const ownedN=ownedNameSet(), legN=legendNameSet();
-        const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)
+        const poolBase=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)
           &&(!r.age||w.age===r.age)&&(!r.ageMin||(w.age||0)>=r.ageMin)
-          &&(w.lastRaceWeek==null||S.week-w.lastRaceWeek>=(stablePolicyOf(w.stable||"")==="cond"?6:3))
+          &&worldCanRun(w, r)
           &&(!r.sex||r.sex==="牡騸"? w.sex!=="牝" : w.sex==="牝")
-          &&worldEntryOK(w, r))
-          /* 新馬・未勝利はレーティング順だと未出走の生産馬がいつまでも
-             選ばれず滞留するので、出走数の少ない順にローテーションする */
-          .sort((a,b)=> r.cls<=1? ((a.races||0)-(b.races||0))||(worldSelectScore(b,r)-worldSelectScore(a,r)) : worldSelectScore(b,r)-worldSelectScore(a,r)).slice(0,cap);
+          &&worldEntryOK(w, r));
+        /* 重賞は適性フロアを通った個体を優先し、皆無なら通常候補へ戻す */
+        const fitPool=poolBase.filter(w=>worldFitOK(w, r));
+        const pool=(r.cls>=6&&fitPool.length)? fitPool : poolBase
+          /* 条件戦はレーティング順だと同じ馬ばかりが選ばれ、年間の出走数が
+             一部の馬に偏る（年14戦超）一方で、選ばれない馬は滞留する。
+             条件戦はその年の出走数が少ない順にローテーションし、
+             重賞だけは実力順で上位馬が集まる形にする */
+          .sort((a,b)=> r.cls<=5? (worldYrStarts(a)-worldYrStarts(b))||((a.races||0)-(b.races||0))||(worldSelectScore(b,r)-worldSelectScore(a,r)) : worldSelectScore(b,r)-worldSelectScore(a,r)).slice(0,cap);
         let wc=field.filter(x=>x.worldRef).length;
         for(const w of pool){
           if(wc>=cap) break;
@@ -6839,6 +6945,16 @@ function simulateWorldWeek(){
         }
       }catch(e){}
       field.forEach(h=>{ let ab=0; try{ ab=ability(h, r, jockOf(h)); }catch(e){ ab=50; } h._wperf=ab+gauss()*4.5; });
+      /* 国内重賞の生成枠は「その他大勢」として扱う：世界の恒常個体が
+         参戦しているレースでは、使い捨ての生成馬が勝ち切らない位置
+         （恒常個体の最上位から少し下）に置く。生成馬が勝ち切ると、
+         台帳に「その年1戦1勝の重賞勝ち馬」が残り、表彰まで汚染する。
+         恒常個体が1頭もいないレースでは生成馬同士の決着になる */
+      if(r.cls>=6&&!r.overseas){
+        let bestW=-Infinity;
+        field.forEach(h=>{ if(h.worldRef||h.real||worldNames.has(h.name)) bestW=Math.max(bestW, h._wperf); });
+        if(bestW>-Infinity) field.forEach(h=>{ if(!h.worldRef&&!h.real&&!worldNames.has(h.name)) h._wperf=Math.min(h._wperf, bestW-ri(1,5)); });
+      }
       field.sort((a,b)=>b._wperf-a._wperf);
       recordAwardLedger(r, field, []);
       if(r.cls>=8&&field[0]){ try{ pushNews(`🏆 ${r.name}は${field[0].name}が制す`, `${r.course}・${r.dist}mの${r.name}は、${field[0].stable||"世界の有力馬"}の${field[0].name}が制した。`); }catch(e){} }
@@ -6909,6 +7025,32 @@ function recordAwardLedger(r, sorted, owns){
         if(prz>b.bestEarn){ b.bestEarn=prz; b.best=h.name; }
         if(!r.overseas) awDomPeople(b, place, prz, r, h, true); }
     });
+    /* 国内重賞の勝者が、世界の恒常個体でも実在馬でもない生成馬だった場合、
+       その個体を世界の恒常個体として取り込む。追跡対象の牧場以外の馬主の
+       馬が重賞を勝つこと自体は現実にもあるが、使い捨てのままにすると
+       台帳に「その年1戦1勝の重賞勝ち馬」が残り続ける。取り込んだ個体は
+       以後ローテーションと資格判定に従って走り、戦績が積み上がる。
+       キャリアは出馬表に表示されていた公開戦績（このレース前）を引き継ぎ、
+       今回の1勝を加える */
+    try{
+      const win=sorted[0];
+      if(win&&!owns.includes(win)&&!win.worldRef&&!win.real&&!win.foreign&&r.cls>=6&&!r.overseas
+        &&!(S.worldHorses||[]).some(x=>x.name===win.name&&!x.legend)){
+        const prz1=Math.round(p1*(PRIZE_R[0]||0));
+        const w=JSON.parse(JSON.stringify(win));
+        delete w._wperf; delete w._wDev; w.rival=false; w.adopted=true;
+        w.stable=win.stable||worldStableFallback(w);
+        w.races=(win.races||0)+1; w.wins=(win.wins||0)+1;
+        w.gWins=(win.gWins||0)+1; if(r.cls>=8){ w.g1Wins=(win.g1Wins||0)+1; w.g1w=w.g1Wins; }
+        if(r.cls>=8) w.g1t=(win.g1t||0)+1;
+        w.earn=(win.earnings||0)+prz1; w.earnings=w.earn;
+        w.yr={year:year(), races:1, wins:1, gWins:1, g1Wins:(r.cls>=8?1:0), earn:prz1, gRaces:1};
+        w.lastRaceWeek=S.week;
+        if(win.jockey!=null) w.mainJockey=win.jockey;
+        w.rating=worldRatingCalc(w);
+        (S.worldHorses||(S.worldHorses=[])).push(w);
+      }
+    }catch(_){}
   }catch(e){}
 }
 function computeYearAwards(L, yr){
@@ -6924,6 +7066,20 @@ function computeYearAwards(L, yr){
     return Object.assign({}, e, b); };
   const domHorses=horses.map(domView);
   const ovHorses=horses.map(ovView).filter(Boolean);
+  /* 表彰の実績ゲート：その年の台帳記録が3戦未満の馬は部門賞の候補に
+     しない（1戦1勝での受賞は現実にほぼ無い。世界の生成枠のような
+     記録の薄い勝者が紛れ込んでも、式の段階でここで止める）。
+     自厩舎馬は全出走が実際に走った記録なので対象外。3戦以上の候補が
+     部門に1頭もいない場合のみ、従来どおり全候補から選ぶ */
+  const totRaces={}; horses.forEach(e=>{ totRaces[e.name]=e.races||0; });
+  const seasoned=list=>{ const s=list.filter(e=>e.own||(totRaces[e.name]||0)>=3); return s.length? s : list; };
+  /* 実在ゲート：台帳は名前で集計するため、生成馬の名前が衝突すると
+     実在しない「多勝の幻影」が部門をさらう（実測：最優秀マイラーが
+     生成名の衝突で9戦7勝の幻影になった）。候補は、世界の恒常個体
+     （worldHorses）か自厩舎馬として実在する馬を優先し、実在候補が
+     部門に1頭もいない場合のみ従来どおり全候補から選ぶ */
+  const existNames=new Set((S.worldHorses||[]).filter(w=>!w.legend).map(w=>w.name));
+  const existent=list=>{ const s=list.filter(e=>e.own||existNames.has(e.name)); return s.length? s : list; };
   /* 選考は辞書式（2026-11-10組み替え）：G1勝ち数 → G1入着（2・3着）→
      G2勝ち数 → G3勝ち数 → 重賞勝ち総数 → 獲得賞金 → 勝利数。
      ポイント合算は廃止し、賞金や重賞の数だけでG1勝ち馬を上回れない。
@@ -6937,8 +7093,8 @@ function computeYearAwards(L, yr){
     const withG1=list.filter(e=>g1v(e)>0);
     return withG1.length? withG1 : list;
   };
-  const pickCat=(list)=>{ const c=list.filter(e=>e.wins>=1); if(!c.length) return null; return gatedPool(c,null).sort(cmpBand(null))[0]; };
-  const catPick=(key)=>{ const c=domHorses.filter(e=>e[key]&&e[key].w>=1); if(!c.length) return null; return gatedPool(c,key).sort(cmpBand(key))[0]; };
+  const pickCat=(list)=>{ const c=seasoned(existent(list.filter(e=>e.wins>=1))); if(!c.length) return null; return gatedPool(c,null).sort(cmpBand(null))[0]; };
+  const catPick=(key)=>{ const c=seasoned(existent(domHorses.filter(e=>e[key]&&e[key].w>=1))); if(!c.length) return null; return gatedPool(c,key).sort(cmpBand(key))[0]; };
   const cats=[];
   const addCat=(cat, e)=>{ if(e) cats.push(Object.assign({cat}, JSON.parse(JSON.stringify(e)))); };
   addCat("最優秀2歳牡馬", pickCat(domHorses.filter(e=>e.age===2&&e.sex!=="牝")));
@@ -6954,7 +7110,7 @@ function computeYearAwards(L, yr){
      合わせて換算する（G1勝利に圧倒的な重みを置いた票数ポイントで
      全候補の合計に対する割合を300票に換算し、順位と逆転しないよう調整） */
   const votePts=e=> (e.g1Wins||0)*1000 + (e.g1Place||0)*120 + (e.g2Wins||0)*90 + (e.g3Wins||0)*60 + (e.gWins||0)*30 + (e.wins||0)*8 + Math.round((e.earn||0)/3000);
-  const hotyPool=gatedPool(domHorses.filter(e=>e.wins>=1), null).sort(cmpBand(null));
+  const hotyPool=gatedPool(seasoned(existent(domHorses.filter(e=>e.wins>=1))), null).sort(cmpBand(null));
   let hoty=null; const top3=hotyPool.slice(0,3);
   if(top3.length){
     const tot=hotyPool.reduce((s,x)=>s+votePts(x),0)||1;
@@ -6964,7 +7120,7 @@ function computeYearAwards(L, yr){
   }
   /* 世界部門：海外ブロック（ov）だけから選考する。海外は全てG1なので
      部門は距離帯とダートで分け、頂点に世界年度代表馬を置く */
-  const wCatPick=(key)=>{ const c=ovHorses.filter(e=>e[key]&&e[key].w>=1); if(!c.length) return null; return gatedPool(c,key).sort(cmpBand(key))[0]; };
+  const wCatPick=(key)=>{ const c=seasoned(existent(ovHorses.filter(e=>e[key]&&e[key].w>=1))); if(!c.length) return null; return gatedPool(c,key).sort(cmpBand(key))[0]; };
   const wCats=[];
   const wAdd=(cat,e)=>{ if(e) wCats.push(Object.assign({cat}, JSON.parse(JSON.stringify(e)))); };
   wAdd("最優秀海外短距離馬", wCatPick("spr"));
@@ -6972,7 +7128,7 @@ function computeYearAwards(L, yr){
   wAdd("最優秀海外中距離馬", wCatPick("mid"));
   wAdd("最優秀海外ダートホース", wCatPick("dirt"));
   let wHoty=null;
-  const wPool=gatedPool(ovHorses.filter(e=>e.wins>=1), null).sort(cmpBand(null));
+  const wPool=gatedPool(seasoned(existent(ovHorses.filter(e=>e.wins>=1))), null).sort(cmpBand(null));
   if(wPool.length){
     const totW=wPool.reduce((s,x)=>s+votePts(x),0)||1;
     const top3w=wPool.slice(0,3);
@@ -7497,6 +7653,7 @@ function nrMaybeShow(){
   const def=nrBuyerDef(o);
   showOverlay(`<h2>💼 命名権のオファー</h2>
   <p>生まれた幼駒 <b>${esc(foal.name)}</b>（父 ${esc(foal.sire||"―")}／評価：${esc(bc.label||"―")}）の命名権を、<b>${esc(o.buyer)}</b> が買い取りたいと申し出ています。</p>
+  ${birthCommentCardHTML(foal)}
   ${def?`<p class="small">${esc(def.intro||"")}／命名の傾向：${esc(NR_PAT_TEXT[def.pat||0]||"")}（冠名「${esc(def.crown)}」）</p>`:""}
   <p>提示額：<b>${fmt(o.price)}万円</b><br><span class="small">受けると、この馬の名前は買い手が付けます（冠名「${esc(o.crown)}」を含む名前）。断ると、これまでどおり年末処理で自分で命名できます。</span></p>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn gold" id="nr-accept">命名権を売る（${fmt(o.price)}万円）</button><button class="btn ghost" id="nr-decline">断る</button></div>`);
@@ -8443,7 +8600,8 @@ function eligibleAt(h,r,age,weeksAhead){
   }
   if(r.overseas){ if(!overseasOK(h,r)) return "実績が足りない（"+overseasReqShort(r)+"）"; }
   else if(r.minWins!=null){ if(h.wins<r.minWins) return "実績が足りない（"+r.minWins+"勝以上が必要）"; }
-  else if(r.cls>=6 && hc<4 && h.wins<3) return "実績が足りない（3勝以上）";
+  /* 重賞の実績条件は entryRecordOK のみに一元化する（以前ここにあった
+     「3勝以上」の独自条件は世界の割り当てと食い違っていた） */
   /* 重賞・G1の実績条件は世界の出走割り当てと同じ entryRecordOK で判定する
      （未勝利馬の重賞出走や、実績不足のG1出走をプレイヤー側でも防ぐ） */
   if(r.cls>=6){ const er=entryRecordOK(h, r); if(er) return er; }
@@ -8484,12 +8642,14 @@ function frName(field){
 function makeRivals(r){
   let n=clamp((r.maxField||16)-1,7,17); const out=[]; // 自厩舎馬1頭を加えてフルゲートになる頭数
   /* 実在馬の注入（主要G1） */
-  if(r.cls===8 && REAL_FIELDS[r.name] && year()<=3){ REAL_FIELDS[r.name].forEach(nm=>{ if(ownedNameSet().has(nm)) return; const rh=makeRealRival(nm); if(rh && out.length<n){ const ms=managedState(8); rh.cond=ms.cond; rh.fat=ms.fat; out.push(rh); } }); }
+  if(r.cls===8 && REAL_FIELDS[r.name] && year()<=3){ REAL_FIELDS[r.name].forEach(nm=>{ if(ownedNameSet().has(nm)) return; const wp=(S.worldHorses||[]).find(x=>x.name===nm&&!x.legend); if(wp&&!worldCanRun(wp, r)) return; /* 実在馬の直接投入も世界のローテーション（間隔・年間上限）に従う。無条件投入だと同じ週の二重出走や年16戦の過密出走が起きる */
+    const rh=makeRealRival(nm); if(rh && out.length<n){ const ms=managedState(8); rh.cond=ms.cond; rh.fat=ms.fat; out.push(rh); } }); }
   if(r.overseas && year()<=3){ const OF={"ドバイワールドカップ":["フォーエバーヤング"],"ドバイシーマクラシック":["ダノンデサイル"],"ブリーダーズカップクラシック":["フォーエバーヤング"],"凱旋門賞":["クロワデュノール","カランダガン"],"キングジョージVI世＆クイーンエリザベスS":["カランダガン"]};
     /* 既定の遠征馬は日本のクロワデュノールのみ。海外実在馬カランダガンは
        欧州の2鞍（凱旋門賞・キングジョージ）だけに現れる（全海外レースに
        出ると中距離芝の日本馬勝率が実態以上に押し下げられるため） */
-    (OF[r.name]||["クロワデュノール"]).forEach(nm=>{ if(ownedNameSet().has(nm)) return; const rh=makeRealRival(nm); if(rh&&out.length<n-2){ const ms=managedState(8); rh.cond=ms.cond; rh.fat=ms.fat; out.push(rh); } }); }
+    (OF[r.name]||["クロワデュノール"]).forEach(nm=>{ if(ownedNameSet().has(nm)) return; const wp=(S.worldHorses||[]).find(x=>x.name===nm&&!x.legend); if(wp&&!worldCanRun(wp, r)) return; /* 遠征馬の投入もローテーションに従う（全海外レースに同じ馬が出続けると年16戦になる） */
+    const rh=makeRealRival(nm); if(rh&&out.length<n-2){ const ms=managedState(8); rh.cond=ms.cond; rh.fat=ms.fat; out.push(rh); } }); }
   /* 世界に実在する個体（ライバル牧場の所有馬）が重賞に参戦する。レースごとに
      作る使い捨てではなく、生産・引退まで同じ個体が世界に存在し続ける。
      現役の実在馬もこのプールに含まれ、年を取れば引退して世代が移る。
@@ -8500,9 +8660,11 @@ function makeRivals(r){
     try{ rivalStables();
       const have=new Set(out.map(x=>x.name));
       const ownedN=ownedNameSet(), legN=legendNameSet();
-      const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)&&(w.lastRaceWeek==null||S.week-w.lastRaceWeek>=(stablePolicyOf(w.stable||"")==="cond"?6:3))
+      const poolBase=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)&&worldCanRun(w, r)
         &&(!r.age||w.age===r.age)&&(!r.ageMin||(w.age||0)>=r.ageMin)&&(!r.sex||r.sex==="牡騸"? w.sex!=="牝" : w.sex==="牝")
-        &&worldEntryOK(w, r)).sort((a2,b2)=>((b2.exPlayer?1000:0)+worldSelectScore(b2,r))-((a2.exPlayer?1000:0)+worldSelectScore(a2,r))).slice(0,6); /* 売却した元自厩舎馬は優先。選定は資格・部門適性・馬主方針を使う */
+        &&worldEntryOK(w, r));
+      const fitPool=poolBase.filter(w=>worldFitOK(w, r));
+      const pool=((fitPool.length)? fitPool : poolBase).sort((a2,b2)=>((b2.exPlayer?1000:0)+worldSelectScore(b2,r))-((a2.exPlayer?1000:0)+worldSelectScore(a2,r))).slice(0,6); /* 売却した元自厩舎馬は優先。選定は資格・部門適性・馬主方針を使う */
       let added=0;
       for(const w of pool){ if(added>=2||out.length>=n)break;
         const x=ensureFullHorse(JSON.parse(JSON.stringify(w))); x.rival=true; x.worldRef=w.name; x.stable=w.stable||worldStableFallback(w); { const mj=worldMainJockey(w); if(mj!=null&&Math.random()<0.75) x.jockey=mj; }
@@ -12788,8 +12950,8 @@ function showSettings(){
   <p class="small" id="set-policy-d" style="margin:6px 0">${esc((ENTRY_POLICIES.find(p=>p.id===entryPolicy().id)||ENTRY_POLICIES[0]).d)}</p>
   <label class="small">追加条件<br><select id="set-policy-fat" style="width:100%"><option value="0" ${!entryPolicy().minFatRest?"selected":""}>追加条件なし</option><option value="1" ${entryPolicy().minFatRest?"selected":""}>疲労が35以下まで抜ける週を優先する</option></select></label>
   </div></details><details class="fold"><summary>引退・繁殖入りの基準</summary><div class="foldbody">
-  <label class="small">引退基準（このレベルを狙えない馬は、年末の引退勧告や提案で「基準未満」と表示されます）<br><select id="set-std-retire" style="width:100%">${[[0,"基準なし（年齢・戦績のみで勧告）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"]].map(([v,n])=>`<option value="${v}" ${standards().retire===v?"selected":""}>${n}</option>`).join("")}</select></label><br><br>
-  <label class="small">繁殖入り基準（調教師コメントと勧告の目安です。繁殖入りするかどうかは引退時に馬ごとに選べます。自動で売却されることはありません）<br><select id="set-std-mare" style="width:100%">${[[0,"基準なし（全頭が繁殖入り）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"]].map(([v,n])=>`<option value="${v}" ${standards().mare===v?"selected":""}>${n}</option>`).join("")}</select></label>
+  <label class="small">引退基準（このレベルを狙えない馬は、年末の引退勧告や提案で「基準未満」と表示されます）<br><select id="set-std-retire" style="width:100%">${[[0,"基準なし（年齢・戦績のみで勧告）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"],[4,"スーパーホース以上"]].map(([v,n])=>`<option value="${v}" ${standards().retire===v?"selected":""}>${n}</option>`).join("")}</select></label><br><br>
+  <label class="small">繁殖入り基準（調教師コメントと勧告の目安です。繁殖入りするかどうかは引退時に馬ごとに選べます。自動で売却されることはありません）<br><select id="set-std-mare" style="width:100%">${[[0,"基準なし（全頭が繁殖入り）"],[1,"条件戦でやれる以上"],[2,"重賞を狙える以上"],[3,"G1を狙える以上"],[4,"スーパーホース以上"]].map(([v,n])=>`<option value="${v}" ${standards().mare===v?"selected":""}>${n}</option>`).join("")}</select></label>
   <p class="small mt">各馬の「狙えるレベル」は、能力と潜在能力に、年齢と成長型から見た到達可能性、芝・ダート適性、重賞での実績を加味して自動で評価され、馬の一覧・詳細と年末処理に表示されます。戦って結果が出ていない馬は能力が高くても格上げされません。基準はセーブに保存されます。</p></div></details><details class="fold"><summary>サウンド</summary><div class="foldbody">
   <label class="small">サウンド<br><select id="set-snd" style="width:100%"><option value="on" ${sc.on?"selected":""}>ON（BGM・歓声・効果音）</option><option value="off" ${sc.on?"":"selected"}>OFF（ミュート）</option></select></label><br><br>
   <label class="small">BGM音量 <span id="set-bgm-v">${Math.round(sc.bgm*100)}</span><br><input type="range" id="set-bgm" min="0" max="100" value="${Math.round(sc.bgm*100)}" style="width:100%"></label><br>
