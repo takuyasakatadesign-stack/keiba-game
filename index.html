@@ -1017,6 +1017,7 @@ input,select,textarea{ border:2px solid #2f7a33; border-radius:10px; background:
 /* 下部：提案バー＋タブナビ（2段固定） */
 #actionbar{ background:#fffdf4; border-top:4px solid #f2c41c; box-shadow:0 -4px 14px rgba(31,64,38,.25); padding:8px 10px; display:flex; gap:10px; align-items:center; min-height:74px; }
 #actionbar .ab-text{ flex:1; min-width:0; font-weight:700; font-size:14.5px; line-height:1.45; }
+.ab-wl{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--gold-d);background:#fff8e1;border:1.5px solid var(--gold);border-radius:999px;padding:3px 9px;white-space:nowrap}.ab-wl.warn{color:#b3261e;background:#fdecea;border-color:#e57373}
 #actionbar .ab-kicker{ display:block; font-size:11.5px; font-weight:900; color:#b8860b; letter-spacing:.08em; }
 #actionbar .ab-btn{ min-height:56px; min-width:148px; font-size:16.5px; padding:10px 18px; }
 #actionbar .ab-wide{ flex:1; min-width:0; }
@@ -7097,6 +7098,69 @@ function birthCommentCardHTML(h){
   return `<div class="gcard" style="margin-top:6px">${guideFaceHTML("trainer")}<div style="flex:1;min-width:0"><div class="gwho">調教師・${esc(bc.trainer||TRAINER.name)} の誕生コメント（${esc(bc.label||"")}）</div><div class="gtext">${esc(bc.text||"")}</div></div></div>`;
 }
 /* 牧場の週間処理：受胎判定・誕生・幼駒育成・セール・春イベント */
+
+/* ============ 幼駒の命名権オファー（出産時に買い手が提示） ============ */
+const NR_BUYERS=[
+ {name:"星和ホールディングス", crown:"ホシワ", factor:1.15},
+ {name:"資産家・桐谷宗一郎", crown:"キリタニ", factor:1.3},
+ {name:"蒼空フーズ", crown:"ソラフーズ", factor:0.95},
+ {name:"高嶺建設", crown:"タカミネ", factor:1.0},
+ {name:"港屋物産", crown:"ミナトヤ", factor:0.9},
+ {name:"資産家・藤堂麗子", crown:"トウドウ", factor:1.25},
+ {name:"緑川乳業", crown:"ミドリカワ", factor:0.85},
+ {name:"帝都メディア", crown:"テイト", factor:1.1}
+];
+const NR_CORES=["ドリーム","スター","キング","クイーン","レジェンド","ホープ","ウィナー","サンライズ","エンペラー","ハーモニー","フロンティア","ミライ","カゼ","ヒカリ","ツバサ","オーシャン","リバー","スカイ","ブレイヴ","グローリー"];
+function nrPriceFor(foal,buyer){
+  let peak=60; try{ peak=aimScoreParts(foal).peak; }catch(e){}
+  const base=Math.pow(Math.max(0,peak-38),2.2)*1.1;
+  let heat=1; try{ heat=lineHeatOf(foal.sire); }catch(e){}
+  return Math.max(50, Math.round(base*Math.max(0.7,Math.min(1.4,heat))*(buyer.factor||1)/10)*10);
+}
+function nrBuyerName(o){
+  let used=new Set(); try{ used=collectUsedNames(); }catch(e){}
+  for(let i=0;i<60;i++){ const n=o.crown+pick(NR_CORES)+(Math.random()<0.35?"ノ"+pick(NR_CORES):""); if(n&&!used.has(n)&&!NAME_TAKEN.has(n)){ NAME_TAKEN.add(n); return n; } }
+  let n=o.crown+"ドリーム", k=2; const b=n; while(used.has(n)||NAME_TAKEN.has(n)){ n=b+"・"+k; k++; } NAME_TAKEN.add(n); return n;
+}
+function nrQueueOffer(foal){ if(!foal||foal.nrDone) return; const buyer=pick(NR_BUYERS); (S.nrQueue||(S.nrQueue=[])).push({foalId:foal.id, buyer:buyer.name, crown:buyer.crown, price:nrPriceFor(foal,buyer)}); }
+function nrMaybeShow(){
+  const q=S.nrQueue||[]; if(!q.length) return;
+  const ov=document.querySelector("#overlay"); if(ov&&ov.style.display==="flex") return;
+  const o=q[0]; const foal=(S.youngStock||[]).find(y=>y.id===o.foalId);
+  if(!foal){ q.shift(); nrMaybeShow(); return; }
+  const bc=foal.birthComment||{};
+  showOverlay(`<h2>💼 命名権のオファー</h2>
+  <p>生まれた幼駒 <b>${esc(foal.name)}</b>（父 ${esc(foal.sire||"―")}／評価：${esc(bc.label||"―")}）の命名権を、<b>${esc(o.buyer)}</b> が買い取りたいと申し出ています。</p>
+  <p>提示額：<b>${fmt(o.price)}万円</b><br><span class="small">受けると、この馬の名前は買い手が付けます（冠名「${esc(o.crown)}」を含む名前）。断ると、これまでどおり年末処理で自分で命名できます。</span></p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn gold" id="nr-accept">命名権を売る（${fmt(o.price)}万円）</button><button class="btn ghost" id="nr-decline">断る</button></div>`);
+  document.querySelector("#nr-accept").addEventListener("click",nrAccept);
+  document.querySelector("#nr-decline").addEventListener("click",nrDecline);
+}
+function nrAccept(){
+  const q=S.nrQueue||[]; const o=q.shift(); if(!o) return;
+  const foal=(S.youngStock||[]).find(y=>y.id===o.foalId);
+  const ov=document.querySelector("#overlay"); if(ov) ov.style.display="none";
+  if(foal){
+    const old=foal.name;
+    foal.name=nrBuyerName(o);
+    foal.nrDone=true; foal.namingRight={buyer:o.buyer, price:o.price, year:year()};
+    S.funds+=o.price; ledIn("finance",o.price);
+    (S.nrHist||(S.nrHist=[])).unshift({name:foal.name, buyer:o.buyer, price:o.price, week:S.week}); if(S.nrHist.length>30)S.nrHist.length=30;
+    if(o.price>=3000) S.fame=Math.min(120,(S.fame||0)+1);
+    log(`💼 ${old} の命名権を ${o.buyer} に ${fmt(o.price)}万円で売却。買い手により「${foal.name}」と命名されました`);
+    toast(`命名権を売却：${fmt(o.price)}万円`);
+  }
+  saveAuto(true); renderAll();
+  setTimeout(()=>{ try{ nrMaybeShow(); }catch(e){} },80);
+}
+function nrDecline(){
+  const q=S.nrQueue||[]; const o=q.shift();
+  const foal=o&&(S.youngStock||[]).find(y=>y.id===o.foalId);
+  if(foal) foal.nrDone=true;
+  const ov=document.querySelector("#overlay"); if(ov) ov.style.display="none";
+  renderAll();
+  setTimeout(()=>{ try{ nrMaybeShow(); }catch(e){} },80);
+}
 function farmWeekly(){
  const mo=month(), wk=weekInMonth();
  /* 春の種付け期イベント（雷嵐配合の前提フラグ） */
@@ -7113,7 +7177,7 @@ function farmWeekly(){
  /* 誕生：翌年4月第1週 */
  if(mo===4&&wk===1){ (S.pregnant||[]).filter(p=>p.ok&&p.dueYear===year()).forEach(p=>{
    const mare=(S.mares||[]).find(m=>m.id===p.mareId); if(mare){ mare.pregnant=false; mare.foalsBred=(mare.foalsBred||0)+1; mare.lastFoalYear=year(); } /* 繁殖成績（産駒数・最終出産年）は売却価格と売却提案の算定に使う */
-   const foal=makeFoalFromTheory(p); if(foal){ try{ foal.birthComment=makeBirthComment(foal); }catch(e){} S.youngStock.push(foal); S.foals=(S.foals||0)+1; log(`🎉 幼駒が誕生しました：${foal.name}（父 ${p.sireName} × 母 ${mare?mare.name:""}）。牧場タブで育成中`); if(foal.birthComment){ log(`💬 調教師・${foal.birthComment.trainer} の誕生コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); if(Array.isArray(S.weekReport)) S.weekReport.push(`🎉 ${foal.name} が誕生 ― 調教師コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); } }
+   const foal=makeFoalFromTheory(p); if(foal){ try{ foal.birthComment=makeBirthComment(foal); }catch(e){} S.youngStock.push(foal); S.foals=(S.foals||0)+1; try{ nrQueueOffer(foal); }catch(e){} log(`🎉 幼駒が誕生しました：${foal.name}（父 ${p.sireName} × 母 ${mare?mare.name:""}）。牧場タブで育成中`); if(foal.birthComment){ log(`💬 調教師・${foal.birthComment.trainer} の誕生コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); if(Array.isArray(S.weekReport)) S.weekReport.push(`🎉 ${foal.name} が誕生 ― 調教師コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); } }
    S.pregnant=S.pregnant.filter(x=>x!==p);
  }); }
  /* 幼駒の自動育成（1歳1月から牧場長が育成。能力は少しずつ判明） */
@@ -7333,12 +7397,17 @@ function nextWeekBody(){
 function loanOutstanding(){ return S.loan? S.loan.remaining : 0; }
 /* 融資枠の算定式（融資画面に明示する）：基礎枠4,000万円＋重賞ウィナー
    （champions）1頭あたり1,500万円＋G1勝利1勝あたり500万円＋所有馬1頭あたり300万円 */
-function loanLimit(){ return 4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + S.horses.length*300; }
+/* 直近12か月の賞金収入（月次台帳 S.ledger＋履歴から合計） */
+function yearlyPrizeIncome(){ let sum=0; try{ const hs=[S.ledger].concat(S.ledgerHist||[]).filter(Boolean).slice(0,12); hs.forEach(L=>{ sum+=(L.inn&&L.inn.prize)||0; }); }catch(e){} return sum; }
+/* 総資産の概算：資金＋所有馬・繁殖牝馬・幼駒の評価額＋施設の取得額 */
+function stableAssetValue(){ let v=Math.max(0,S.funds||0); try{ (S.horses||[]).forEach(h=>{ v+=horseSellPrice(h); }); }catch(e){} try{ (S.mares||[]).forEach(m=>{ v+=mareSellPrice(m); }); }catch(e){} try{ (S.youngStock||[]).forEach(y=>{ v+=Math.max(100,Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*10)); }); }catch(e){} try{ FACILITIES.forEach(f=>{ v+=facLv(f.id)*(f.cost||0); }); }catch(e){} return v; }
+/* 借入限度額＝基礎枠＋名声×150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）。規模に連動し、収入・資産の裏付けの範囲に収める */
+function loanLimit(){ const base=4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + (S.horses||[]).length*300; return Math.min(60000, base + (S.fame||0)*150 + Math.floor(stableAssetValue()*0.10) + Math.floor(yearlyPrizeIncome()*0.5)); }
 function loanCapacity(){ return Math.max(0, loanLimit()-loanOutstanding()); }
 /* スポンサー支援の受取額（融資画面に明示する）：基礎1,500万円＋重賞ウィナー1頭あたり500万円。
    上限は10,000万円（1億円）。代償は受取後12週間の賞金の30%控除、再利用は48週に1回まで */
-const SPONSOR_CAP=10000;
-function sponsorGrant(){ return Math.min(SPONSOR_CAP, 1500 + (S.champions||0)*500); }
+const SPONSOR_CAP=30000;
+function sponsorGrant(){ return Math.min(SPONSOR_CAP, 1500 + (S.champions||0)*500 + (S.fame||0)*60 + Math.floor(yearlyPrizeIncome()*0.03)); }
 function sponsorAvailable(){ return S.week>=(S.sponsorReadyWeek||0); }
 function horseSellPrice(h){ const ab=(h.spd+h.sta+h.pow+h.bst+h.gut)/5; return Math.max(200, Math.round((ab*10 + (h.earnings||0)*0.3) * lineHeatOf(h.sire))); }
 /* 売却した馬をライバル牧場が買い取る：馬は世界から消えず、買い手の
@@ -7533,10 +7602,10 @@ function showDistress(force){
      既定値は、資金が厳しい時は「1200万円まで立て直す額」、余裕がある時は1000万円 */
   const defLoan= Math.max(100, Math.min(cap, S.funds<1200? 1200-S.funds : 1000));
   const loanHtml= cap>=100
-    ? `<div class="ticket"><b>🏦 銀行融資</b><span class="small">（資金があっても借りられます）</span><div class="mt flex"><input type="number" inputmode="numeric" pattern="[0-9]*" id="ds-loan-amt" min="100" step="100" max="${cap}" value="${defLoan}" style="width:118px" aria-label="借入金額（万円）"><span>万円</span><button class="btn gold" id="ds-loan">借りる</button></div><div class="flex mt">${[500,1000,2000].filter(a=>a<cap).map(a=>`<button class="btn ghost sm" data-loan-set="${a}">${fmt(a)}万円</button>`).join("")}<button class="btn ghost sm" data-loan-set="${cap}">枠いっぱい（${fmt(cap)}万円）</button></div><span class="small" id="ds-loan-prev"></span><br><span class="small">利息15%は「借入額に対する固定率（期間全体）」で、返済総額＝借入額×1.15 を12週間で週割りの自動返済します（年率換算ではありません。追加で借りると、残高合計で週返済額を再計算します）。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）＝基礎枠4,000万円＋重賞ウィナー1頭あたり1,500万円＋G1勝利1勝あたり500万円＋所有馬1頭あたり300万円${S.loan?`／現在の借入残高 ${fmt(loanOutstanding())}万円`:""}。週の自動返済ができない週は「延滞」（残高に5%の延滞利息）となり、延滞が2回続くと融資打ち切り＝破産です。</span></div>`
+    ? `<div class="ticket"><b>🏦 銀行融資</b><span class="small">（資金があっても借りられます）</span><div class="mt flex"><input type="number" inputmode="numeric" pattern="[0-9]*" id="ds-loan-amt" min="100" step="100" max="${cap}" value="${defLoan}" style="width:118px" aria-label="借入金額（万円）"><span>万円</span><button class="btn gold" id="ds-loan">借りる</button></div><div class="flex mt">${[500,1000,2000].filter(a=>a<cap).map(a=>`<button class="btn ghost sm" data-loan-set="${a}">${fmt(a)}万円</button>`).join("")}<button class="btn ghost sm" data-loan-set="${cap}">枠いっぱい（${fmt(cap)}万円）</button></div><span class="small" id="ds-loan-prev"></span><br><span class="small">利息15%は「借入額に対する固定率（期間全体）」で、返済総額＝借入額×1.15 を12週間で週割りの自動返済します（年率換算ではありません。追加で借りると、残高合計で週返済額を再計算します）。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）＝基礎枠4,000万円＋重賞ウィナー1頭あたり1,500万円＋G1勝利1勝あたり500万円＋所有馬1頭あたり300万円＋名声1あたり150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）${S.loan?`／現在の借入残高 ${fmt(loanOutstanding())}万円`:""}。週の自動返済ができない週は「延滞」（残高に5%の延滞利息）となり、延滞が2回続くと融資打ち切り＝破産です。</span></div>`
     : `<div class="ticket"><b>🏦 銀行融資</b><br><span class="small">借入限度額（${fmt(loanLimit())}万円）に達しているため、これ以上は借りられません。</span></div>`;
   const sponsorHtml= sponsorAvailable()
-    ? `<div class="ticket"><b>🤝 スポンサー支援</b><div class="mt"><button class="btn" id="ds-sponsor">${fmt(sponsorGrant())}万円 の支援を受ける</button></div><span class="small">受取額は基礎1,500万円＋重賞ウィナー1頭あたり500万円（上限1億円）。条件つき：今後12週間、レースで得た賞金の30%をスポンサーへ。利用できるのは48週に1回まで。</span></div>`
+    ? `<div class="ticket"><b>🤝 スポンサー支援</b><div class="mt"><button class="btn" id="ds-sponsor">${fmt(sponsorGrant())}万円 の支援を受ける</button></div><span class="small">受取額は基礎1,500万円＋重賞ウィナー1頭あたり500万円＋名声1あたり60万円＋直近1年の賞金収入の3%（上限3億円）。条件つき：今後12週間、レースで得た賞金の30%をスポンサーへ。利用できるのは48週に1回まで。</span></div>`
     : `<div class="ticket"><b>🤝 スポンサー支援</b><br><span class="small">次に利用できるのは約 ${Math.max(1,Math.ceil(((S.sponsorReadyWeek||0)-S.week)/4))} か月後です。</span></div>`;
   const sellHtml= S.horses.length
     ? S.horses.map(h=>`<div class="ticket"><b>${esc(h.name)}</b> <span class="small">${h.age}歳／${h.wins}勝／獲得賞金 ${fmt(h.earnings||0)}万円${h.entry?"／エントリー中（売却すると取消）":""}</span><div class="mt"><button class="btn sm red" data-ds-sell="${h.id}">緊急売却（${fmt(horseSellPrice(h))}万円）</button></div></div>`).join("")
@@ -11878,7 +11947,7 @@ function showSettings(){
 <div class="rulecard"><b>維持費の単価（週）</b><p>競走馬 18万円（エサ代8＋厩舎管理6＋装蹄・獣医4）／繁殖牝馬 5万円／自家種牡馬 8万円／幼駒 3万円。施設の月維持費は月初週に別途かかります。</p></div>
 <div class="rulecard"><b>種付料</b><p>種牡馬の種付料（自家は無料）＋一律150万円。</p></div>
 <div class="rulecard"><b>融資</b><p>枠＝基礎4,000万円＋重賞ウィナー1,500万円/頭＋G1勝利500万円/勝＋所有馬300万円/頭。金利15%は借入額に対する固定率（返済総額＝借入額×1.15、12週分割）。延滞が2回続くと破産です。</p></div>
-<div class="rulecard"><b>スポンサー支援</b><p>受取額＝基礎1,500万円＋重賞ウィナー500万円/頭（上限1億円）。対価として12週間、賞金の30%を支払います（48週間ごとに再利用可）。</p></div>
+<div class="rulecard"><b>スポンサー支援</b><p>受取額＝基礎1,500万円＋重賞ウィナー500万円/頭＋名声60万円/1＋直近1年の賞金収入の3%（上限3億円）。対価として12週間、賞金の30%を支払います（48週間ごとに再利用可）。</p></div>
 <div class="rulecard"><b>馬券の上限</b><p>1レース合計で資金の20%・最大2,000万円まで。オッズは能力ではなく戦績・馬場・負担重量などの公開情報から計算します（実競馬の知識が活きる設計）。</p></div>
 <div class="rulecard"><b>出走取消</b><p>エントリーはレース週を含めいつでも取り消せます。</p></div>
 <div class="rulecard"><b>海外遠征</b><p>遠征費はレースごとに 600〜900万円（騎乗料と同時にレース開始時に支払い）。海外レースは前1週（出国）と後1週（帰国）が移動週になり、レース週と合わせて3週のブロックとして扱います。移動週は他のレースに出走できず、おまかせの仕上げは2週前に済ませ、移動週は移動として扱います。出走条件は段階制：中堅の海外レースは重賞勝利またはG1で3着以内、最上位はG1勝利（または重賞2勝＋G1で3着以内）です。</p></div>
@@ -12571,6 +12640,44 @@ function autoRaceStopFor(ne){
 }
 function autoInjuredKey(){ return S.horses.filter(h=>h.injured>0).map(h=>h.id).sort((a,b)=>a-b).join(","); }
 function autoSchedule(ms){ if(AUTO.timer)clearTimeout(AUTO.timer); AUTO.timer=setTimeout(autoStep, ms||850); }
+
+/* ============ オート中のスリープ防止（Screen Wake Lock＋無音ループ動画フォールバック） ============ */
+const WL={ mode:"", sentinel:null, video:null };
+function wlSupported(){ try{ return "wakeLock" in navigator; }catch(e){ return false; } }
+async function wlAcquire(){
+  if(typeof AUTO==="undefined"||!AUTO.running) return;
+  if(WL.mode==="lock"||WL.mode==="video") return;
+  if(wlSupported()){
+    try{
+      WL.sentinel=await navigator.wakeLock.request("screen");
+      WL.mode="lock";
+      WL.sentinel.addEventListener("release",()=>{ WL.sentinel=null; if(WL.mode==="lock")WL.mode=""; try{ renderAutoBar(); }catch(e){} });
+      try{ renderAutoBar(); }catch(e){}
+      return;
+    }catch(e){ WL.sentinel=null; }
+  }
+  try{
+    if(!WL.video){
+      const v=document.createElement("video");
+      v.setAttribute("playsinline",""); v.setAttribute("muted",""); v.muted=true; v.loop=true;
+      v.style.cssText="position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none";
+      v.src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAOxbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAtt0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAQAAABAAAAAAJTbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAoAAAAUABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAAB/m1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAb5zdGJsAAAAvnN0c2QAAAAAAAAAAQAAAK5hdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAANGF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADACg8SJZYAQAGaOvjyyLA/fj4AAAAABBwYXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAAAz4AAAAAAAAABhzdHRzAAAAAAAAAAEAAAAKAAAIAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAYGN0dHMAAAAAAAAACgAAAAEAABAAAAAAAQAAKAAAAAABAAAQAAAAAAEAAAAAAAAAAQAACAAAAAABAAAoAAAAAAEAABAAAAAAAQAAAAAAAAABAAAIAAAAAAEAABAAAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAAKAAAAAQAAADxzdHN6AAAAAAAAAAAAAAAKAAACxAAAAAwAAAAMAAAADAAAAAwAAAASAAAADgAAAAwAAAAMAAAAEgAAABRzdGNvAAAAAAAAAAEAAAPhAAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY2Mi4xMi4xMDIAAAAIZnJlZQAAA0ZtZGF0AAACrQYF//+p3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NCByMzEwOCAzMWUxOWY5IC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyMyAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEgb3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTUgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJjX2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAPZYiEABP//vexj4FNy0hNAAAACEGaJGxBL/7gAAAACEGeQniCH6uBAAAACAGeYXRD/7OAAAAACAGeY2pD/7OBAAAADkGaaEmoQWiZTAgh//7hAAAACkGehkURLBD/q4EAAAAIAZ6ldEP/s4EAAAAIAZ6nakP/s4AAAAAOQZqpSahBbJlMCH///uA=";
+      document.body.appendChild(v); WL.video=v;
+    }
+    await WL.video.play();
+    WL.mode="video";
+    try{ renderAutoBar(); }catch(e){}
+    return;
+  }catch(e){}
+  WL.mode="unsupported";
+  try{ renderAutoBar(); }catch(e){}
+}
+function wlRelease(){
+  if(WL.sentinel){ try{ WL.sentinel.release(); }catch(e){} WL.sentinel=null; }
+  if(WL.video){ try{ WL.video.pause(); }catch(e){} }
+  WL.mode="";
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&typeof AUTO!=="undefined"&&AUTO.running&&!WL.mode){ wlAcquire(); } });
 function autoStart(){
   if(AUTO.running||S.gameover) return;
   if(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done")){ toast("レース中はオートを開始できません"); return; }
@@ -12578,11 +12685,13 @@ function autoStart(){
   pendingTrain=null; pendingAnchor=null;
   switchView("stable");
   renderAll();
+  try{ wlAcquire(); }catch(e){}
   autoSchedule(400);
 }
 function autoStop(reason){
   if(AUTO.timer){ clearTimeout(AUTO.timer); AUTO.timer=null; }
   const was=AUTO.running; AUTO.running=false;
+  try{ wlRelease(); }catch(e){}
   AUTO.stopReason=reason||"";
   if(was&&reason) toast("🤖 オート停止："+reason);
   renderAll();
@@ -12948,7 +13057,7 @@ function renderAutoBar(){
     if(ab) ab.style.display="none";
     if(nwb) nwb.style.display="none"; if(nwn) nwn.style.display="none";
     const cfg=autoCfg();
-    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート実行中（提案どおり・調教は定常指示）</span>${esc(AUTO.label||"")}（${AUTO.weeksDone}/${cfg.weeks}週・${AUTO.steps}手）</div><button class="ab-btn btn red" id="ab-auto-stop">■ 停止する</button>`;
+    bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート実行中（提案どおり・調教は定常指示）</span>${esc(AUTO.label||"")}（${AUTO.weeksDone}/${cfg.weeks}週・${AUTO.steps}手）</div>${WL.mode==="lock"||WL.mode==="video"?'<span class="ab-wl">💤 スリープ防止中</span>':WL.mode==="unsupported"?'<span class="ab-wl warn">この環境ではスリープ防止が未対応です</span>':""}<button class="ab-btn btn red" id="ab-auto-stop">■ 停止する</button>`;
     const sb=$("#ab-auto-stop"); if(sb) sb.addEventListener("click",()=>autoStop("手動で停止しました"));
     return;
   }
@@ -12968,7 +13077,7 @@ function showAutoSettings(){
   <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(!!cfg.mateOmakase,"おまかせ種づけ（調教師への指示）","trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(!!cfg.buyYoungOmakase,"幼駒のおまかせ購入（調教師への指示）","trainer")} ${chip(!!cfg.buyMareOmakase,"繁殖牝馬のおまかせ購入（調教師への指示）","trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
   <div class="small" style="margin-top:4px">止まる条件：${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", cfg.mateOmakase===false?"種付け":"", "年末（表彰式・年末処理）・資金マイナス・確認画面"].filter(Boolean).join("／")}</div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
-  ${summary}
+  ${summary}<div class="ticket"><b>💤 スリープ防止</b><br><span class="small">オート実行中は画面スリープを防止します（Wake Lock API${"wakeLock" in navigator?"に対応しています":"未対応の環境では無音動画で防止を試みます"}）。オートを止めると解放されます。</span></div>
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
   <label class="small">資金の下限（下回ったら停止）<br><select id="auto-funds" style="width:100%">${[[-1,"なし"],[0,"0万円"],[500,"500万円"],[1000,"1000万円"],[2000,"2000万円"]].map(([v,l])=>`<option value="${v}" ${cfg.fundsMin===v?"selected":""}>${l}</option>`).join("")}</select></label>
   <p class="small mt">調教は馬ごとの定常指示に設定され、週送りのたびに自動で実行されます（毎回選びません）。資金がマイナスになった場合と、確認画面（年末・資金不足など）が出た場合は、条件に関係なく必ず止まります。年末処理の週でも必ず止まります（引退判断などプレイヤーの意思決定が含まれるため、48週オートでも年末は跨ぎません）。止まらない設定にしたレースは「結果だけ」観戦で自動消化されます（作戦・騎手は現在の設定のまま）。定常指示の書き手の優先順位は「プレイヤーの手動設定 ＞ オートの提案適用 ＞ 調教師のおまかせ見直し」で、手動で変更した指示はその週はおまかせでも上書きされません。</p>
@@ -13240,6 +13349,7 @@ function switchView(v){
   applyPendingAnchor(v);
 }
 function renderAll(){
+  try{ nrMaybeShow(); }catch(e){}
   hud();
   renderChrome();
   const cur=document.querySelector("#tabs button.on").dataset.v;
