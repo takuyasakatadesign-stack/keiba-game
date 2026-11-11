@@ -2126,6 +2126,99 @@ html,body{ height:auto; overflow:visible; }
 .ranktile .rankmark{font-size:14px}
 .tdrow{display:flex;gap:7px;align-items:flex-start;margin:4px 0;font-size:12.5px;line-height:1.55}
 .tdrow .trait{flex:none;margin-top:1px}
+/* ============================================================
+   §34 デザイン超大型アップデート（2026-11-12）
+   テキスト羅列の全廃部品／報告書の文書化／正式書類（見積書・精算書）
+   数字そのものは装飾せず素の太字で出す（従来ルール維持）。
+   視覚要素は DOM/CSS/SVG のみ（画像アセット追加なし）
+   ============================================================ */
+.vchips{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:4px 0}
+.vchip{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:800;border:1.5px solid var(--line);border-radius:999px;padding:1px 8px;background:var(--panel);color:var(--ink2);white-space:nowrap}
+.vchip.up{border-color:var(--green);color:var(--green);background:#eef7ee}
+.vchip.dn{border-color:var(--red);color:var(--red);background:#fdf1f0}
+.vchip.warn{border-color:var(--gold);color:#7a5b00;background:#fffbe9}
+.vchip.dim{color:var(--ink2)}
+@media (prefers-color-scheme: dark){ .vchip.up{background:#234d2e;color:#a9e2b4} .vchip.dn{background:#5a2b25;color:#ffb4a6} .vchip.warn{background:#57451c;color:#f3d67b} }
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:8px 0}
+@media (max-width:560px){ .kpis{grid-template-columns:repeat(2,1fr)} }
+.kpi{background:var(--panel2);border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;min-width:0}
+.kpi .kl{display:block;font-size:11px;font-weight:800;color:var(--ink2)}
+.kpi .kv2{display:block;font-size:18px;font-weight:900;line-height:1.3;white-space:nowrap}
+.kpi .kv2 small{font-size:11px;font-weight:800}
+.cmpbar{margin:7px 0 3px}
+.cmpbar .crow{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12px}
+.cmpbar .clb{width:34px;flex:none;font-weight:800;color:var(--ink2)}
+.cmpbar .ctr{flex:1;height:14px;background:var(--bar);border-radius:99px;overflow:hidden}
+.cmpbar .ctr i{display:block;height:100%;border-radius:99px}
+.cmpbar .ctr i.in{background:var(--green2)}
+.cmpbar .ctr i.out{background:#d2691e}
+.cmpbar .cvl{font-weight:900;white-space:nowrap;font-size:12.5px}
+.stackbar{display:flex;height:16px;border-radius:99px;overflow:hidden;background:var(--bar);margin:6px 0 4px}
+.stackbar i{display:block;height:100%}
+.stackleg{display:flex;gap:5px;flex-wrap:wrap;margin:3px 0 6px}
+.stackleg .sl{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--ink2)}
+.stackleg .sw{width:11px;height:11px;border-radius:3px;flex:none}
+.deptrow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.deptrow:last-child{border-bottom:none}
+.deptrow .dn2{width:86px;flex:none;font-weight:800}
+.deptrow .dtr{flex:1;height:10px;background:var(--bar);border-radius:99px;overflow:hidden}
+.deptrow .dtr i{display:block;height:100%}
+.deptrow .dv{font-weight:900;white-space:nowrap}
+.gauge34{position:relative;height:12px;background:var(--bar);border-radius:99px;overflow:hidden;margin:4px 0}
+.gauge34 i{display:block;height:100%;background:var(--green2);border-radius:99px}
+.gauge34 .mark{position:absolute;top:-2px;bottom:-2px;width:3px;background:#7a5b00;border-radius:2px}
+.spark{width:100%;height:34px;display:block}
+.dots{display:inline-flex;gap:3px;vertical-align:middle}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--bar);border:1.5px solid var(--line)}
+.dots i.on{background:var(--gold);border-color:#a87e10}
+/* 月次報告書：担当カードと構造化行 */
+.repgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:8px}
+.repcard{background:var(--panel);border:1.5px solid var(--line);border-radius:12px;padding:9px 10px;min-width:0}
+.rep-head{display:flex;align-items:center;gap:8px}
+.rep-face{width:34px;height:34px;border-radius:50%;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex:none}
+.rep-name{font-weight:900;font-size:13.5px;line-height:1.25}
+.rep-role{font-size:11px;font-weight:700;color:var(--ink2)}
+.rep-group{margin-top:7px}
+.rep-glabel{display:inline-block;font-size:10.5px;font-weight:900;border-radius:5px;padding:0 7px;margin-bottom:3px;color:#fff}
+.rep-glabel.act{background:var(--green)} .rep-glabel.money{background:#8a6d1f} .rep-glabel.plan{background:#20548f}
+.rep-line{font-size:12.5px;line-height:1.55;padding:2.5px 0 2.5px 9px;border-left:3px solid var(--bar);margin:2px 0;overflow-wrap:anywhere}
+.rep-sug{margin-top:7px;font-size:12px;background:#fffbe9;border:1.5px dashed var(--gold);border-radius:9px;padding:5px 8px;line-height:1.5}
+@media (prefers-color-scheme: dark){ .rep-sug{background:#37331c} }
+/* 正式書類（見積書・精算書） */
+.docpaper{background:#fffdf6;color:#232323;border:2px solid #8a7a4a;border-radius:6px;padding:16px 16px 13px;box-shadow:0 4px 16px rgba(60,50,10,.18);text-align:left;font-size:13px}
+@media (prefers-color-scheme: dark){ .docpaper{background:#f7f3e6} }
+.doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;border-bottom:3px double #8a7a4a;padding-bottom:8px}
+.doc-type{font-size:21px;font-weight:900;letter-spacing:.28em}
+.doc-no{font-size:11.5px;font-weight:700;color:#5c5340;text-align:right;line-height:1.5}
+.doc-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:9px 0 4px;font-size:12.5px;line-height:1.7}
+.doc-meta .dm b{color:#5c5340;font-size:11px;display:block}
+.doc-title{font-size:15.5px;font-weight:900;margin:7px 0 3px;border-left:5px solid #8a7a4a;padding-left:8px;line-height:1.4}
+table.doctable{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:7px}
+table.doctable th{background:#efe9d2 !important;color:#3c3524 !important;border:1px solid #b6ab84;text-shadow:none;padding:5px 6px}
+table.doctable td{border:1px solid #cfc5a2;padding:5px 6px;background:transparent}
+table.doctable td.r,table.doctable th.r{text-align:right}
+table.doctable tr.tot td{font-weight:900;background:#f5efdb;font-size:13.5px}
+table.doctable tr.sub td{font-weight:700}
+.doc-diff{margin-top:9px;border:1.5px solid #b6ab84;border-radius:6px;padding:7px 10px;background:#fbf7ea}
+.doc-diff .drow{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:2px 0}
+.doc-note{margin-top:9px;font-size:12px;line-height:1.65;color:#4a4436;border-top:1px dashed #b6ab84;padding-top:7px}
+.doc-stamp{display:inline-block;border:2.5px solid #b3362b;color:#b3362b;font-weight:900;border-radius:6px;padding:2px 10px;transform:rotate(-4deg);font-size:13px;letter-spacing:.12em}
+.doc-list-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px;flex-wrap:wrap}
+.doc-list-row:last-child{border-bottom:none}
+/* 年代記タイムライン */
+.tl34{position:relative;margin:6px 0 2px 6px;padding-left:18px;border-left:3px solid var(--line)}
+.tl-item{position:relative;padding:0 0 10px}
+.tl-item::before{content:"";position:absolute;left:-25px;top:4px;width:11px;height:11px;border-radius:50%;background:var(--gold);border:2px solid #fff;box-shadow:0 0 0 1.5px var(--gold)}
+.tl-when{display:inline-block;font-size:11px;font-weight:900;background:var(--chip);border-radius:6px;padding:1px 7px;margin-bottom:2px}
+.rankrow{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:12.5px}
+.rankrow:last-child{border-bottom:none}
+.rankrow .rk{width:30px;flex:none;font-weight:900;text-align:center}
+.rankrow .rk.top1{color:#8a6d00;font-size:15px}
+.rankrow .rnm{width:118px;flex:none;font-weight:800;overflow-wrap:anywhere}
+.rankrow .rtr{flex:1;height:10px;background:var(--bar);border-radius:99px;overflow:hidden;min-width:40px}
+.rankrow .rtr i{display:block;height:100%;background:var(--gold)}
+.rankrow.self{background:rgba(201,162,39,.13);border-radius:8px}
+
 </style>
 </head>
 <body>
@@ -5088,7 +5181,7 @@ function ledCatRowsHTML(L, side){
     const tot=obj[k]; const id=`led:${L.key}:${side}:${k}`; const open=!!LEDACC[id];
     const dets=(L.details||[]).filter(d=>d.s===side&&d.cat===k);
     const dsum=dets.reduce((a,d)=>a+(d.amt||0),0); const rest=tot-dsum;
-    const body= open? `<div style="padding:2px 0 6px 10px;border-left:3px solid var(--line);margin:2px 0 6px 4px">${dets.map(d=>`<div class="ye-lrow"><span class="small">${esc(d.note)}</span><span class="small">${fmt(d.amt)}万円</span></div>`).join("")}${rest>0?`<div class="ye-lrow"><span class="small">${dets.length? "その他（内訳の記録なし分）" : "この項目は合計のみ記録しています"}</span><span class="small">${fmt(rest)}万円</span></div>`:rest<0?`<div class="ye-lrow"><span class="small">※内訳が合計を ${fmt(-rest)}万円 上回っています</span></div>`:""}</div>` : "";
+    const body= open? `<div style="padding:2px 0 6px 10px;border-left:3px solid var(--line);margin:2px 0 6px 4px">${dets.map(d=>`<div class="ye-lrow"><span class="small">${esc(d.note)}</span><span class="small">${fmt(d.amt)}万円${side==="out"&&(d.amt||0)>=1000?` <button type="button" class="btn ghost sm" data-leddoc="1" data-key="${L.key}" data-cat="${k}" data-amt="${d.amt}" data-note="${esc(d.note)}">📄 精算書</button>`:""}</span></div>`).join("")}${rest>0?`<div class="ye-lrow"><span class="small">${dets.length? "その他（内訳の記録なし分）" : "この項目は合計のみ記録しています"}</span><span class="small">${fmt(rest)}万円</span></div>`:rest<0?`<div class="ye-lrow"><span class="small">※内訳が合計を ${fmt(-rest)}万円 上回っています</span></div>`:""}</div>` : "";
     return `<div class="ye-lrow" style="align-items:center"><button type="button" class="btn ghost sm" data-ledacc="${id}" aria-expanded="${open}" style="flex:1;text-align:left;min-height:36px">${open?"▲":"▼"} ${cats[k]} <span class="small">${dets.length?`（内訳 ${dets.length}件）`:"（合計のみ）"}</span></button><b>${fmt(tot)}万円</b></div>${body}`;
   }).join("");
 }
@@ -5098,8 +5191,10 @@ function showLedger(){
   const hist=(S.ledgerHist||[]).map(hx=>{ const o=Object.values(hx.out||{}).reduce((a,b)=>a+b,0), ii=Object.values(hx.inn||{}).reduce((a,b)=>a+b,0); const id=`ledhist:${hx.key}`; const open=!!LEDACC[id];
     return `<div class="ye-lrow" style="align-items:center"><button type="button" class="btn ghost sm" data-ledacc="${id}" aria-expanded="${open}" style="flex:1;text-align:left;min-height:36px">${open?"▲":"▼"} ${ledLabel(hx.key)}</button><span class="uchips" style="margin:0"><span class="uchip xs">収入 <span class="uv">${fmt(ii)}</span></span><span class="uchip xs">支出 <span class="uv">${fmt(o)}</span></span><span class="uchip xs">差引 <span class="uv">${fmt(ii-o)}万円</span></span></span></div>${open?`<div style="padding:2px 0 4px 6px"><div class="small" style="margin:2px 0"><b>収入</b></div>${ledCatRowsHTML(hx,"in")}<div class="small" style="margin:4px 0 2px"><b>支出</b></div>${ledCatRowsHTML(hx,"out")}</div>`:""}`; }).join("");
   const items=upkeepItems().map(x=>`<div class="ye-lrow"><span>${x.n}</span><b>${fmt(x.v)}万円</b></div>`).join("");
+  const _docsM=docsState().filter(d=>d.key===L.key); const _docHtml=_docsM.length? `<div class="ye-sec">この月の正式書類（精算書）</div>`+_docsM.map(d=>`<div class="ye-lrow"><span>📄 ${esc(d.title)} <span class="small">${esc(d.no||"")}</span></span><span><b>${fmt(d.total)}万円</b> <button type="button" class="btn ghost sm" data-doc-open="${d.id}">精算書を見る</button></span></div>`).join("") : "";
   showOverlay(`<h2>📒 月次明細（${ledLabel(L.key)}）</h2><div class="ov-body"><div style="text-align:left">
-  <div class="small">各項目はタップで内訳（どの馬の保険か・どのイベントか・誰の給与か等）を開けます。内訳の合計はカテゴリ合計と一致します。</div>
+  <div class="small">各項目はタップで内訳（どの馬の保険か・どのイベントか・誰の給与か等）を開けます。内訳の合計はカテゴリ合計と一致します。大きな支出の内訳には精算書が付きます。</div>
+  ${vizCmpHTML(totI, totO)}${_docHtml}
   <div class="ye-sec" style="margin-top:6px">収入</div>${ledCatRowsHTML(L,"in")}
   <div class="ye-sec">支出</div>${ledCatRowsHTML(L,"out")}
   <div class="ye-lrow" style="border-top:2px solid var(--line);margin-top:6px;padding-top:6px"><span><b>今月の差引</b></span><b>${fmt(totI-totO)}万円</b></div>
@@ -6276,7 +6371,7 @@ function buyHorse(id){
   const h=S.market.find(x=>x.id===id); if(!h)return;
   if(S.funds<h.price){alert2("資金が足りません",`購入には ${fmt(h.price)}万円 が必要です。`);return;}
   undoPush(`購入の前（${h.name}）`);
-  S.funds-=h.price; ledOut("buy",h.price); h.owner=true; assignTrainerAuto(h); S.horses.push(h); S.market=S.market.filter(x=>x.id!==id); S.selected=h.id;
+  S.funds-=h.price; ledOut("buy",h.price); try{ docSpend("buy", h.price, `競走馬の購入（${h.name}）`, "セール／マーケットでの購入の精算"); }catch(e){} h.owner=true; assignTrainerAuto(h); S.horses.push(h); S.market=S.market.filter(x=>x.id!==id); S.selected=h.id;
   log(`「${h.name}」を ${fmt(h.price)}万円 で購入`); renderAll();
 }
 /* 引退時の繁殖入り判断（調教師コメント）：結論は既存の実データだけで決める。
@@ -7434,19 +7529,23 @@ function worldSummaryHTML(){
   const sp=S.sirePower||[];
   const hist=S.stableRankHist||[];
   const latest=hist[hist.length-1];
+  const ecoPos=clamp(Math.round((idx-0.85)/(1.18-0.85)*100),0,100);
+  const ecoHist=(eco.hist||[]).map(e=>+e.idx);
   let h=`<div class="panel"><h2 class="sec" style="margin-top:0">🌍 世界の勢力と市況 <span class="tag">ライフサイクル</span></h2>`;
-  h+=`<div class="flex"><span class="tag">世界市況 <b>${idx.toFixed(2)}</b>（1.00＝標準）</span>${(eco.hist||[]).slice(-5).map(e=>`<span class="tag">${e.y}年 ${(+e.idx).toFixed(2)}</span>`).join("")}</div>`;
-  if(sp.length) h+=`<div class="mt"><b class="small">種牡馬勢力（産駒実績順）</b><br><span class="uchips" style="margin:0">${sp.slice(0,5).map((x,i)=>`<span class="uchip">${i+1}位 ${esc(x.name)} <span class="uv">産駒${x.n}頭・${x.wins}勝</span><span>種付け料目安 ${fmt(x.fee)}万円</span></span>`).join("")}</span><div class="small">産駒の実績で順位と種付け料の目安が毎年動き、世界の繁殖は上位の種牡馬にも行われます。衰えた系統は細り、勢いのある系統が伸びます。</div></div>`;
-  if(latest){
-    h+=`<div class="mt"><b class="small">牧場・馬主 勢力ランキング（${latest.y}年）</b>${latest.rows.map(r=>`<div class="stat"><span style="min-width:30px">${r.rank}位</span><span style="min-width:120px">${esc(r.name)}${r.self?"":""}</span><span class="uchips" style="margin:0"><span class="uchip xs">年間賞金 <span class="uv">${fmt(r.prize)}万円</span></span><span class="uchip xs">資金 <span class="uv">${fmt(r.funds)}万円</span></span><span class="uchip xs">所属 <span class="uv">${r.n}頭</span></span>${r.top?`<span class="uchip xs">看板馬 <span class="uv">${esc(r.top)}（${r.topR}）</span></span>`:""}</span></div>`).join("")}</div>`;
-    if(hist.length>1) h+=`<div class="mt"><b class="small">各年の首位</b><br><span class="uchips" style="margin:0">${hist.map(e=>{ const t=e.rows[0]; return t? `<span class="uchip">${e.y}年 <span class="uv">${esc(t.name)}</span><span>賞金 ${fmt(t.prize)}万円</span></span>` : ""; }).join("")}</span></div>`;
+  h+=`<div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><span class="kl">世界市況（1.00＝標準）</span><span class="kv2">${idx.toFixed(2)}</span><span class="vchip ${idx>=1.05?"up":idx<=0.95?"dn":"dim"}">${idx>=1.05? "好況":idx<=0.95? "低調":"標準圏"}</span></div><div class="kpi"><span class="kl">ライバル牧場</span><span class="kv2">${rivalStables().length}<small>牧場</small></span><span class="vchip dim">倒産と参入で入れ替わります</span></div><div class="kpi"><span class="kl">年代記の記録</span><span class="kv2">${(S.chronicle||[]).length}<small>件</small></span></div></div>`;
+  h+=`<div class="small"><b>市況ゲージ</b>（0.85＝低調 〜 1.18＝好況）</div><div class="gauge34"><i style="width:${ecoPos}%;background:${idx>=1? "var(--green2)":"#d2691e"}"></i><span class="mark" style="left:${Math.round((1-0.85)/(1.18-0.85)*100)}%" title="標準 1.00"></span></div>`;
+  if(ecoHist.length>1) h+=`<div class="small">市況の推移（年次）</div>${vizSpark(ecoHist, "#20548f")}`;
+  h+=`<div class="vchips">${(eco.hist||[]).slice(-5).map(e=>`<span class="vchip">${e.y}年 <b>${(+e.idx).toFixed(2)}</b></span>`).join("")}</div>`;
+  if(sp.length){ const maxScore=Math.max(1, ...sp.map(x=>x.score||0)); h+=`<div class="mt"><b class="small">種牡馬勢力（産駒実績順）</b>${sp.slice(0,5).map((x,i)=>`<div class="rankrow"><span class="rk ${i===0?"top1":""}">${i+1}位</span><span class="rnm">${esc(x.name)}</span><span class="rtr"><i style="width:${Math.round((x.score||0)/maxScore*100)}%"></i></span><span class="uchips" style="margin:0"><span class="uchip xs">産駒 <span class="uv">${x.n}頭・${x.wins}勝</span></span><span class="uchip xs">種付け料目安 <span class="uv">${fmt(x.fee)}万円</span></span></span></div>`).join("")}<div class="small">産駒の実績で順位と種付け料の目安が毎年動き、世界の繁殖は上位の種牡馬にも行われます。衰えた系統は細り、勢いのある系統が伸びます。</div></div>`; }
+  if(latest){ const maxPrize=Math.max(1, ...latest.rows.map(r=>r.prize||0));
+    h+=`<div class="mt"><b class="small">牧場・馬主 勢力ランキング（${latest.y}年・年間賞金順）</b>${latest.rows.map(r=>`<div class="rankrow ${r.self?"self":""}"><span class="rk ${r.rank===1?"top1":""}">${r.rank}位</span><span class="rnm">${esc(r.name)}${r.self?"（あなた）":""}</span><span class="rtr"><i style="width:${Math.round((r.prize||0)/maxPrize*100)}%"></i></span><span class="uchips" style="margin:0"><span class="uchip xs">年間賞金 <span class="uv">${fmt(r.prize)}万円</span></span><span class="uchip xs">資金 <span class="uv">${fmt(r.funds)}万円</span></span><span class="uchip xs">所属 <span class="uv">${r.n}頭</span></span>${r.top?`<span class="uchip xs">看板馬 <span class="uv">${esc(r.top)}（${r.topR}）</span></span>`:""}</span></div>`).join("")}</div>`;
+    if(hist.length>1) h+=`<div class="mt"><b class="small">各年の首位</b><div class="vchips">${hist.map(e=>{ const t=e.rows[0]; return t? `<span class="vchip">${e.y}年 <b>${esc(t.name)}</b> 賞金 ${fmt(t.prize)}万円</span>` : ""; }).join("")}</div></div>`;
   }
   const ch=S.chronicle||[];
-  if(ch.length) h+=`<div class="mt"><b class="small">📜 競馬界年代記</b>${ch.slice(0,8).map(c=>`<div class="ticket"><b>${esc(c.title)}</b> <span class="small">${c.y}年${c.m}月</span><br><span class="small">${esc(c.body)}</span></div>`).join("")}</div>`;
+  if(ch.length) h+=`<div class="mt"><b class="small">📜 競馬界年代記</b><div class="tl34">${ch.slice(0,8).map(c=>`<div class="tl-item"><span class="tl-when">${c.y}年${c.m}月</span><div><b>${esc(c.title)}</b></div><div class="small">${esc(c.body)}</div></div>`).join("")}</div></div>`;
   h+=`</div>`;
   return h;
 }
-
 /* 種付け料の見込み（年末の実処理 sireDemandTick と、配合画面の表示で共用。
    需要・市場価格・設定時の実効料・依頼確率を一箇所で計算する） */
 function sireFeeInfo(s){
@@ -14094,14 +14193,14 @@ function renderFarm(){
   el.querySelectorAll("[data-childpol]").forEach(sel=>sel.addEventListener("change",()=>{ const c=S.family&&S.family.children? S.family.children[+sel.dataset.childpol] : null; if(c){ c.policy=sel.value; log(`👨‍👩‍👧 ${c.name} の育成方針を「${sel.value==="study"?"勉強":sel.value==="sport"?"運動":"牧場"}」にしました`); renderAll(); } }));
   el.querySelectorAll("[data-eqbuy]").forEach(b=>b.addEventListener("click",()=>{ const eq=farmEquityPct(); const want=b.dataset.eqbuy==="rest"? 100-eq : +b.dataset.eqbuy; const pct=Math.min(want, 100-eq); if(pct<=0) return; const price=Math.round(farmValue()*pct/100); if(S.funds<price){ alert2("資金不足", `持分の購入には ${fmt(price)}万円 が必要です。`); return; } undoPush(`牧場持分の購入前（${pct}%）`); S.funds-=price; ledOut("equity",price); S.farmEquity=eq+pct; log(`🏦 牧場の持分を ${pct}% 購入しました（${fmt(price)}万円）。現在の持分は ${S.farmEquity}% です`); renderAll(); }));
  el.querySelectorAll("[data-fac-sel]").forEach(r=>r.addEventListener("click",e=>{ if(e.target.closest("button")||e.target.closest("a")||e.target.closest("select"))return; selFac= selFac===r.dataset.facSel? null : r.dataset.facSel; renderAll(); }));
- el.querySelectorAll("[data-fac-build]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facBuild); const fc=Math.round(f.cost*(1-0.3*((typeof compEff==="function")?compEff("fac"):0))); const fw=Math.max(1, f.weeks-(((typeof compRank==="function")&&compRank("fac")>=3)?1:0)); if(S.funds<fc)return; undoPush(`施設建設の前（${f.n}）`); S.funds-=fc; ledOut("build",fc); S.facilities[f.id]=1; S.building[f.id]=fw; log(`🏗 施設「${f.n}」の建設を開始（${fw}週）`); renderAll(); }));
- el.querySelectorAll("[data-fac-up]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facUp); const c=facUpCost(f,facLv(f.id)); if(S.funds<c)return; undoPush(`施設拡張の前（${f.n}）`); S.funds-=c; ledOut("build",c); S.facilities[f.id]=facLv(f.id)+1; S.building[f.id]=facUpWeeks(f,S.facilities[f.id]); log(`🏗 施設「${f.n}」を拡張（Lv.${S.facilities[f.id]}・${facUpWeeks(f,S.facilities[f.id])}週）`); renderAll(); }));
+ el.querySelectorAll("[data-fac-build]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facBuild); const fc=Math.round(f.cost*(1-0.3*((typeof compEff==="function")?compEff("fac"):0))); const fw=Math.max(1, f.weeks-(((typeof compRank==="function")&&compRank("fac")>=3)?1:0)); if(S.funds<fc)return; undoPush(`施設建設の前（${f.n}）`); S.funds-=fc; ledOut("build",fc); try{ docSpend("build", fc, `施設建設（${f.n}）`, "施設の新設工事の精算"); }catch(e){} S.facilities[f.id]=1; S.building[f.id]=fw; log(`🏗 施設「${f.n}」の建設を開始（${fw}週）`); renderAll(); }));
+ el.querySelectorAll("[data-fac-up]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facUp); const c=facUpCost(f,facLv(f.id)); if(S.funds<c)return; undoPush(`施設拡張の前（${f.n}）`); S.funds-=c; ledOut("build",c); try{ docSpend("build", c, `施設拡張（${f.n}）`, "施設の拡張工事の精算"); }catch(e){} S.facilities[f.id]=facLv(f.id)+1; S.building[f.id]=facUpWeeks(f,S.facilities[f.id]); log(`🏗 施設「${f.n}」を拡張（Lv.${S.facilities[f.id]}・${facUpWeeks(f,S.facilities[f.id])}週）`); renderAll(); }));
  el.querySelectorAll("[data-fac-del]").forEach(b=>b.addEventListener("click",()=>{ const f=FACILITIES.find(x=>x.id===b.dataset.facDel); S.facilities[f.id]=0; delete S.building[f.id]; log(`施設「${f.n}」を撤去`); renderAll(); }));
  el.querySelectorAll("[data-sale-bid]").forEach(b=>b.addEventListener("click",()=>saleBuy(+b.dataset.saleBid,false)));
  el.querySelectorAll("[data-youngpol]").forEach(s=>s.addEventListener("change",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+s.dataset.youngpol); if(y){ y.policy=s.value; log(`🐴 ${y.name} の育成方針を「${s.options[s.selectedIndex].text}」に設定`); saveAuto(); } }));
  el.querySelectorAll("[data-sale-buy]").forEach(b=>b.addEventListener("click",()=>saleBuy(+b.dataset.saleBuy,true)));
  el.querySelectorAll("[data-sale-end]").forEach(b=>b.addEventListener("click",endSale));
- el.querySelectorAll("[data-ovfarm]").forEach(b=>b.addEventListener("click",()=>{ const rg=b.dataset.ovfarm, F=OV_FARMS[rg]; if(!F) return; ensureOverseasFarm(); if(S.overseasFarm&&S.overseasFarm.farms&&S.overseasFarm.farms[rg]){ toast("すでに開設済み／建設中です"); return; } if((S.fame||0)<50){ toast(`名声が不足しています（50以上が必要／現在 ${S.fame||0}）`); return; } if((S.g1Wins||0)<3){ toast(`G1勝利が不足しています（3勝以上が必要／現在 ${S.g1Wins||0}勝）`); return; } if(S.funds<F.cost){ toast("資金が不足しています"); return; } undoPush(`海外牧場開設の前（${F.name}）`); S.funds-=F.cost; ledOut("build",F.cost); if(!S.overseasFarm) S.overseasFarm={farms:{}}; S.overseasFarm.farms=S.overseasFarm.farms||{}; S.overseasFarm.farms[rg]={built:false, weeks:F.weeks}; log(`🌍 ${F.name}の開設工事を開始しました（${fmt(F.cost)}万円・${F.weeks}週）`); renderAll(); }));
+ el.querySelectorAll("[data-ovfarm]").forEach(b=>b.addEventListener("click",()=>{ const rg=b.dataset.ovfarm, F=OV_FARMS[rg]; if(!F) return; ensureOverseasFarm(); if(S.overseasFarm&&S.overseasFarm.farms&&S.overseasFarm.farms[rg]){ toast("すでに開設済み／建設中です"); return; } if((S.fame||0)<50){ toast(`名声が不足しています（50以上が必要／現在 ${S.fame||0}）`); return; } if((S.g1Wins||0)<3){ toast(`G1勝利が不足しています（3勝以上が必要／現在 ${S.g1Wins||0}勝）`); return; } if(S.funds<F.cost){ toast("資金が不足しています"); return; } undoPush(`海外牧場開設の前（${F.name}）`); S.funds-=F.cost; ledOut("build",F.cost); try{ docSpend("build", F.cost, `海外牧場の開設（${F.name}）`, "海外牧場の開設工事の精算"); }catch(e){} if(!S.overseasFarm) S.overseasFarm={farms:{}}; S.overseasFarm.farms=S.overseasFarm.farms||{}; S.overseasFarm.farms[rg]={built:false, weeks:F.weeks}; log(`🌍 ${F.name}の開設工事を開始しました（${fmt(F.cost)}万円・${F.weeks}週）`); renderAll(); }));
  const bc=$("#btn-clubfarm"); if(bc) bc.addEventListener("click",()=>{ S.funds-=10000; ledOut("build",10000); S.clubFarm=true; log("🏇 クラブ牧場を開設した"); renderAll(); });
  const bcl=$("#btn-club"); if(bcl) bcl.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); renderAll(); });
  /* 出資は週次処理（clubWeekly）で自動で進むため、手動の満口ボタンは廃止した */
@@ -14267,6 +14366,7 @@ function showSettings(){
 <div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
 <div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
 <div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「報告書」で読め（サブナビに未読件数が出ます。会社・イベントの先頭にも同じものがあります）、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
+<div class="rulecard"><b>デザインと正式書類（§34）</b><p>画面の列挙はチップ、数値の大小はバー／ゲージ、推移はミニグラフと前月比チップ、状態はバッジとドットで表します（数字そのものには装飾を付けません。調教師コメント等の文章として読むものは文章のままです）。<br>・<b>月次報告書</b>：冒頭に会社の月次サマリ（収入・支出の比較バー、前月比、差引の推移グラフ、ハイライトのチップ）を置き、担当ごとの報告は顔つきカードで「実績／収支／予定」に構造化して表示します。過去の報告書も同じ形式です。経営ダッシュボードとCFO報告も同じ設計言語（KPIタイル／部門別バー／予算バーと時期の目安線）で揃えています。<br>・<b>見積書</b>：株主総会の金額のある議案（土地・大規模イベント・キャンペーン・グッズ大量生産・幹部採用・大口運用など）には、文書番号・日付・発行者（担当役員）・宛先・明細（項目・数量・単価・金額）・小計／消費税（10%・内税）／合計・備考を備えた見積書が添付され、議案カードから開けます。<br>・<b>精算書</b>：議案を実行すると精算書が発行され、見積額と精算額の差異が分かります。精算額は台帳の支出記録から算出するので、書類の合計＝台帳の記録＝資金の動きと一致します。精算書は翌月に読む月次報告書と、その月の月次明細に添付されます。プレイヤーが自分で起こす大きな支出（施設建設・拡張、海外牧場の開設、会社設立、馬の購入、広告キャンペーン、イベント開催、グッズ制作など）にも、実行前に同額の見積を発行したうえで精算書が残り、経営ダッシュボードと月次明細から開けます。月次明細の内訳（1,000万円以上の支出）からも、その1件の精算書を生成して開けます。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
@@ -15822,7 +15922,7 @@ function genStaffCandidate(){ const c=S.company; const hrEff=c? compEff("hr") : 
 }
 function compRefreshCandidates(free){ const c=compState(); if(!c) return; const n=3+compRank("hr"); c.candidates=[]; for(let i=0;i<n;i++) c.candidates.push(genStaffCandidate()); if(!free){} }
 function foundCompany(){ const c=S.company; if(c) return; if((S.fame||0)<FOUND_FAME){ toast(`会社化には名声${FOUND_FAME}以上が必要です`); return; } if(S.funds<FOUND_COST){ toast("資金が不足しています"); return; }
-  undoPush("会社設立の前"); S.funds-=FOUND_COST; ledOut("build",FOUND_COST);
+  undoPush("会社設立の前"); S.funds-=FOUND_COST; ledOut("build",FOUND_COST); try{ docSpend("build", FOUND_COST, "会社設立", "会社設立費用の精算"); }catch(e){}
   S.company={founded:S.week, staff:[], roles:{}, candidates:[], invest:0, insOn:false, lastReport:null, eventCdUntil:0, clubBoostUntil:0, nrBoostUntil:0};
   compState(); compRefreshCandidates(true);
   log(`🏢 会社を設立しました（設立費 ${fmt(FOUND_COST)}万円）。スタッフを雇って12の担当枠を埋めましょう`); toast("会社を設立しました"); saveAuto(); renderAll(); }
@@ -15909,7 +16009,7 @@ function merchUnitPrice(){ return Math.round(3*(1+0.5*compEff("merch"))*(1+0.15*
 function produceMerch(lotId, byExec){ const c=execState(); if(!c) return false; const lot=MERCH_LOTS.find(l=>l.id===lotId)||MERCH_LOTS[0];
   if(!compMain("merch")){ if(!byExec) toast("マーチャンダイジング担当（正）が必要です"); return false; }
   if(S.funds<lot.cost){ if(!byExec) toast("資金が不足しています"); return false; }
-  const h=merchHorse(); S.funds-=lot.cost; ledOut("merch", lot.cost, `グッズ制作：${h?h.name:"有名馬"} グッズ（${lot.name} ${lot.units}個）`);
+  const h=merchHorse(); S.funds-=lot.cost; ledOut("merch", lot.cost, `グッズ制作：${h?h.name:"有名馬"} グッズ（${lot.name} ${lot.units}個）`); if(!byExec){ try{ docSpend("merch", lot.cost, `グッズ制作（${lot.name}・${lot.units}個）`, `${h?h.name:"有名馬"} グッズ制作の精算`); }catch(e){} }
   c.merch.stock+=lot.units; if(h) c.merch.horse=h.name;
   log(`🧸 グッズを制作しました：${h?h.name:"有名馬"} グッズ ${lot.units}個（制作費 ${fmt(lot.cost)}万円／マーチャンダイジング担当）`);
   if(!byExec){ saveAuto(); renderAll(); }
@@ -15953,10 +16053,10 @@ function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); co
 function genExecCandidate(){ const st=genStaffCandidate(); const keys=COMP_ABILITIES.map(([k])=>k); const top=keys.slice().sort((a,b)=>(st.ranks[b]||0)-(st.ranks[a]||0)).slice(0,3); top.forEach(k=>{ st.ranks[k]=clamp((st.ranks[k]||0)+2,0,5); }); st.total=COMP_ABILITIES.reduce((a,[k])=>a+(st.ranks[k]||0),0); st.salary=25+st.total*10; return st; }
 function execBigDecision(e){ const c=S.company; const m=mgmt(); const ab=execAbility(e.id);
   if(e.id==="ceo"){ if(m.land<LAND_TIERS.length-1){ const t=LAND_TIERS[m.land+1]; addProposal("ceo","land",`土地の購入・拡張（${t.name}）`,`牧場の価値と収容上限を上げる大きな投資です（CEOの提案／判断の質 ${ab}）`, t.cost, {}); }
-    else { const t=CAMP_TIERS[2]; addProposal("ceo","campaign3",`大規模ブランド戦略（${t.name}）`,`${t.weeks}週間の大規模キャンペーンです（CEOの提案）`, t.cost, {}); } return; }
+    else { const t=CAMP_TIERS[2]; addProposal("ceo","campaign3",`${t.name}`,`${t.weeks}週間の大規模キャンペーンです（CEOの提案）`, t.cost, {}); } return; }
   if(e.id==="ev"){ const sz=EVENT_SIZES[2]; addProposal("ev","eventBig","大規模ファン感謝祭の開催",`来場 ${sz.att.toLocaleString()}人規模のイベントです（チーフイベントオフィサーの提案／事業・運営を統括）`, sz.cost, {}); return; }
   if(e.id==="cmo"){ if(compMain("merch")){ const lot=MERCH_LOTS[2]; addProposal("cmo","merchBig",`有名馬グッズの大量生産（${lot.units}個）`,`対象は ${c.merch.horse||(merchHorse()?merchHorse().name:"有名馬")}。在庫は週ごとに売れていきます（CMOの提案）`, lot.cost, {}); }
-    else { const t=CAMP_TIERS[2]; addProposal("cmo","campaign3",`大規模ブランド戦略（${t.name}）`,`${t.weeks}週間の大規模キャンペーンです（CMOの提案）`, t.cost, {}); } return; }
+    else { const t=CAMP_TIERS[2]; addProposal("cmo","campaign3",`${t.name}`,`${t.weeks}週間の大規模キャンペーンです（CMOの提案）`, t.cost, {}); } return; }
   if(e.id==="cro"){ const st=genExecCandidate(); const cost=st.salary*6; addProposal("cro","headhunt",`幹部級スタッフ ${st.name} のヘッドハント`,`能力合計 ${st.total} の即戦力候補です（CROの見極め／判断の質 ${ab}）`, cost, {staff:st}); return; }
   if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.20), room);
     if(amt>0) addProposal("cfo","investBig","余剰資金の大口運用",`資金の約2割を運用に回す大きな判断です（CFOの提案）`, amt, {amt}); return; }
@@ -15985,9 +16085,9 @@ function execProposal(p){ const c=S.company; const m=mgmt();
   if(p.kind==="miniEvent"){ const cost=p.cost||500; if(S.funds<cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=cost; ledOut("event",cost); const ab=execAbility("ev"); const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab)); if(income>0){ S.funds+=income; ledIn("biz",income); } try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(e){} return {ok:true, msg:`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円`}; }
   return {ok:false, msg:"不明な議案です"};
 }
-function approveProposal(id){ const c=execState(); if(!c) return; const i=c.proposals.findIndex(p=>p.id===id); if(i<0) return; const p=c.proposals[i]; const r=execProposal(p);
+function approveProposal(id){ const c=execState(); if(!c) return; const i=c.proposals.findIndex(p=>p.id===id); if(i<0) return; const p=c.proposals[i]; const _docB4=docLedOutSnap(); const r=execProposal(p);
   if(!r.ok){ toast(r.msg); return; }
-  c.proposals.splice(i,1); execLogPush(p.exec,"approved",`株主総会で承認・実行：${p.title} ― ${r.msg}`, p.cost);
+  c.proposals.splice(i,1); try{ docSettleProposal(p, docLedOutDelta(_docB4)); }catch(e){} execLogPush(p.exec,"approved",`株主総会で承認・実行：${p.title} ― ${r.msg}`, p.cost);
   log(`🏛 株主総会で議案を承認しました：${p.title} ― ${r.msg}`); toast("議案を承認し、実行しました"); saveAuto(); renderAll(); }
 function rejectProposal(id){ const c=execState(); if(!c) return; const i=c.proposals.findIndex(p=>p.id===id); if(i<0) return; const p=c.proposals[i]; c.proposals.splice(i,1);
   execLogPush(p.exec,"rejected",`株主総会で却下：${p.title}（実行されません）`, p.cost);
@@ -15995,15 +16095,16 @@ function rejectProposal(id){ const c=execState(); if(!c) return; const i=c.propo
   if(Math.random()<0.4){ c.deferred.push({p, due:S.week+12}); log(`🏢 ${execDef(p.exec).title} は次の四半期に議案を組み直すようです`); }
   toast("議案を却下しました"); saveAuto(); renderAll(); }
 function approveAllProposals(){ const c=execState(); if(!c||!c.proposals.length) return; let okN=0, failN=0;
-  c.proposals.slice().forEach(p=>{ const r=execProposal(p); if(r.ok){ const i=c.proposals.findIndex(x=>x.id===p.id); if(i>=0) c.proposals.splice(i,1); okN++; execLogPush(p.exec,"approved",`株主総会で一括承認・実行：${p.title} ― ${r.msg}`, p.cost); log(`🏛 株主総会で議案を承認しました：${p.title} ― ${r.msg}`); } else failN++; });
+  c.proposals.slice().forEach(p=>{ const _db4=docLedOutSnap(); const r=execProposal(p); if(r.ok){ const i=c.proposals.findIndex(x=>x.id===p.id); if(i>=0) c.proposals.splice(i,1); try{ docSettleProposal(p, docLedOutDelta(_db4)); }catch(e){} okN++; execLogPush(p.exec,"approved",`株主総会で一括承認・実行：${p.title} ― ${r.msg}`, p.cost); log(`🏛 株主総会で議案を承認しました：${p.title} ― ${r.msg}`); } else failN++; });
   toast(failN? `一括承認：${okN}件を実行、${failN}件は実行できませんでした（資金など）` : `一括承認：${okN}件すべて実行しました`); saveAuto(); renderAll(); }
 /* ---- 役員・株主総会・グッズのUI ---- */
 function execPanelHTML(){ const c=S.company; if(!c) return ""; execState();
-  const cards=EXEC_ROLES.map(e=>{ const h=execHolder(e.id); const ab=execAbility(e.id); const lim=c.exec[e.id].limit;
+  const cards=EXEC_ROLES.map(e=>{ const h=execHolder(e.id); const ab=execAbility(e.id); const lim=c.exec[e.id].limit; const pendN=c.proposals.filter(p=>p.exec===e.id).length;
     const opts=`<option value="">（空席）</option>`+c.staff.map(s=>`<option value="${s.id}" ${h&&h.id===s.id?"selected":""}>${esc(s.name)}（管轄能力 ${Math.round(e.keys.reduce((a,k)=>a+(s.ranks[k]||0),0)/e.keys.length*10)/10}）</option>`).join("");
     return `<div class="panel" style="margin:0">
-     <div class="flex" style="align-items:center;gap:6px"><span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#5b3a8a;color:#fff;align-items:center;justify-content:center;font-weight:700;flex:none">${esc(e.title.slice(0,1))}</span><div><b>${esc(e.title)}</b> <span class="small">${esc(e.full)}</span><div class="small">${esc(e.scope)}</div></div></div>
-     <div class="small" style="margin-top:4px">${h?`担当：<b>${esc(h.name)}</b>（意思決定の質 ${ab}／5）`:`<span style="color:#d23b2e"><b>空席</b>（任命すると意思決定が始まります）</span>`}</div>
+     <div class="flex" style="align-items:center;gap:6px"><span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#5b3a8a;color:#fff;align-items:center;justify-content:center;font-weight:700;flex:none">${esc(e.title.slice(0,1))}</span><div style="min-width:0"><b>${esc(e.title)}</b> <span class="small">${esc(e.full)}</span><div class="small">${esc(e.scope)}</div></div></div>
+     <div class="small" style="margin-top:5px">${h?`担当：<b>${esc(h.name)}</b>`:`<span style="color:#d23b2e"><b>空席</b>（任命すると意思決定が始まります）</span>`}</div>
+     <div class="vchips">${h?`<span class="vchip">意思決定の質 ${vizDots(ab)} <b>${ab}／5</b></span>`:""}<span class="vchip">権限額 <b>${fmt(lim)}万円</b></span>${pendN?`<span class="vchip warn">総会の議案 ${pendN}件</span>`:`<span class="vchip dim">議案なし</span>`}</div>
      <label class="small" style="display:block;margin-top:2px">任命（雇用済みスタッフから・担当枠との兼任OK） <select data-exec-holder="${e.id}" style="max-width:100%">${opts}</select></label>
      <label class="small" style="display:block;margin-top:2px">権限額（以内は即時実行／超える大きな判断は総会の議案） <select data-exec-limit="${e.id}" style="max-width:100%">${EXEC_LIMIT_OPTS.map(v=>`<option value="${v}" ${lim===v?"selected":""}>${fmt(v)}万円まで</option>`).join("")}</select></label>
     </div>`; }).join("");
@@ -16014,10 +16115,11 @@ function execPanelHTML(){ const c=S.company; if(!c) return ""; execState();
   </div>`; }
 function meetingPanelHTML(){ const c=S.company; if(!c) return ""; execState(); const pend=c.proposals;
   const groups=EXEC_ROLES.map(e=>({e, ps:pend.filter(p=>p.exec===e.id)})).filter(g=>g.ps.length);
+  const totCost=pend.reduce((a,p)=>a+(p.cost||0),0);
   return `<div class="panel" id="meeting-panel" style="border:2px solid #c9a227"><h3 style="margin:0 0 4px">🏛 株主総会（年4回・四半期ごと）</h3>
-   <div class="small">次回開催：${nextMeetingLabel()}。役員の大きな判断は議案として積み上がり、ここでオーナーが最終承認します（この画面でいつでも承認／却下できます）。承認された議案だけが実行されます。却下された議案は実行されず、役員が次の四半期に組み直して再提出することがあります。オートの停止条件で「株主総会」をONにすると、四半期末に議案があるときオートが止まって知らせが出ます（OFFのときは議案が次の総会まで持ち越され、自動承認はしません）。</div>
-   ${pend.length?`<div class="flex" style="margin:6px 0"><button class="btn gold sm" id="btn-meeting-approve-all">議案を一括承認する（${pend.length}件）</button></div>`:`<div class="small" style="margin-top:6px">現在、未決の議案はありません。役員の大きな判断が積み上がると、ここに役員ごとのカードで出ます。</div>`}
-   ${groups.map(g=>`<h4 style="margin:8px 0 4px">${esc(g.e.title)}（${esc(execHolder(g.e.id)?execHolder(g.e.id).name:"空席")}）の議案</h4>${g.ps.map(p=>`<div class="panel" style="margin:0 0 6px"><b>${esc(p.title)}</b> <span class="tag">${fmt(p.cost)}万円</span> <span class="small">${Math.floor((p.week||0)/48)+1}年目${Math.floor(((p.week||0)%48)/4)+1}月 提出</span><div class="small">${esc(p.desc)}</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-prop-approve="${p.id}">承認する（実行）</button><button class="btn sm" data-prop-reject="${p.id}">却下する</button></div></div>`).join("")}`).join("")}
+   <div class="small">次回開催：${nextMeetingLabel()}。役員の大きな判断は議案として積み上がり、ここでオーナーが最終承認します（この画面でいつでも承認／却下できます）。承認された議案だけが実行されます。各議案には見積書が添付されています。却下された議案は実行されず、役員が次の四半期に組み直して再提出することがあります。オートの停止条件で「株主総会」をONにすると、四半期末に議案があるときオートが止まって知らせが出ます（OFFのときは議案が次の総会まで持ち越され、自動承認はしません）。</div>
+   ${pend.length?`<div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><span class="kl">未決の議案</span><span class="kv2">${pend.length}<small>件</small></span></div><div class="kpi"><span class="kl">議案の合計（見積・税込）</span><span class="kv2">${fmt(totCost)}<small>万円</small></span></div><div class="kpi"><span class="kl">現在の資金</span><span class="kv2">${fmt(S.funds)}<small>万円</small></span><span class="vchip ${S.funds>=totCost?"up":"dn"}">${S.funds>=totCost? "全件承認しても資金は足ります":"全件承認には資金が不足します"}</span></div></div><div class="flex" style="margin:6px 0"><button class="btn gold sm" id="btn-meeting-approve-all">議案を一括承認する（${pend.length}件）</button></div>`:`<div class="small" style="margin-top:6px">現在、未決の議案はありません。役員の大きな判断が積み上がると、ここに役員ごとのカードで出ます。</div>`}
+   ${groups.map(g=>`<h4 style="margin:10px 0 4px">${esc(g.e.title)}（${esc(execHolder(g.e.id)?execHolder(g.e.id).name:"空席")}）の議案</h4>${g.ps.map(p=>{ const sp=docSplit(p.cost||0); return `<div class="panel" style="margin:0 0 8px"><div class="flex" style="justify-content:space-between;align-items:flex-start;gap:8px"><b style="font-size:14.5px">${esc(p.title)}</b><span class="uchip gold">見積（税込） <span class="uv">${fmt(p.cost)}万円</span></span></div><div class="vchips"><span class="vchip">提出：${Math.floor((p.week||0)/48)+1}年目${Math.floor(((p.week||0)%48)/4)+1}月</span><span class="vchip">小計 ${fmt(sp.sub)}万円</span><span class="vchip">消費税（10%） ${fmt(sp.tax)}万円</span><span class="vchip ${S.funds>=(p.cost||0)?"up":"dn"}">${S.funds>=(p.cost||0)? "資金で賄えます":"資金が不足しています"}</span></div><div class="small">${esc(p.desc)}</div><div class="flex" style="margin-top:6px;flex-wrap:wrap"><button class="btn ghost sm" data-doc-est="${p.id}">📄 見積書を見る</button><button class="btn gold sm" data-prop-approve="${p.id}">承認する（実行）</button><button class="btn sm" data-prop-reject="${p.id}">却下する</button></div><div class="small" style="margin-top:3px">承認すると実行され、翌月の月次報告書と月次明細に精算書（見積との差異つき）が添付されます。</div></div>`; }).join("")}`).join("")}
   </div>`; }
 function merchPanelHTML(){ const c=S.company; if(!c) return ""; execState(); const mm=c.merch; const main=compMain("merch"); const h=merchHorse(); const cmo=execHolder("cmo");
   return `<h4 style="margin:10px 0 4px">🧸 マーチャンダイジング（グッズ制作／CMO統括）</h4>
@@ -16057,7 +16159,7 @@ const CAMP_TIERS=[{lv:1,name:"地域広告",cost:2000,weeks:4},{lv:2,name:"全�
 function runCampaign(lv){ const c=compState(); if(!c) return; const m=mgmt(); const t=CAMP_TIERS.find(x=>x.lv===lv); if(!t) return;
   if(!compMain("pr")){ toast("広報担当（正）が必要です"); return; }
   if(S.funds<t.cost){ toast("資金が不足しています"); return; }
-  undoPush(`広告キャンペーン（${t.name}）の前`); S.funds-=t.cost; ledOut("camp",t.cost,`広告キャンペーン：${t.name}（${t.weeks}週間／広報担当）`);
+  undoPush(`広告キャンペーン（${t.name}）の前`); S.funds-=t.cost; ledOut("camp",t.cost,`広告キャンペーン：${t.name}（${t.weeks}週間／広報担当）`); try{ docSpend("camp", t.cost, `広告キャンペーン（${t.name}）`, `${t.weeks}週間のキャンペーン実施の精算`); }catch(e){}
   m.campUntil=S.week+t.weeks; m.campLv=lv; c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+t.weeks);
   log(`📣 広告キャンペーン「${t.name}」を開始（${fmt(t.cost)}万円／${t.weeks}週間）。イベント集客・名声の伸び・スポンサーと命名権の関心が上がります（広報担当：${compMain("pr").name}）`);
   toast("キャンペーンを開始しました"); saveAuto(); renderAll(); }
@@ -16066,7 +16168,7 @@ const LAND_TIERS=[{name:"現状",cost:0},{name:"第1期拡張",cost:60000},{name
 function landValue(){ const c=S.company; if(!c||!c.mgmt) return 0; let v=0; for(let i=1;i<=(c.mgmt.land||0)&&i<LAND_TIERS.length;i++) v+=LAND_TIERS[i].cost; return v; }
 function buyLand(){ const c=compState(); if(!c) return; const m=mgmt(); if(m.land>=LAND_TIERS.length-1){ toast("これ以上拡張できません"); return; }
   const t=LAND_TIERS[m.land+1]; if(S.funds<t.cost){ toast("資金が不足しています"); return; }
-  undoPush("土地購入の前"); S.funds-=t.cost; ledOut("land",t.cost,`土地の購入・拡張：${t.name}`); m.land++;
+  undoPush("土地購入の前"); S.funds-=t.cost; ledOut("land",t.cost,`土地の購入・拡張：${t.name}`); m.land++; try{ docSpend("land", t.cost, `土地の購入・拡張（${t.name}）`, "牧場の価値と収容上限を上げる投資の精算"); }catch(e){}
   log(`🌱 土地を購入しました（${t.name}・${fmt(t.cost)}万円）。牧場の価値が上がり、繁殖牝馬・幼駒の収容上限が各+5頭になりました（施設管理：${compMain("fac")?compMain("fac").name:"―"}／CFO：${compMain("fin")?compMain("fin").name:"―"}）`);
   toast("土地を購入しました"); saveAuto(); renderAll(); }
 /* ---- 経営目標 ---- */
@@ -16277,6 +16379,76 @@ function biz2PanelHTML(){ const c=S.company; if(!c) return ""; const b=biz2(); c
    <h4 style="margin:10px 0 4px">🧾 税金と融資の種類（CFO：${compMain("fin")?esc(compMain("fin").name):"未配置"}）</h4>
    <div class="small">税金は年末に、その年の利益に応じて自動で精算されます（利益〜1億円は10%、超過分は20%、赤字年は税金なし）。結果はCFOの月次報告書と決算に載ります。<br>融資は資金繰り画面で「短期（12週）／長期（48週・金利高め）／担保つき（48週・金利低め・総資産の裏付け）」から選べます。信用格付け（現在 <b>${rt.grade}</b>）は財務と実績で変動し、金利と借入枠に効きます。延滞すると格付けが下がります。</div>
   </div>`; }
+/* ============ §34 デザイン＆正式書類システム（2026-11-12） ============
+   第1柱：テキスト羅列の視覚化部品（比較バー／積み上げバー／増減チップ／
+   ミニグラフ／ゲージ／ドット）。数字そのものは装飾しない。
+   第3柱：正式書類（見積書・精算書）。書類はデータから生成し、合計は
+   台帳の記録と一致させる（精算書の合計＝台帳支出の実績差分）。
+   消費税は内税10%として 小計＝合計−税額（端数は税額側で吸収し、
+   小計＋税額＝合計 が常に厳密に一致する） */
+function vizDeltaHTML(cur, prev, opt){ opt=opt||{}; if(prev==null||!isFinite(prev)) return `<span class="vchip dim">前月 ―</span>`; const d=Math.round(cur-prev); if(d===0) return `<span class="vchip dim">${opt.label||"前月比"} ±0</span>`; const up=d>0; const good= opt.invert? !up : up; return `<span class="vchip ${good?"up":"dn"}">${up?"▲":"▼"} ${opt.label||"前月比"} ${up?"+":""}${fmt(d)}${opt.unit||"万円"}</span>`; }
+function vizCmpHTML(totI, totO){ const mx=Math.max(totI||0, totO||0, 1); const wI=Math.round((totI||0)/mx*100), wO=Math.round((totO||0)/mx*100);
+  return `<div class="cmpbar"><div class="crow"><span class="clb">収入</span><span class="ctr"><i class="in" style="width:${wI}%"></i></span><span class="cvl">${fmt(totI||0)}万円</span></div><div class="crow"><span class="clb">支出</span><span class="ctr"><i class="out" style="width:${wO}%"></i></span><span class="cvl">${fmt(totO||0)}万円</span></div></div>`; }
+function vizSpark(vals, color){ if(!Array.isArray(vals)||vals.length<2) return ""; const mx=Math.max.apply(null, vals), mn=Math.min.apply(null, vals.concat([0])); const rg=(mx-mn)||1; const pts=vals.map((v,i)=>`${(i/(vals.length-1)*100).toFixed(1)},${(32-3-((v-mn)/rg)*26).toFixed(1)}`).join(" "); return `<svg class="spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${color||"#1d6b3c"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`; }
+function vizDots(v, max){ max=max||5; const n=clamp(Math.round(v||0),0,max); let s=`<span class="dots" aria-label="${n}/${max}">`; for(let i=0;i<max;i++) s+=`<i class="${i<n?"on":""}"></i>`; return s+"</span>"; }
+const REP_FACE_COLORS=["#2e5d3a","#20548f","#8a6d1f","#7a4a9e","#b3362b","#1d6b6b","#a0522d","#3d5a78"];
+function repFaceColor(name){ let h=0; const s=String(name||""); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return REP_FACE_COLORS[h%REP_FACE_COLORS.length]; }
+function repLineKind(t){ t=String(t||""); if(/来月/.test(t)) return "plan"; if(/万円|収入|支出|収支|差引|売上|制作費|掛金|給付|契約料|ボーナス|分配|税金|格付け|スコア/.test(t)) return "money"; return "act"; }
+/* ---- 書類データ ---- */
+function docsState(){ if(!Array.isArray(S.docs)) S.docs=[]; return S.docs; }
+function docSplit(total){ total=Math.round(total||0); const tax=Math.floor(total*10/110); return {sub:total-tax, tax, total}; }
+function docSeqNext(type){ if(!S.docSeq||typeof S.docSeq!=="object") S.docSeq={est:0, stl:0}; const k= type==="estimate"? "est":"stl"; S.docSeq[k]=(S.docSeq[k]||0)+1; return S.docSeq[k]; }
+function docNoFor(type, seq){ return (type==="estimate"? "M":"S")+"-"+year()+String(month()).padStart(2,"0")+"-"+String(seq).padStart(3,"0"); }
+const DOC_PARTS={
+ land:[["土地取得費",0.72],["造成・整備費",0.18],["登記・諸経費",0.10]],
+ landP:[["土地取得費",0.72],["造成・整備費",0.18],["登記・諸経費",0.10]],
+ eventBig:[["会場設営・設備費",0.30],["運営人件費",0.25],["広報・集客費",0.20],["飲食・物販仕入",0.15],["警備・保険等諸経費",0.10]],
+ campaign3:[["媒体出稿費",0.55],["クリエイティブ制作費",0.25],["運営・計測費",0.20]],
+ merchBig:[["製造費（大ロット）",0.70],["デザイン・型費",0.15],["梱包・物流費",0.15]],
+ headhunt:[["紹介手数料",0.40],["契約金",0.60]],
+ investBig:[["運用委託金",1]],
+ miniEvent:[["会場・設備費",0.40],["運営人件費",0.35],["広報・諸経費",0.25]],
+ build:[["工事費",0.80],["設計・諸経費",0.20]],
+ buy:[["馬代金",0.92],["輸送・検疫・諸経費",0.08]],
+ camp:[["媒体出稿費",0.60],["制作・運営費",0.40]],
+ event:[["開催費用",0.75],["運営・諸経費",0.25]],
+ merch:[["製造費",0.75],["デザイン・物流費",0.25]],
+ other:[["本件費用",1]],
+};
+function docLines(kind, total){ const sp=docSplit(total); const parts=DOC_PARTS[kind]||DOC_PARTS.other; let acc=0; return parts.map((pr,i)=>{ const amt= i===parts.length-1? sp.sub-acc : Math.round(sp.sub*pr[1]); acc+=amt; return {item:pr[0], qty:"1式", unit:amt, amount:amt}; }); }
+function docIssuerForExec(execId){ try{ const e=execDef(execId); const h=execHolder(execId); return (e? e.title : "役員")+(h? "　"+h.name : ""); }catch(err){ return "役員"; } }
+function estimateDocForProposal(p){ const sp=docSplit(p.cost||0);
+  return {type:"estimate", no:"M-"+(Math.floor((p.week||0)/48)+1)+String(Math.floor(((p.week||0)%48)/4)+1).padStart(2,"0")+"-"+String(100+(Math.abs(p.id||0)%900)), title:p.title, issuer:docIssuerForExec(p.exec), addressee:"株主総会 御中（オーナー）", dateLabel:ledLabel(ledKey()), lines:docLines(p.kind, p.cost||0), sub:sp.sub, tax:sp.tax, total:sp.total, note:(p.desc||"")+" 本見積は株主総会での承認判断のための資料です。承認された場合のみ実行され、実行後に精算書が発行されます。", kind:p.kind}; }
+function docLedOutSnap(){ try{ const L=ledger(); return Object.values(L.out||{}).reduce((a,b)=>a+b,0); }catch(e){ return 0; } }
+function docLedOutDelta(b4){ try{ const L=ledger(); const now=Object.values(L.out||{}).reduce((a,b)=>a+b,0); return Math.max(0, now-b4); }catch(e){ return 0; } }
+function docSettleProposal(p, actOut){ let act= actOut>0? actOut : (p.kind==="investBig"? ((p.data&&p.data.amt)||p.cost||0) : (p.cost||0)); act=Math.round(act); const est=Math.round(p.cost||0); const sp=docSplit(act);
+  const doc={id:"doc"+S.week+"_"+Math.floor(Math.random()*1e9).toString(36), type:"settlement", no:docNoFor("settlement", docSeqNext("settlement")), title:p.title, issuer:docIssuerForExec(p.exec), addressee:"オーナー 御中", dateLabel:ledLabel(ledKey()), key:ledKey(), week:S.week, lines:docLines(p.kind, act), sub:sp.sub, tax:sp.tax, total:act, estTotal:est, diff:act-est, note:"株主総会で承認され、実行が完了しました。精算額は台帳の支出記録と一致します。見積との差異は下記のとおりです。"};
+  const docs=docsState(); docs.unshift(doc); if(docs.length>80) docs.length=80; return doc; }
+function docSpend(cat, amt, title, note){ amt=Math.round(amt||0); if(amt<1000) return null; const docs=docsState(); const sk=cat+":"+amt+":"+S.week+":"+title; if(docs.some(d=>d.spendKey===sk)) return null;
+  const kind= cat==="build"? "build" : cat==="buy"? "buy" : cat==="land"? "landP" : cat==="camp"? "camp" : cat==="event"? "event" : cat==="merch"? "merch" : "other"; const sp=docSplit(amt);
+  const doc={id:"doc"+S.week+"_"+Math.floor(Math.random()*1e9).toString(36), type:"settlement", no:docNoFor("settlement", docSeqNext("settlement")), title, issuer:"CFO（財務担当）", addressee:"オーナー 御中", dateLabel:ledLabel(ledKey()), key:ledKey(), week:S.week, lines:docLines(kind, amt), sub:sp.sub, tax:sp.tax, total:amt, estTotal:amt, diff:0, spendKey:sk, note:(note? note+"。" : "")+"実行前に同額の見積書を発行し、承認のうえ実行した精算です。精算額は台帳の支出記録と一致します。"};
+  docs.unshift(doc); if(docs.length>80) docs.length=80; return doc; }
+/* ---- 書類の描画（正式文書の見た目） ---- */
+function docHTML(d){ const isEst=d.type==="estimate"; const hasDiff= !isEst && d.estTotal!=null;
+  const diffRow= hasDiff? `<div class="doc-diff"><div class="drow"><span>見積額（税込）</span><b>${fmt(d.estTotal)}万円</b></div><div class="drow"><span>精算額（税込）</span><b>${fmt(d.total)}万円</b></div><div class="drow" style="border-top:1px solid #cfc5a2;margin-top:3px;padding-top:5px"><span>差異</span><b>${d.diff===0? "差異なし（見積どおり）" : (d.diff>0? "+" : "")+fmt(d.diff)+"万円"}</b></div></div>` : "";
+  return `<div class="docpaper"><div class="doc-head"><span class="doc-type">${isEst? "見積書":"精算書"}</span><span class="doc-no">文書番号：${esc(d.no||"")}<br>発行日：${esc(d.dateLabel||"")}</span></div>
+  <div class="doc-meta"><span class="dm"><b>宛先</b>${esc(d.addressee||"オーナー 御中")}</span><span class="dm"><b>発行者</b>${esc(d.issuer||"")}</span><span class="dm"><b>状態</b><span class="doc-stamp">${isEst? "承認待ち":"精算済"}</span></span></div>
+  <div class="doc-title">件名：${esc(d.title||"")}</div>
+  <table class="doctable"><tr><th>項目</th><th style="width:52px">数量</th><th class="r" style="width:96px">単価（万円）</th><th class="r" style="width:104px">金額（万円）</th></tr>
+  ${(d.lines||[]).map(l=>`<tr><td>${esc(l.item)}</td><td>${esc(l.qty||"1式")}</td><td class="r">${fmt(l.unit||0)}</td><td class="r">${fmt(l.amount||0)}</td></tr>`).join("")}
+  <tr class="sub"><td colspan="3" class="r">小計</td><td class="r">${fmt(d.sub||0)}</td></tr>
+  <tr class="sub"><td colspan="3" class="r">消費税（10%・内税）</td><td class="r">${fmt(d.tax||0)}</td></tr>
+  <tr class="tot"><td colspan="3" class="r">合計（税込）</td><td class="r">${fmt(d.total||0)}万円</td></tr></table>
+  ${diffRow}
+  ${d.note?`<div class="doc-note"><b>備考：</b>${esc(d.note)}</div>`:""}
+  </div>`; }
+function docOverlayHTML(d, backLedger){ return `<h2>📄 ${d.type==="estimate"? "見積書":"精算書"}</h2><div class="ov-body">${docHTML(d)}</div><div class="ov-foot"><button class="btn gold" onclick="${backLedger? "showLedger()" : "document.getElementById('overlay').style.display='none'"}">閉じる</button></div>`; }
+/* 書類ボタンは画面を問わず委譲で受ける（報告書・総会・明細・ダッシュボード共通） */
+document.addEventListener("click", ev=>{ const t=ev.target; if(!t||!t.closest) return;
+  const bOpen=t.closest("[data-doc-open]"); if(bOpen){ const d=docsState().find(x=>x.id===bOpen.dataset.docOpen); if(d) showOverlay(docOverlayHTML(d)); return; }
+  const bEst=t.closest("[data-doc-est]"); if(bEst){ const p=((S.company&&S.company.proposals)||[]).find(x=>x.id===+bEst.dataset.docEst); if(p) showOverlay(docOverlayHTML(estimateDocForProposal(p))); return; }
+  const bLed=t.closest("[data-leddoc]"); if(bLed){ const amt=+bLed.dataset.amt||0; const sp=docSplit(amt); const note=bLed.dataset.note||"支出"; const d={type:"settlement", no:"S-"+(bLed.dataset.key||"")+"-"+(bLed.dataset.cat||""), title:note, issuer:"CFO（財務担当）", addressee:"オーナー 御中", dateLabel:ledLabel(bLed.dataset.key), lines:[{item:note, qty:"1式", unit:sp.sub, amount:sp.sub}], sub:sp.sub, tax:sp.tax, total:amt, note:"月次明細の内訳1件から生成した精算書です。合計は台帳の記録（カテゴリ合計の内訳）と一致します。"}; showOverlay(docOverlayHTML(d, true)); return; }
+});
 /* ============ 月次報告書（各正担当が月末に提出） ============
    実績はその月の実データ（月次活動カウンタ mAct＋月次台帳＋現在値の
    スナップショット）から作る。動きのない担当は「特記事項なし＋来月の
@@ -16343,7 +16515,7 @@ function genMonthlyReport(){
   }
   try{ const wl=worldReportLines(); if(wl.length) push("世界の動き", "競馬界ウォッチ", wl, ""); }catch(e){} /* §33：月次報告書にも世界の動きの要約を載せる */
   if(!Array.isArray(S.reports)) S.reports=[];
-  S.reports.unshift({key, label:ledLabel(key), week:S.week, totI, totO, hl, sections:secs});
+  S.reports.unshift({key, label:ledLabel(key), week:S.week, totI, totO, hl, sections:secs, docs:(function(){ try{ return docsState().filter(d=>d.key===key).map(d=>d.id); }catch(e){ return []; } })()});
   if(S.reports.length>24) S.reports.length=24;
   S._repKey=key;
   S.reportUnread=(S.reportUnread||0)+1;
@@ -16352,27 +16524,50 @@ function genMonthlyReport(){
 }
 function reportsHTML(){ const reps=Array.isArray(S.reports)? S.reports : []; const un=S.reportUnread||0;
   if(!reps.length) return `<div class="panel"><h3 style="margin:0 0 4px">📬 月次報告書</h3><div class="small">まだ報告書はありません。月の終わり（月末の週処理）に、調教師3枠と会社の各枠の正担当から、その月の実績・収支・来月の予定をまとめた報告書が届き、この「報告書」タブ（馬主タブのサブナビ）に最新24か月分が並びます。会社未設立でも、調教師3枠の報告は届きます。</div></div>`;
+  const secCard=s=>{ const groups={act:[],money:[],plan:[]}; (s.lines||[]).forEach(t=>groups[repLineKind(t)].push(t));
+    const gHTML=(key,label)=> groups[key].length? `<div class="rep-group"><span class="rep-glabel ${key}">${label}</span>${groups[key].map(t=>`<div class="rep-line">${esc(t)}</div>`).join("")}</div>` : "";
+    return `<div class="repcard"><div class="rep-head"><span class="rep-face" style="background:${repFaceColor(s.name)}">${esc((s.name||"？").slice(0,1))}</span><div style="min-width:0"><div class="rep-name">${esc(s.name)}</div><div class="rep-role">${esc(s.role)}</div></div></div>${gHTML("act","実績")}${gHTML("money","収支")}${gHTML("plan","予定")}${s.sug?`<div class="rep-sug">💡 提案：${esc(s.sug)}</div>`:""}</div>`; };
   return `<div class="panel"><div class="flex" style="justify-content:space-between;align-items:center"><h3 style="margin:0">📬 月次報告書</h3>${un?`<button class="btn sm gold" data-reports-read="1">新着 ${un}件を読む（既読にする）</button>`:`<span class="tag">新着なし</span>`}</div>
-  ${reps.map(r=>`<details style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px"><summary style="cursor:pointer;min-height:32px"><b>${esc(r.label)}の報告書</b> <span class="small">収入 ${fmt(r.totI)}万円／支出 ${fmt(r.totO)}万円／差引 ${fmt(r.totI-r.totO)}万円</span></summary>
-   ${(r.hl||[]).length?`<div class="small" style="margin:4px 0">今月のハイライト：${r.hl.map(esc).join("／")}</div>`:""}
-   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:6px">${(r.sections||[]).map(s=>`<div class="panel" style="margin:0"><div class="flex" style="align-items:center;gap:6px"><span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:#2e5d3a;color:#fff;align-items:center;justify-content:center;font-weight:700;flex:none">${esc((s.name||"？").slice(0,1))}</span><div><b>${esc(s.name)}</b><div class="small">${esc(s.role)}</div></div></div><div class="small" style="margin-top:4px">${(s.lines||[]).map(esc).join("<br>")}</div>${s.sug?`<div class="small" style="margin-top:3px">💡 提案：${esc(s.sug)}</div>`:""}</div>`).join("")}</div></details>`).join("")}
+  ${reps.map((r,i)=>{ const prev=reps[i+1]||null; const net=r.totI-r.totO; const trend=reps.slice(0,Math.min(reps.length,i+8)).map(x=>x.totI-x.totO).reverse();
+    const docIds=[...new Set([].concat(r.docs||[], docsState().filter(d=>d.key===r.key).map(d=>d.id)))]; const rdocs=docIds.map(id=>docsState().find(d=>d.id===id)).filter(Boolean);
+    return `<details ${i===0?"open":""} style="margin-top:8px;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--panel2)"><summary style="cursor:pointer;min-height:36px"><b style="font-size:14.5px">${esc(r.label)}の報告書</b> <span class="uchips" style="margin:0;display:inline-flex"><span class="uchip xs">差引 <span class="uv">${fmt(net)}万円</span></span>${prev? vizDeltaHTML(net, prev.totI-prev.totO, {label:"差引の前月比"}) : ""}</span></summary>
+   <div class="kpis"><div class="kpi"><span class="kl">収入</span><span class="kv2">${fmt(r.totI)}<small>万円</small></span>${prev? vizDeltaHTML(r.totI, prev.totI) : `<span class="vchip dim">初回</span>`}</div><div class="kpi"><span class="kl">支出</span><span class="kv2">${fmt(r.totO)}<small>万円</small></span>${prev? vizDeltaHTML(r.totO, prev.totO, {invert:true}) : `<span class="vchip dim">初回</span>`}</div><div class="kpi"><span class="kl">差引</span><span class="kv2">${fmt(net)}<small>万円</small></span><span class="vchip ${net>=0?"up":"dn"}">${net>=0? "黒字":"赤字"}</span></div><div class="kpi"><span class="kl">報告</span><span class="kv2">${(r.sections||[]).length}<small>名</small></span><span class="vchip dim">正担当全員＋役員</span></div></div>
+   ${vizCmpHTML(r.totI, r.totO)}
+   ${trend.length>1?`<div class="small" style="margin-top:2px">差引の推移（直近${trend.length}か月）</div>${vizSpark(trend, net>=0? "#1d6b3c":"#b3362b")}`:""}
+   ${(r.hl||[]).length?`<div class="vchips"><span class="vchip dim">ハイライト</span>${r.hl.map(h=>`<span class="vchip warn">★ ${esc(h)}</span>`).join("")}</div>`:""}
+   <div class="repgrid">${(r.sections||[]).map(secCard).join("")}</div>
+   ${rdocs.length?`<div style="margin-top:8px"><b class="small">📄 この月の正式書類（精算書）</b>${rdocs.map(d=>`<div class="doc-list-row"><span>📄 ${esc(d.title)} <span class="small">${esc(d.no||"")}</span></span><span style="margin-left:auto"><b>${fmt(d.total)}万円</b>${d.diff? ` <span class="vchip ${d.diff>0?"dn":"warn"}">見積との差異 ${d.diff>0?"+":""}${fmt(d.diff)}万円</span>`:` <span class="vchip up">見積どおり</span>`} <button type="button" class="btn ghost sm" data-doc-open="${d.id}">精算書を見る</button></span></div>`).join("")}</div>`:""}
+   </details>`; }).join("")}
   </div>`; }
 function mgmtDashboardHTML(){ const c=S.company; if(!c) return ""; const m=mgmt();
   const L=ledger(); const depts=deptPL(L); const yl=ledYearLedger(); const yDepts=deptPL(yl);
   const gp=goalProgress();
   const camp=campActive();
-  const budgetBars=BUDGET_CATS.map(([k,ln])=>{ const cap=m.budget.caps[k]||0; const act=yl.out[k]||0; if(!cap) return `<div class="ye-lrow"><span>${ln}予算</span><span class="small">上限なし（実績 ${fmt(act)}万円）</span></div>`; const pct=Math.min(100,Math.round(act/cap*100)); return `<div style="margin:3px 0"><div class="flex" style="justify-content:space-between"><span class="small">${ln}予算（年間）</span><span class="small">${fmt(act)}／${fmt(cap)}万円（${pct}%）</span></div><div class="winbar"><i style="width:${pct}%;${act>cap?"background:#d23b2e":""}"></i></div></div>`; }).join("");
+  const netM=ledMonthSum(L.inn)-ledMonthSum(L.out), netY=ledMonthSum(yl.inn)-ledMonthSum(yl.out);
+  const prevL=(S.ledgerHist||[])[0]; const prevNet= prevL? ledMonthSum(prevL.inn)-ledMonthSum(prevL.out) : null;
+  const maxNet=Math.max(1, ...depts.map(d=>Math.abs(d.inn-d.out)));
+  const totDeptIn=depts.reduce((a,d)=>a+Math.max(0,d.inn),0)||1;
+  const STACK_COLORS=["#2c8a4f","#20548f","#c9971c","#7a4a9e","#8a8a7a"];
+  const stackHTML=depts.map((d,i)=> d.inn>0? `<i style="width:${Math.round(d.inn/totDeptIn*100)}%;background:${STACK_COLORS[i%STACK_COLORS.length]}" title="${esc(d.name)}"></i>` : "").join("");
+  const stackLeg=depts.map((d,i)=>`<span class="sl"><span class="sw" style="background:${STACK_COLORS[i%STACK_COLORS.length]}"></span>${esc(d.name)} ${fmt(d.inn)}万円</span>`).join("");
+  const budgetBars=BUDGET_CATS.map(([k,ln])=>{ const cap=m.budget.caps[k]||0; const act=yl.out[k]||0; if(!cap) return `<div class="deptrow"><span class="dn2">${ln}予算</span><span class="small">上限なし</span><span class="dv" style="margin-left:auto">実績 ${fmt(act)}万円</span></div>`; const pct=Math.min(100,Math.round(act/cap*100)); const pace=Math.round(month()/12*100); return `<div style="margin:5px 0"><div class="flex" style="justify-content:space-between"><span class="small"><b>${ln}予算</b>（年間）</span><span class="small">${fmt(act)}／${fmt(cap)}万円（${pct}%）${act>cap?` <span class="vchip dn">超過</span>`: pct>pace? ` <span class="vchip warn">進捗ペース超</span>`:` <span class="vchip up">ペース内</span>`}</span></div><div class="gauge34"><i style="width:${pct}%;${act>cap?"background:#d23b2e":""}"></i><span class="mark" style="left:${pace}%" title="時期の目安 ${pace}%"></span></div></div>`; }).join("");
+  let rt=null; try{ rt=creditRating(); }catch(e){}
+  const recentDocs=docsState().slice(0,4);
   return `<div class="panel" style="border:2px solid #c9a227">
    <h3 style="margin:0 0 4px">📊 経営ダッシュボード（CFO集計）</h3>
-   <div class="flex"><span class="tag">士気 <b>${Math.round(m.morale)}</b>（効果 ${moraleFactor()>=1?"+":""}${Math.round((moraleFactor()-1)*1000)/10}%）</span><span class="tag">福利厚生 Lv.${m.welfareLv}（月 ${fmt(m.lastWelfare||0)}万円）</span><span class="tag">土地 第${m.land}期まで拡張（価値 +${fmt(landValue())}万円）</span>${camp?`<span class="tag">📣 キャンペーン中（Lv.${camp}・あと ${m.campUntil-S.week}週）</span>`:`<span class="tag">キャンペーンなし</span>`}</div>
-   <div class="small" style="margin-top:6px"><b>経営目標</b>：${gp? (gp.stale? `昨年の目標は${gp.g.done? "達成" : "未達"}でした。今年の目標を設定してください` : `${goalTypeDef(gp.g.type).name} ${fmt(gp.cur)}${goalTypeDef(gp.g.type).unit}／${fmt(gp.g.target)}${goalTypeDef(gp.g.type).unit}（${gp.pct}%）${gp.achieved? " ― 達成ペースです" : ""}`) : "未設定（下の「経営目標」から設定できます）"}</div>
-   ${(()=>{ try{ const wl=worldReportLines(); return wl.length? `<h4 style="margin:8px 0 2px">世界の動き（要約）</h4>`+wl.map(t=>`<div class="small">${esc(t)}</div>`).join("") : ""; }catch(e){ return ""; } })()}
-   <h4 style="margin:8px 0 2px">部門別収支（今月／今年）</h4>
-   ${depts.map((d,i)=>`<div class="ye-lrow"><span>${d.name}</span><span class="uchips" style="margin:0"><span class="uchip xs">今月 <span class="uv">${fmt(d.inn-d.out)}万円</span></span><span class="uchip xs">今年 <span class="uv">${fmt(yDepts[i].inn-yDepts[i].out)}万円</span></span></span></div>`).join("")}
-   <div class="ye-lrow" style="border-top:2px solid var(--line)"><span><b>合計</b></span><span class="uchips" style="margin:0"><span class="uchip xs">今月 <span class="uv">${fmt(ledMonthSum(L.inn)-ledMonthSum(L.out))}万円</span></span><span class="uchip xs">今年 <span class="uv">${fmt(ledMonthSum(yl.inn)-ledMonthSum(yl.out))}万円</span></span></span></div>
-   <h4 style="margin:8px 0 2px">年間予算と実績（CFO）</h4>
+   <div class="kpis"><div class="kpi"><span class="kl">今月の差引</span><span class="kv2">${fmt(netM)}<small>万円</small></span>${vizDeltaHTML(netM, prevNet, {label:"前月比"})}</div><div class="kpi"><span class="kl">今年の差引</span><span class="kv2">${fmt(netY)}<small>万円</small></span><span class="vchip ${netY>=0?"up":"dn"}">${netY>=0?"黒字":"赤字"}</span></div><div class="kpi"><span class="kl">現在の資金</span><span class="kv2">${fmt(S.funds)}<small>万円</small></span>${rt?`<span class="vchip warn">信用格付け ${esc(rt.grade)}</span>`:""}</div><div class="kpi"><span class="kl">士気</span><span class="kv2">${Math.round(m.morale)}<small>／100</small></span><span class="vchip dim">効果 ${moraleFactor()>=1?"+":""}${Math.round((moraleFactor()-1)*1000)/10}%</span></div></div>
+   <div class="flex"><span class="tag">福利厚生 Lv.${m.welfareLv}（月 ${fmt(m.lastWelfare||0)}万円）</span><span class="tag">土地 第${m.land}期まで拡張（価値 +${fmt(landValue())}万円）</span>${camp?`<span class="tag">📣 キャンペーン中（Lv.${camp}・あと ${m.campUntil-S.week}週）</span>`:`<span class="tag">キャンペーンなし</span>`}</div>
+   <div style="margin-top:8px"><div class="flex" style="justify-content:space-between"><span class="small"><b>士気ゲージ</b></span><span class="small">${Math.round(m.morale)}／100</span></div><div class="gauge34"><i style="width:${clamp(Math.round(m.morale),0,100)}%"></i></div></div>
+   <div style="margin-top:4px"><div class="flex" style="justify-content:space-between"><span class="small"><b>経営目標</b>${gp&&!gp.stale? `：${esc(goalTypeDef(gp.g.type).name)}`:""}</span><span class="small">${gp? (gp.stale? `昨年の目標は${gp.g.done? "達成":"未達"}でした` : `${fmt(gp.cur)}${goalTypeDef(gp.g.type).unit}／${fmt(gp.g.target)}${goalTypeDef(gp.g.type).unit}（${gp.pct}%）`) : "未設定"}</span></div>${gp&&!gp.stale?`<div class="gauge34"><i style="width:${gp.pct}%;${gp.achieved?"background:var(--gold)":""}"></i></div>`:`<div class="small">下の「経営目標」から設定できます。達成で名声+3・士気+10。</div>`}</div>
+   ${(()=>{ try{ const eco=S.worldEco||{idx:1}; const sp=(S.sirePower||[])[0]; const topSt=rivalStables().slice().sort((a,b)=>(b.funds||0)-(a.funds||0))[0]; return `<h4 style="margin:10px 0 2px">世界の動き（要約）</h4><div class="vchips"><span class="vchip">世界市況 <b>${(Number.isFinite(+eco.idx)? +eco.idx:1).toFixed(2)}</b></span>${sp?`<span class="vchip">種牡馬勢力の首位 <b>${esc(sp.name)}</b></span>`:""}${topSt?`<span class="vchip">資金首位の牧場 <b>${esc(topSt.name)}</b></span>`:""}${(S.chronicle||[]).length?`<span class="vchip warn">年代記：${esc(S.chronicle[0].title)}</span>`:""}</div>`; }catch(e){ return ""; } })()}
+   <h4 style="margin:10px 0 2px">部門別収支（今月）</h4>
+   <div class="stackbar">${stackHTML}</div><div class="stackleg">${stackLeg}</div>
+   ${depts.map((d,i)=>{ const net=d.inn-d.out; return `<div class="deptrow"><span class="dn2">${esc(d.name)}</span><span class="dtr"><i style="width:${Math.round(Math.abs(net)/maxNet*100)}%;background:${net>=0? "#2c8a4f":"#d2691e"}"></i></span><span class="dv">${fmt(net)}万円</span><span class="uchip xs">今年 <span class="uv">${fmt(yDepts[i].inn-yDepts[i].out)}万円</span></span></div>`; }).join("")}
+   <div class="deptrow" style="border-top:2px solid var(--line)"><span class="dn2">合計</span><span></span><span class="dv">${fmt(netM)}万円</span><span class="uchip xs">今年 <span class="uv">${fmt(netY)}万円</span></span></div>
+   <h4 style="margin:10px 0 2px">年間予算と実績（CFO）</h4>
    ${budgetBars}
-   <div class="small">予算は管理・報告用です（超過しても支出は自動で止まりません）。差異は月次報告書でCFOが報告します。</div>
+   <div class="small">予算バー内の縦線は「時期の目安」（経過月ぶんの進捗）。予算は管理・報告用です（超過しても支出は自動で止まりません）。差異は月次報告書でCFOが報告します。</div>
+   ${recentDocs.length?`<h4 style="margin:10px 0 2px">📄 最近の正式書類（精算書）</h4>${recentDocs.map(d=>`<div class="doc-list-row"><span>📄 ${esc(d.title)} <span class="small">${esc(d.no||"")}／${esc(d.dateLabel||"")}</span></span><span style="margin-left:auto"><b>${fmt(d.total)}万円</b> <button type="button" class="btn ghost sm" data-doc-open="${d.id}">精算書を見る</button></span></div>`).join("")}`:""}
   </div>`; }
 function mgmtActionsHTML(){ const c=S.company; if(!c) return ""; const m=mgmt();
   const capOpts=[0,10000,30000,60000,120000,300000];
@@ -16412,7 +16607,7 @@ function runEvent(){ const c=compState(); if(!c) return; if(S.week<(c.eventCdUnt
   const t=EVENT_TYPES.find(x=>x.id===compEvSel.type)||EVENT_TYPES[0]; const sz=EVENT_SIZES.find(x=>x.id===compEvSel.size)||EVENT_SIZES[0];
   if(!eventSizeAllowed(sz.id)){ toast("その規模は事業担当の企画力・カバーが足りません"); return; }
   if(S.funds<sz.cost){ toast("資金が不足しています"); return; }
-  undoPush(`イベント（${t.name}）の前`); S.funds-=sz.cost; ledOut("event",sz.cost,`イベント費用：${t.name}（${sz.name}）`);
+  undoPush(`イベント（${t.name}）の前`); S.funds-=sz.cost; ledOut("event",sz.cost,`イベント費用：${t.name}（${sz.name}）`); try{ docSpend("event", sz.cost, `イベント開催（${t.name}・${sz.name}）`, "牧場イベント実施の精算"); }catch(e){}
   const planE=compEff("plan"), opsE=compEff("ops"), prE=compEff("pr");
   const att=Math.round(sz.att*(0.5+0.55*opsE)*(0.6+0.65*prE)*(1+0.2*campActive())*rnd(0.85,1.15));
   try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evCost+=sz.cost; }catch(e){}
@@ -16438,7 +16633,7 @@ function compRoleCardHTML(r){ const c=S.company; const cur=c.roles[r.id]; const 
    <div class="flex" style="justify-content:space-between;align-items:flex-start"><b>${r.name}</b>${short?`<span class="tag" style="background:#d23b2e;color:#fff">⚠ ${cv.short}頭分不足</span>`:`<span class="tag">カバー充足</span>`}</div>
    <div class="small">${r.desc}</div>
    ${["ins","sales","mkt","pr","fin","fac"].includes(r.id)?`<div style="margin-top:3px"><button type="button" class="btn ghost sm" data-goto-biz2="1">🏦 経営機能 第2弾（${r.id==="ins"?"馬ごとの保険":r.id==="sales"?"スポンサー契約":r.id==="mkt"||r.id==="pr"?"ファンクラブ":r.id==="fin"?"格付け・税金":"資産の貸出・売却"}）へ</button></div>`:""}
-   <div class="small" style="margin-top:4px">業務量 ${cv.need} 頭相当 ／ カバー上限 <b>${cv.cap}頭</b>（実効 ${cv.covered}頭）</div>
+   <div class="small" style="margin-top:4px">業務量 ${cv.need} 頭相当 ／ カバー上限 <b>${cv.cap}頭</b>（実効 ${cv.covered}頭）</div><div class="winbar" style="margin-top:3px"><i style="width:${cv.need? Math.min(100,Math.round(cv.covered/Math.max(1,cv.need)*100)) : 100}%;${cv.covered<cv.need? "background:#d23b2e":""}"></i></div>
    <div style="margin-top:6px"><span class="small">正担当</span><br>${main?`<b>${esc(main.name)}</b> <span class="tag">${r.rankName} ${compRankOf(main,r)}</span> ${rankChips(main)}`:`<span class="small">未配置</span>`}</div>
    <label class="small">正担当を変更 <select data-comp-main="${r.id}" style="max-width:100%">${opts||'<option value="">（スタッフなし）</option>'}</select></label>
    ${subs.length?`<details style="margin-top:4px"><summary class="small">副担当（${cur.subs.length}名）― カバーを広げる</summary>${subs.map(s=>`<label class="small" style="display:block"><input type="checkbox" data-comp-sub="${r.id}" value="${s.id}" ${cur.subs.includes(s.id)?"checked":""}> ${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・+${compCapSub(r,s)}頭）</label>`).join("")}</details>`:`<div class="small">副担当候補：他のスタッフを雇用すると選べます</div>`}
