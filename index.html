@@ -3441,7 +3441,7 @@ function facUpWeeks(f, toLv){ return (f.weeks||2)+Math.max(0,(toLv||2)-2); }
 function facMaintM(f, lv){ let m=Math.round((f.maint||0)*[0,1,2,3.4,5.2][Math.min(4,Math.max(0,lv))]); if(typeof compEff==="function") m=Math.round(m*(1-0.25*compEff("fac"))); return m; }
 function migrateFacilities(){ if(!S||S.facV2) return; S.facV2=true; const F=S.facilities||{}; Object.keys(F).forEach(id=>{ if(id!=="base"&&F[id]>=2) F[id]=Math.min(4,F[id]+1); }); }
 function facBuilding(id){ return S&&S.building? (S.building[id]||0):0; }
-function facEffect(id){ const lv=facLv(id); if(lv<=0||facBuilding(id)>0) return 0; return facEffectLv(id, lv); }
+function facEffect(id){ const lv=facLv(id); if(lv<=0||facBuilding(id)>0) return 0; try{ const b=S&&S.company&&S.company.biz2; if(b&&b.facLease&&b.facLease[id]&&S.week<(b.facLease[id].until||0)) return 0; }catch(e){} return facEffectLv(id, lv); } /* 貸出中の施設は効果停止（資産の貸出・売却／経営第2弾） */
 function farmSpaces(){ const fame=(S&&S.fame||0); const fameBonus=Math.floor(fame/5); const base=6+facLv("base")*4+fameBonus; let used=0; Object.keys(S?S.facilities||{}:{}).forEach(k=>{ if(k!=="base"&&facLv(k)>0) used++; }); return {base, used, free:base-used, fameBonus, nextFame:(Math.floor(fame/5)+1)*5}; }
 function facCatTotals(){ const t={}; FAC_CATS.forEach(c=>t[c]=0); FACILITIES.forEach(f=>{ const e=facEffect(f.id); if(e>0) t[f.cat]=(t[f.cat]||0)+e; }); t["名声"]=facEffect("merit")*0.6+facEffect("tourism")*0.3; return t; }
 /* ============ 施設のおすすめ判定 ============
@@ -5059,36 +5059,54 @@ function upkeep(){ return upkeepItems().reduce((a,x)=>a+x.v,0); }
 /* ============ 月次明細（収支台帳） ============
    主な取引を項目別に月単位で記録し、設定画面から明細として見られるようにする。
    月が替わると前月分は履歴（最大12か月）へ移る */
-const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費", salary:"人件費（会社）", welfare:"福利厚生費", training:"研修費", camp:"広告費", land:"土地購入費", event:"イベント費用", merch:"グッズ制作費", insurance:"競走馬保険料",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
-const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金", biz:"イベント事業収入", fanbiz:"ファンビジネス収入", goods:"グッズ売上", insurancePay:"保険給付金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
+const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費", salary:"人件費（会社）", welfare:"福利厚生費", training:"研修費", camp:"広告費", land:"土地購入費", event:"イベント費用", merch:"グッズ制作費", insurance:"競走馬保険料",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",sponsorCut:"スポンサーへの賞金分配",tax:"法人税・税金精算",other:"その他支出"};
+const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金", biz:"イベント事業収入", fanbiz:"ファンビジネス収入", goods:"グッズ売上", insurancePay:"保険給付金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",rentIn:"施設・土地の貸出収入",assetSell:"施設・土地の売却収入",otherIn:"その他収入"};
 function ledKey(){ return year()+"-"+month(); }
 function ledLabel(k){ const p=String(k||"").split("-"); return (p[0]||"?")+"年目 "+(p[1]||"?")+"月"; }
 function ledger(){
   const k=ledKey();
   if(!S.ledger||S.ledger.key!==k){
     if(S.ledger&&S.ledger.key){ if(!S.ledgerHist)S.ledgerHist=[]; S.ledgerHist.unshift(S.ledger); if(S.ledgerHist.length>12)S.ledgerHist.length=12; }
-    S.ledger={key:k, out:{}, inn:{}};
+    S.ledger={key:k, out:{}, inn:{}, details:[]};
   }
-  if(!S.ledger.out)S.ledger.out={}; if(!S.ledger.inn)S.ledger.inn={};
+  if(!S.ledger.out)S.ledger.out={}; if(!S.ledger.inn)S.ledger.inn={}; if(!Array.isArray(S.ledger.details))S.ledger.details=[];
   return S.ledger;
 }
-function ledOut(cat,amt){ if(!(amt>0))return; try{ const L=ledger(); L.out[cat]=(L.out[cat]||0)+Math.round(amt); }catch(e){} }
-function ledIn(cat,amt){ if(!(amt>0))return; try{ const L=ledger(); L.inn[cat]=(L.inn[cat]||0)+Math.round(amt); }catch(e){} }
+/* 明細の内訳記録：カテゴリ合計（台帳）とは別に「何に／誰に／どの馬に」を
+   1件ずつ残す。金額は台帳へ加算した丸め後の金額と必ず一致させ、明細画面では
+   内訳の合計＋「詳細なし分」＝カテゴリ合計になるよう表示して照合できる形にする */
+function ledDetail(L, side, cat, amt, note){ if(!note) return; L.details.push({s:side, cat, amt, note, w:S.week}); if(L.details.length>600) L.details.splice(0, L.details.length-600); }
+function ledOut(cat,amt,note){ if(!(amt>0))return; try{ const L=ledger(); const a=Math.round(amt); L.out[cat]=(L.out[cat]||0)+a; ledDetail(L,"out",cat,a,note); }catch(e){} }
+function ledIn(cat,amt,note){ if(!(amt>0))return; try{ const L=ledger(); const a=Math.round(amt); L.inn[cat]=(L.inn[cat]||0)+a; ledDetail(L,"in",cat,a,note); }catch(e){} }
+let LEDACC={}; /* 月次明細のアコーディオン開閉状態（セッション限り・再描画とオート中も保持） */
+function ledCatRowsHTML(L, side){
+  const cats= side==="in"? LED_IN : LED_CATS; const obj= side==="in"? (L.inn||{}) : (L.out||{});
+  const keys=Object.keys(cats).filter(k=>(obj[k]||0)>0);
+  if(!keys.length) return `<div class="small">今月はまだ記録がありません</div>`;
+  return keys.map(k=>{
+    const tot=obj[k]; const id=`led:${L.key}:${side}:${k}`; const open=!!LEDACC[id];
+    const dets=(L.details||[]).filter(d=>d.s===side&&d.cat===k);
+    const dsum=dets.reduce((a,d)=>a+(d.amt||0),0); const rest=tot-dsum;
+    const body= open? `<div style="padding:2px 0 6px 10px;border-left:3px solid var(--line);margin:2px 0 6px 4px">${dets.map(d=>`<div class="ye-lrow"><span class="small">${esc(d.note)}</span><span class="small">${fmt(d.amt)}万円</span></div>`).join("")}${rest>0?`<div class="ye-lrow"><span class="small">${dets.length? "その他（内訳の記録なし分）" : "この項目は合計のみ記録しています"}</span><span class="small">${fmt(rest)}万円</span></div>`:rest<0?`<div class="ye-lrow"><span class="small">※内訳が合計を ${fmt(-rest)}万円 上回っています</span></div>`:""}</div>` : "";
+    return `<div class="ye-lrow" style="align-items:center"><button type="button" class="btn ghost sm" data-ledacc="${id}" aria-expanded="${open}" style="flex:1;text-align:left;min-height:36px">${open?"▲":"▼"} ${cats[k]} <span class="small">${dets.length?`（内訳 ${dets.length}件）`:"（合計のみ）"}</span></button><b>${fmt(tot)}万円</b></div>${body}`;
+  }).join("");
+}
 function showLedger(){
   const L=ledger();
-  const rows=(obj,cats)=>Object.keys(cats).filter(k=>(obj[k]||0)>0).map(k=>`<div class="ye-lrow"><span>${cats[k]}</span><b>${fmt(obj[k])}万円</b></div>`).join("")||`<div class="small">今月はまだ記録がありません</div>`;
   const totO=Object.values(L.out).reduce((a,b)=>a+b,0), totI=Object.values(L.inn).reduce((a,b)=>a+b,0);
-  const hist=(S.ledgerHist||[]).map(hx=>{ const o=Object.values(hx.out||{}).reduce((a,b)=>a+b,0), ii=Object.values(hx.inn||{}).reduce((a,b)=>a+b,0);
-    return `<div class="ye-lrow"><span>${ledLabel(hx.key)}</span><span class="uchips" style="margin:0"><span class="uchip xs">収入 <span class="uv">${fmt(ii)}</span></span><span class="uchip xs">支出 <span class="uv">${fmt(o)}</span></span><span class="uchip xs">差引 <span class="uv">${fmt(ii-o)}万円</span></span></span></div>`; }).join("");
+  const hist=(S.ledgerHist||[]).map(hx=>{ const o=Object.values(hx.out||{}).reduce((a,b)=>a+b,0), ii=Object.values(hx.inn||{}).reduce((a,b)=>a+b,0); const id=`ledhist:${hx.key}`; const open=!!LEDACC[id];
+    return `<div class="ye-lrow" style="align-items:center"><button type="button" class="btn ghost sm" data-ledacc="${id}" aria-expanded="${open}" style="flex:1;text-align:left;min-height:36px">${open?"▲":"▼"} ${ledLabel(hx.key)}</button><span class="uchips" style="margin:0"><span class="uchip xs">収入 <span class="uv">${fmt(ii)}</span></span><span class="uchip xs">支出 <span class="uv">${fmt(o)}</span></span><span class="uchip xs">差引 <span class="uv">${fmt(ii-o)}万円</span></span></span></div>${open?`<div style="padding:2px 0 4px 6px"><div class="small" style="margin:2px 0"><b>収入</b></div>${ledCatRowsHTML(hx,"in")}<div class="small" style="margin:4px 0 2px"><b>支出</b></div>${ledCatRowsHTML(hx,"out")}</div>`:""}`; }).join("");
   const items=upkeepItems().map(x=>`<div class="ye-lrow"><span>${x.n}</span><b>${fmt(x.v)}万円</b></div>`).join("");
   showOverlay(`<h2>📒 月次明細（${ledLabel(L.key)}）</h2><div class="ov-body"><div style="text-align:left">
-  <div class="ye-sec" style="margin-top:2px">収入</div>${rows(L.inn,LED_IN)}
-  <div class="ye-sec">支出</div>${rows(L.out,LED_CATS)}
+  <div class="small">各項目はタップで内訳（どの馬の保険か・どのイベントか・誰の給与か等）を開けます。内訳の合計はカテゴリ合計と一致します。</div>
+  <div class="ye-sec" style="margin-top:6px">収入</div>${ledCatRowsHTML(L,"in")}
+  <div class="ye-sec">支出</div>${ledCatRowsHTML(L,"out")}
   <div class="ye-lrow" style="border-top:2px solid var(--line);margin-top:6px;padding-top:6px"><span><b>今月の差引</b></span><b>${fmt(totI-totO)}万円</b></div>
   <div class="ye-sec">毎週の維持費（現在の頭数）</div>${items}
   <div class="ye-lrow"><span><b>維持費 合計</b></span><b>${fmt(upkeep())}万円／週</b></div>
-  ${hist?`<div class="ye-sec">過去の月</div>${hist}`:""}
+  ${hist?`<div class="ye-sec">過去の月（タップでその月の内訳）</div>${hist}`:""}
   </div></div><div class="ov-foot"><button class="btn gold" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
+  document.querySelectorAll("[data-ledacc]").forEach(b=>b.addEventListener("click",()=>{ const id=b.dataset.ledacc; LEDACC[id]=!LEDACC[id]; showLedger(); }));
 }
 
 function fixedHorse(o,fx){ const h=newHorse(o); Object.assign(h,fx); h.dmax=fx.dmax||h.dmax; h.bestDist=Math.round((h.dmin+h.dmax)/2/100)*100; if(fx.style&&!fx.tacApt)h.tacApt=initTacApt(h.style); return h; }
@@ -8588,17 +8606,17 @@ function nextWeekBody(){
   S.funds-=upkeep();
   upkeepItems().forEach(x=>ledOut(x.cat,x.v)); // 月次明細へ項目別に記録
   /* 施設の月維持費（月初週に徴収） */
-  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } try{ const fsal=mgrSalaryTotal(); if(fsal>0){ S.funds-=fsal; ledOut("salary",fsal); log(`牧場スタッフの月給 ${fmt(fsal)}万円を支払い`); } }catch(e){} try{ companyMonthly(); }catch(e){} try{ genMonthlyReport(); }catch(e){} }
+  if(S.week%4===3){ let fm=0; FACILITIES.forEach(f=>{ fm+= facBuilding(f.id)>0?0:facMaintM(f,facLv(f.id)); }); if(fm>0){ S.funds-=fm; ledOut("facility",fm); log(`牧場施設の月維持費 ${fm}万円 を支払い`); } const ou=overseasUpkeepM(); if(ou>0){ S.funds-=ou; ledOut("overseas",ou); log(`海外牧場の月維持費 ${ou}万円 を支払い`); } const bf=boardFeeM(); if(bf>0){ S.funds-=bf; ledOut("board",bf); log(`牧場への預かり料 ${bf}万円 を支払い（持分${farmEquityPct()}%）`); } if(farmEquityPct()>=100){ const bi=boardedCount()*BOARD_PER_HEAD_M; if(bi>0){ S.funds+=bi; ledIn("boardIn",bi); } } try{ const fsal=mgrSalaryTotal(); if(fsal>0){ S.funds-=fsal; ledOut("salary",fsal,`牧場スタッフの月給（牧場長・牧場スタッフ ${(S.farmStaff||[]).length}名分）`); log(`牧場スタッフの月給 ${fmt(fsal)}万円を支払い`); } }catch(e){} try{ companyMonthly(); }catch(e){} try{ genMonthlyReport(); }catch(e){} }
   /* 施設の工事進行 */
   Object.keys(S.building||{}).forEach(id=>{ if(S.building[id]>0){ S.building[id]--; if(S.building[id]<=0){ const f=FACILITIES.find(x=>x.id===id); log(`🏗 施設「${f?f.n:id}」が完成した`); } } });
   if(S.overseasFarm&&S.overseasFarm.farms){ ["eu","us"].forEach(rg=>{ const f=S.overseasFarm.farms[rg]; if(f&&!f.built&&f.weeks>0){ f.weeks--; if(f.weeks<=0){ f.built=true; log(`🌍 ${OV_FARMS[rg].name}が完成しました（遠征費の割引・現地の種牡馬割引・産駒の適性底上げが有効になります）`); } } }); }
   /* 融資の週次返済（自動引き落とし）。返済できない週が2回続くと融資打ち切り＝破産 */
   if(S.loan){
     const pay=Math.min(S.loan.weekly, S.loan.remaining);
-    if(S.funds>=pay){ S.funds-=pay; ledOut("loan",pay); S.loan.remaining-=pay; S.loan.weeksLeft=Math.max(0,(S.loan.weeksLeft||0)-1); S.loan.missed=0;
+    if(S.funds>=pay){ S.funds-=pay; S.loan.remaining-=pay; ledOut("loan",pay,`融資返済：${loanTypeDef(S.loan.type).name}（金利 ${S.loan.rate||15}%／返済後の残高 ${fmt(S.loan.remaining)}万円）`); S.loan.weeksLeft=Math.max(0,(S.loan.weeksLeft||0)-1); S.loan.missed=0;
       log(`🏦 融資返済 ${fmt(pay)}万円（借入残り ${fmt(S.loan.remaining)}万円）`);
       if(S.loan.remaining<=0){ S.loan=null; log("🏦 融資を完済しました"); } }
-    else { S.loan.missed=(S.loan.missed||0)+1; S.loan.remaining=Math.round(S.loan.remaining*1.05);
+    else { S.loan.missed=(S.loan.missed||0)+1; S._loanMissedTotal=(S._loanMissedTotal||0)+1; S.loan.remaining=Math.round(S.loan.remaining*1.05);
       log(`⚠ 融資の返済（${fmt(pay)}万円）ができませんでした。延滞 ${S.loan.missed}回目／残高に延滞利息が加算されました`);
       if(S.loan.missed===1) S._loanWarn=true; // 1回目の延滞は週送り後に警告画面でも知らせる
       if(S.loan.missed>=2){ gameOver("loan"); return; } }
@@ -8697,6 +8715,7 @@ function nextWeekBody(){
     try{ familyYearEnd(prevYear, data); }catch(e){}
     try{ farmDividendYearEnd(data); }catch(e){}
     try{ mgmtGoalYearEnd(prevYear); }catch(e){} /* 経営目標の年末判定（達成で名声・士気の報酬） */
+    try{ taxYearEnd(prevYear); }catch(e){} /* 年次の税金精算（利益連動・CFO／経営第2弾） */
     S.horses.forEach(h=>{h.yearWins=0; h.yearEarnings=0;});
     /* 種牡馬ビジネス：産駒実績で需要を更新し、他牧場からの種付け依頼があれば収入にする */
     try{ sireDemandTick().forEach(x=>{ S.funds+=x.fee; S._sireYr=(S._sireYr||0)+x.fee; ledIn("sirefee",x.fee); log(`🐴 他牧場から「${x.s.name}」への種付け依頼があり、種付料 ${fmt(x.fee)}万円 が入りました（需要 ${x.s.demand}）`); }); }catch(e){}
@@ -8716,7 +8735,7 @@ function yearlyPrizeIncome(){ let sum=0; try{ const hs=[S.ledger].concat(S.ledge
 /* 総資産の概算：資金＋所有馬・繁殖牝馬・幼駒の評価額＋施設の取得額 */
 function stableAssetValue(){ let v=Math.max(0,S.funds||0); try{ (S.horses||[]).forEach(h=>{ v+=horseSellPrice(h); }); }catch(e){} try{ (S.mares||[]).forEach(m=>{ v+=mareSellPrice(m); }); }catch(e){} try{ (S.youngStock||[]).forEach(y=>{ v+=Math.max(100,Math.round(((y.spd+y.sta+y.pow+y.bst+y.gut)/5)*10)); }); }catch(e){} try{ FACILITIES.forEach(f=>{ v+=facLv(f.id)*(f.cost||0); }); }catch(e){} return v; }
 /* 借入限度額＝基礎枠＋名声×150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）。規模に連動し、収入・資産の裏付けの範囲に収める */
-function loanLimit(){ const base=4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + (S.horses||[]).length*300; let lim=Math.min(60000, base + (S.fame||0)*150 + Math.floor(stableAssetValue()*0.10) + Math.floor(yearlyPrizeIncome()*0.5)); if(typeof compEff==="function") lim=Math.round(lim*(1+0.25*compEff("fin"))); return lim; }
+function loanLimit(){ const base=4000 + (S.champions||0)*1500 + (S.g1Wins||0)*500 + (S.horses||[]).length*300; let lim=Math.min(60000, base + (S.fame||0)*150 + Math.floor(stableAssetValue()*0.10) + Math.floor(yearlyPrizeIncome()*0.5)); if(typeof compEff==="function") lim=Math.round(lim*(1+0.25*compEff("fin"))); if(S.company&&typeof creditRating==="function"){ try{ lim=Math.round(lim*creditRating().limitMul); }catch(e){} } return lim; } /* 信用格付けで枠も変動（経営第2弾） */
 function loanCapacity(){ return Math.max(0, loanLimit()-loanOutstanding()); }
 /* スポンサー支援の受取額（融資画面に明示する）：基礎1,500万円＋重賞ウィナー1頭あたり500万円。
    上限は10,000万円（1億円）。代償は受取後12週間の賞金の30%控除、再利用は48週に1回まで */
@@ -9231,17 +9250,20 @@ function surplusStallion(){
 function canRescue(){ return loanCapacity()>=100 || sponsorAvailable() || S.horses.length>0; }
 /* 融資は「資金が足りない時」専用ではない：資金があっても、借入限度額の
    残り枠の範囲ならいつでも・いくらでも（100万円以上）借りられる */
-function takeLoan(amt){
+function takeLoan(amt, typeId){
   const cap=loanCapacity();
   amt=Math.floor(+amt||0);
   if(amt>cap) amt=cap;
   if(amt<100){ toast(cap<100? "借入限度額に達しているため、これ以上は借りられません" : "借入金額は100万円以上で入力してください"); return; }
-  const rate=(typeof compEff==="function")? Math.max(9, 15-Math.round(6*compEff("fin"))) : 15; const total=Math.ceil(amt*(1+rate/100)); // 利息15%を上乗せした返済総額
+  const type=loanTypeDef(typeId||(S.loan&&S.loan.type)||"short");
+  if(type.id==="secured"&&stableAssetValue()<Math.round(amt*1.2)){ toast("担保つき融資には総資産が借入額の1.2倍以上必要です"); return; }
+  const rate=loanRateFor(type.id); const total=Math.ceil(amt*(1+rate/100)); // 金利は「借入額に対する固定率（期間全体）」。CFO・信用格付け・融資の種類で変動
   const rem=loanOutstanding()+total;
+  const weeks=(S.loan&&S.loan.weeksLeft)? Math.max(1,S.loan.weeksLeft) : type.weeks;
   undoPush("融資を受ける前");
-  S.loan={remaining:rem, weekly:Math.ceil(rem/12), weeksLeft:12, missed:0};
-  S.funds+=amt; ledIn("finance",amt);
-  log(`🏦 銀行融資 ${fmt(amt)}万円を受けた（返済総額 ${fmt(rem)}万円／12週・週 ${fmt(S.loan.weekly)}万円ずつ自動返済）`);
+  S.loan={remaining:rem, weekly:Math.ceil(rem/weeks), weeksLeft:weeks, missed:0, type:type.id, rate};
+  S.funds+=amt; ledIn("finance",amt,`融資：${type.name}（金利 ${rate}%・${type.weeks}週返済${S.company?`／信用格付け ${creditRating().grade}`:""}）`);
+  log(`🏦 ${type.name} ${fmt(amt)}万円を受けた（金利 ${rate}%／返済総額 ${fmt(rem)}万円／${weeks}週・週 ${fmt(S.loan.weekly)}万円ずつ自動返済）`);
   saveAuto(true); renderAll();
   if(S.funds<0) showDistress(true); else { $("#overlay").style.display="none"; toast("融資を受けました"); }
 }
@@ -9249,7 +9271,7 @@ function takeSponsor(){
   if(!sponsorAvailable()) return;
   const g=sponsorGrant();
   undoPush("スポンサー支援を受ける前");
-  S.funds+=g; ledIn("finance",g); try{ const A=mAct(); A.sponsor++; A.sponsorAmt+=g; }catch(e){} S.sponsorReadyWeek=S.week+Math.max(36, 48-Math.round(10*((typeof compEff==="function")?compEff("sales"):0))); S.sponsorCutUntil=S.week+12;
+  S.funds+=g; ledIn("finance",g,"スポンサー支援（一時支援・対価は12週間の賞金30%）"); try{ const A=mAct(); A.sponsor++; A.sponsorAmt+=g; }catch(e){} S.sponsorReadyWeek=S.week+Math.max(36, 48-Math.round(10*((typeof compEff==="function")?compEff("sales"):0))); S.sponsorCutUntil=S.week+12;
   log(`🤝 スポンサー支援 ${fmt(g)}万円を受けた（条件：12週間、レース賞金の30%をスポンサーへ／次回は48週後）`);
   saveAuto(true); renderAll();
   if(S.funds<0) showDistress(); else { $("#overlay").style.display="none"; toast("スポンサー支援を受けました"); }
@@ -9276,7 +9298,7 @@ function showDistress(force){
      既定値は、資金が厳しい時は「1200万円まで立て直す額」、余裕がある時は1000万円 */
   const defLoan= Math.max(100, Math.min(cap, S.funds<1200? 1200-S.funds : 1000));
   const loanHtml= cap>=100
-    ? `<div class="ticket"><b>🏦 銀行融資</b><span class="small">（資金があっても借りられます）</span><div class="mt flex"><input type="number" inputmode="numeric" pattern="[0-9]*" id="ds-loan-amt" min="100" step="100" max="${cap}" value="${defLoan}" style="width:118px" aria-label="借入金額（万円）"><span>万円</span><button class="btn gold" id="ds-loan">借りる</button></div><div class="flex mt">${[500,1000,2000].filter(a=>a<cap).map(a=>`<button class="btn ghost sm" data-loan-set="${a}">${fmt(a)}万円</button>`).join("")}<button class="btn ghost sm" data-loan-set="${cap}">枠いっぱい（${fmt(cap)}万円）</button></div><span class="small" id="ds-loan-prev"></span><br><span class="small">利息15%は「借入額に対する固定率（期間全体）」で、返済総額＝借入額×1.15 を12週間で週割りの自動返済します（年率換算ではありません。追加で借りると、残高合計で週返済額を再計算します）。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）＝基礎枠4,000万円＋重賞ウィナー1頭あたり1,500万円＋G1勝利1勝あたり500万円＋所有馬1頭あたり300万円＋名声1あたり150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）${S.loan?`／現在の借入残高 ${fmt(loanOutstanding())}万円`:""}。週の自動返済ができない週は「延滞」（残高に5%の延滞利息）となり、延滞が2回続くと融資打ち切り＝破産です。</span></div>`
+    ? `<div class="ticket"><b>🏦 銀行融資</b><span class="small">（資金があっても借りられます）</span><div class="mt flex"><input type="number" inputmode="numeric" pattern="[0-9]*" id="ds-loan-amt" min="100" step="100" max="${cap}" value="${defLoan}" style="width:118px" aria-label="借入金額（万円）"><span>万円</span><button class="btn gold" id="ds-loan">借りる</button></div><div class="mt flex"><span class="small">融資の種類</span><select id="ds-loan-type" style="flex:1">${LOAN_TYPES.map(t=>`<option value="${t.id}" ${S.loan&&S.loan.type===t.id?"selected":""}>${t.name}（${t.weeks}週返済・金利 ${loanRateFor(t.id)}%）― ${t.desc}</option>`).join("")}</select></div>${S.company?`<div class="small">信用格付け <b>${creditRating().grade}</b>（スコア ${creditRating().score}／CFOの管轄：財務と実績で変動し、金利と枠に効きます。延滞すると下がります）</div>`:""}<div class="flex mt">${[500,1000,2000].filter(a=>a<cap).map(a=>`<button class="btn ghost sm" data-loan-set="${a}">${fmt(a)}万円</button>`).join("")}<button class="btn ghost sm" data-loan-set="${cap}">枠いっぱい（${fmt(cap)}万円）</button></div><span class="small" id="ds-loan-prev"></span><br><span class="small">金利は「借入額に対する固定率（期間全体）」で、返済総額＝借入額×（1＋金利）を返済期間の週数で割って自動返済します（年率換算ではありません。追加で借りると、残高合計で週返済額を再計算します）。金利はCFOの交渉・信用格付け・融資の種類で変わります。借入限度額 ${fmt(loanLimit())}万円（残り枠 ${fmt(cap)}万円）＝基礎枠4,000万円＋重賞ウィナー1頭あたり1,500万円＋G1勝利1勝あたり500万円＋所有馬1頭あたり300万円＋名声1あたり150万円＋総資産の10%＋直近1年の賞金収入の50%（上限6億円）×格付け補正${S.loan?`／現在の借入残高 ${fmt(loanOutstanding())}万円（${loanTypeDef(S.loan.type).name}・金利 ${S.loan.rate||15}%）`:""}。週の自動返済ができない週は「延滞」（残高に5%の延滞利息）となり、延滞が2回続くと融資打ち切り＝破産です。</span></div>`
     : `<div class="ticket"><b>🏦 銀行融資</b><br><span class="small">借入限度額（${fmt(loanLimit())}万円）に達しているため、これ以上は借りられません。</span></div>`;
   const sponsorHtml= sponsorAvailable()
     ? `<div class="ticket"><b>🤝 スポンサー支援</b><div class="mt"><button class="btn" id="ds-sponsor">${fmt(sponsorGrant())}万円 の支援を受ける</button></div><span class="small">受取額は基礎1,500万円＋重賞ウィナー1頭あたり500万円＋名声1あたり60万円＋直近1年の賞金収入の3%（上限3億円）。条件つき：今後12週間、レースで得た賞金の30%をスポンサーへ。利用できるのは48週に1回まで。</span></div>`
@@ -9291,14 +9313,16 @@ function showDistress(force){
    <div class="flex" style="justify-content:center;margin-top:10px"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる（様子を見る）</button></div>
    <p class="small">閉じても、資金がマイナスのまま週を進めると再び提示されます。融資枠もスポンサーも馬も無い状態でマイナスになると破産です。</p>`);
   /* 融資：金額入力に連動して返済プレビュー（総額・週返済）を更新し、クイックボタンで金額をセットできる */
-  const li=$("#ds-loan-amt"), lp=$("#ds-loan-prev");
+  const li=$("#ds-loan-amt"), lp=$("#ds-loan-prev"), lt=$("#ds-loan-type");
   const updLoanPrev=()=>{ if(!li||!lp)return; let a=Math.floor(+li.value||0); if(a>cap)a=cap;
     if(a<100){ lp.textContent="100万円から借りられます。"; return; }
-    const tot=loanOutstanding()+Math.ceil(a*1.15);
-    lp.textContent=`${fmt(a)}万円を借りると → 返済総額 ${fmt(tot)}万円／週 ${fmt(Math.ceil(tot/12))}万円ずつ12週間で自動返済`; };
+    const type=loanTypeDef(lt?lt.value:"short"); const rate=loanRateFor(type.id);
+    const tot=loanOutstanding()+Math.ceil(a*(1+rate/100)); const wks=(S.loan&&S.loan.weeksLeft)? S.loan.weeksLeft : type.weeks;
+    lp.textContent=`${fmt(a)}万円を借りると → 返済総額 ${fmt(tot)}万円／週 ${fmt(Math.ceil(tot/Math.max(1,wks)))}万円ずつ${wks}週間で自動返済（${type.name}・金利 ${rate}%）`; };
   if(li){ li.addEventListener("input",updLoanPrev); updLoanPrev(); }
+  if(lt) lt.addEventListener("change",updLoanPrev);
   document.querySelectorAll("[data-loan-set]").forEach(b=>b.addEventListener("click",()=>{ if(li){ li.value=b.dataset.loanSet; updLoanPrev(); } }));
-  const lb=$("#ds-loan"); if(lb) lb.addEventListener("click",()=>takeLoan(li?li.value:0));
+  const lb=$("#ds-loan"); if(lb) lb.addEventListener("click",()=>takeLoan(li?li.value:0, lt?lt.value:"short"));
   const sb=$("#ds-sponsor"); if(sb) sb.addEventListener("click", takeSponsor);
   document.querySelectorAll("[data-ds-sell]").forEach(b=>b.addEventListener("click",()=>distressSell(+b.dataset.dsSell)));
   document.querySelectorAll("[data-ds-pg]").forEach(b=>b.addEventListener("click",()=>{ dsPage+=+b.dataset.dsPg; showDistress(true); }));
@@ -13128,7 +13152,7 @@ function saveChecksum(d){ try{ return fnv1a([d.v,d.week,d.funds,(d.horses||[]).l
 function saveCkOk(d){ return !d || !d.ck || d.ck===saveChecksum(d); }
 function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S.funds, week:S.week, silk:S.silk, horses:S.horses, selected:S.selected, log:S.log, stallions:S.stallions, mares:S.mares, foals:S.foals, champions:S.champions, bets:S.bets, betStats:S.betStats, betHistory:S.betHistory, lastEvent:S.lastEvent||null, market:S.market, raceSpeed:S.raceSpeed||1, camMode:S.camMode||"leader", autosaveFreq:S.autosaveFreq||"week", autoCfg:S.autoCfg||null, trainerId:S.trainerId||"jp122", trainers:Array.isArray(S.trainers)?S.trainers.slice():null, trainerDirectives:S.trainerDirectives||null, roles:S.roles||null, company:S.company||null, omakase:!!S.omakase, watchMatrix:S.watchMatrix||null, markOn:S.markOn!==false, worldHorses:S.worldHorses, entryPolicy:S.entryPolicy||null, standards:S.standards||null, sound:S.sound||{on:true,bgm:0.6,se:0.9},
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, farmMgrId:S.farmMgrId||"saeki", farmStaff:S.farmStaff||[], mgrCandidates:S.mgrCandidates||[], fame:S.fame||0, fameYr:S.fameYr||null, yeRetirePending:S.yeRetirePending||[],
- pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
+ pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, loanMissedTotal:S._loanMissedTotal||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
  reports:Array.isArray(S.reports)?S.reports.slice(0,24):[], reportUnread:S.reportUnread||0, monthAct:S.monthAct||null, repKey:S._repKey||"", trainerBoost:S.trainerBoost||{}, trainerTrain:S.trainerTrain||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
  news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
@@ -13909,6 +13933,17 @@ function renderFarm(){
  const bma2=el.querySelector("#btn-meeting-approve-all"); if(bma2) bma2.addEventListener("click",()=>approveAllProposals());
  const bgm3=el.querySelector("#btn-goto-meeting"); if(bgm3) bgm3.addEventListener("click",()=>{ const t=document.getElementById("meeting-panel"); if(t) t.scrollIntoView({block:"start"}); });
  el.querySelectorAll("[data-merch-prod]").forEach(b=>b.addEventListener("click",()=>produceMerch(+b.dataset.merchProd,false)));
+ /* 経営第2弾の配線（会社パネル内で完結） */
+ el.querySelectorAll("[data-goto-biz2]").forEach(b=>b.addEventListener("click",()=>{ const t=document.getElementById("biz2-panel"); if(t) t.scrollIntoView({block:"start"}); }));
+ el.querySelectorAll("[data-ins-plan]").forEach(sel=>sel.addEventListener("change",()=>setHorseIns(+sel.dataset.insPlan, sel.value)));
+ el.querySelectorAll("[data-sp-accept]").forEach(b=>b.addEventListener("click",()=>acceptSponsor(+b.dataset.spAccept)));
+ const bsp=el.querySelector("#btn-sp-refresh"); if(bsp) bsp.addEventListener("click",()=>refreshSponsorOffers());
+ const bfo=el.querySelector("#btn-fan-open"); if(bfo) bfo.addEventListener("click",()=>openFanclub());
+ el.querySelectorAll("[data-fan-fee]").forEach(sel=>sel.addEventListener("change",()=>setFanFee(sel.value)));
+ el.querySelectorAll("[data-fac-lend]").forEach(b=>b.addEventListener("click",()=>lendFacility(b.dataset.facLend)));
+ el.querySelectorAll("[data-fac-unlend]").forEach(b=>b.addEventListener("click",()=>endFacilityLease(b.dataset.facUnlend)));
+ el.querySelectorAll("[data-fac-sellasset]").forEach(b=>b.addEventListener("click",()=>sellFacilityAsset(b.dataset.facSellasset)));
+ const bls=el.querySelector("#btn-land-sell"); if(bls) bls.addEventListener("click",()=>sellLandPart());
  /* 牧場長の任命・交代と新規雇用の操作（牧場トップの牧場長欄で完結する） */
  el.querySelectorAll("[data-mgr-appoint]").forEach(b=>b.addEventListener("click",()=>appointManager(b.dataset.mgrAppoint)));
  el.querySelectorAll("[data-mgr-hire]").forEach(b=>b.addEventListener("click",()=>hireMgrCandidate(+b.dataset.mgrHire)));
@@ -14084,6 +14119,8 @@ function showSettings(){
 <div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
 <div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。厩舎全体の代行（種付け・幼駒購入・繁殖牝馬購入）の担当は見極め担当（正）が固定で務め、判断の質はその人の相馬眼で決まります。代行するか否かは調教師への指示の3項目のオン／オフで決め、見極め担当（正）を付け替えると代行担当もその人に切り替わります。見極め担当（正）が未設定のときは、相馬眼トップの調教師が暫定で担当します。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
 <div class="rulecard"><b>経営機能（予算・決算／研修／広告／福利厚生／土地／経営目標）</b><p>会社パネルの「経営ダッシュボード」に集約します。<br>・<b>年度予算と決算</b>：購入／建設／イベント／種付の年間予算枠を設定でき、部門別（競走／生産・販売／イベント事業／ファンビジネス／管理・その他）の収支が今月・今年で見られます。予算は管理・報告用で、超過しても支出は自動で止まりません。差異は月次報告書でCFOが報告します。<br>・<b>人材育成（研修）</b>：スタッフ（4週間）と調教師（8週間）に費用をかけて研修を受けさせると、担当に合った能力が1段階上がります（能力上限5・研修回数の上限あり）。採用担当の管轄です。<br>・<b>広告キャンペーン</b>：広報担当の管轄で、費用と期間（3段階）に応じてイベント集客・名声の伸び・スポンサー金額・命名権の関心が上がります。<br>・<b>福利厚生と士気</b>：福利厚生の水準（月額／人）を上げると継続支出が増える代わりに士気が上がり、全担当枠の効果に小さく（最大±6%程度）効きます。下げると士気は下がります。<br>・<b>土地の購入・拡張</b>：3期まで買い増しでき（6億／15億／35億）、牧場の価値（持分の価格に連動）と繁殖牝馬・幼駒の収容上限（各期+5頭）が上がります。施設管理とCFOに接続する終盤向けの資金の使い道です。<br>・<b>経営目標</b>：年度の目標（賞金収入／名声の伸び／G1勝利数／イベント収入から選択）を設定し、年末に判定します。達成で名声+3・士気+10、未達で士気-5。いずれも任意で、設定しなくても序盤が詰まることはありません。</p></div>
+<div class="rulecard"><b>経営機能 第2弾（保険／スポンサー契約／ファンクラブ／格付けと融資／資産の貸出・売却／税金）</b><p>会社パネルの「経営機能 第2弾」に集約し、各担当枠のカードからも辿れます。<br>・<b>馬ごとの保険</b>（保険・リスク担当）：馬ごとに故障プラン／故障・死亡プラン／プレミアムプランへ加入できます。掛金は馬の評価額とプランで決まる毎月の継続支出、給付は故障の発生時に一度だけ（休養週数連動）。5週以上の重度故障・死亡時は上位プランで評価額の50〜80%が給付されます。従来の一括（団体）保険も併用できます。<br>・<b>スポンサー契約</b>（営業担当）：複数年契約（年額は名声・実績・営業力で変動）を結ぶと、月額の契約料が継続収入になります。成果条項として重賞勝利・G1勝利のたびにボーナスが出る一方、契約によっては賞金の数%を分配します。期間中の露出（イベント来場・勝利）と実績で、満了時の更新条件が変わります。<br>・<b>ファンクラブ有料会員</b>（マーケティング・広報）：開設費3,000万円。会員数は有名馬の実績と名声で変動し、月額料金（300／600／1,000円）×会員数が毎月の継続収入になります。イベントの来場は会員増に、会員はグッズの先行販売でマーチャンダイジングの売れ行きを押し上げます。<br>・<b>融資と信用格付け</b>（CFO）：融資は短期（12週）／長期（48週・金利高め）／担保つき（48週・金利低め・総資産の裏付けが必要）の3種から資金繰り画面で選べます。信用格付け（S〜D）は総資産・賞金収入・名声・G1実績・借入比率・延滞履歴で変動し、金利と借入枠に効きます。<br>・<b>資産の貸出・売却</b>（施設管理・CFO）：施設を24週間貸し出すと月額の貸出収入が入りますが、貸出中はその施設の効果が止まります。施設の売却（取得費の約半額）と土地の一部売却（購入額の7割）で即資金化もできます。<br>・<b>年次の税金精算</b>（CFO）：年末に、その年の利益へ 10%（1億円まで）／20%（超過分）の税金が自動で精算されます。赤字年は税金なし。結果はCFOの月次報告書と決算（月次明細の「法人税・税金精算」）に載ります。<br>いずれも会社設立が前提で、担当の正配置と費用が要る段階制です。各機能の判断結果は月次報告書と月次明細に反映されます。</p></div>
+<div class="rulecard"><b>月次明細の内訳</b><p>月次明細の各カテゴリはタップで開閉でき、内訳（どの馬の保険か・どのイベントか・誰の給与か・どのグッズか・どのスポンサーか等）が1件ずつ見られます。既定は閉じた状態でカテゴリ合計だけの簡潔な表示で、開閉状態は再描画やオート進行中も保持されます。内訳の合計＋「内訳の記録なし分」＝カテゴリ合計となり、明細全体の合計は台帳・資金の動きと一致します。過去の月も同じ形で内訳を開けます。</p></div>
 <div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
 <div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
 <div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「報告書」で読め（サブナビに未読件数が出ます。会社・イベントの先頭にも同じものがあります）、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
@@ -14258,7 +14295,7 @@ function applySave(d){
   S.guideSkip=Array.isArray(d.guideSkip)?d.guideSkip:[];
   /* セール開催週に再読み込みしてもセールと「セールを見る」提案が消えないよう、開催状態も復元する */
   S.sale=(d.sale&&Array.isArray(d.sale.list))?d.sale:null; S.saleWeekKey=d.saleWeekKey||"";
-  S.ledger=(d.ledger&&d.ledger.key)?d.ledger:null; S.ledgerHist=Array.isArray(d.ledgerHist)?d.ledgerHist:[]; S.facV2=!!d.facV2; S.ownerName=d.ownerName||null; S.farmEquity=(d.farmEquity==null? 100 : d.farmEquity); S._sireYr=d.sireYr||0; S.lastDividend=d.lastDividend||null; S.family=d.family||null; S.affection=d.affection||null; S.familyCand=d.familyCand||null; S._playedRaceIds=(d.playedIds&&typeof d.playedIds==="object")? d.playedIds : {};
+  S.ledger=(d.ledger&&d.ledger.key)?d.ledger:null; S.ledgerHist=Array.isArray(d.ledgerHist)?d.ledgerHist:[]; S.facV2=!!d.facV2; S.ownerName=d.ownerName||null; S.farmEquity=(d.farmEquity==null? 100 : d.farmEquity); S._sireYr=d.sireYr||0; S._loanMissedTotal=d.loanMissedTotal||0; S.lastDividend=d.lastDividend||null; S.family=d.family||null; S.affection=d.affection||null; S.familyCand=d.familyCand||null; S._playedRaceIds=(d.playedIds&&typeof d.playedIds==="object")? d.playedIds : {};
   if(d.watchMatrix&&typeof d.watchMatrix==="object") S.watchMatrix=d.watchMatrix;
   if(d.markOn!==undefined) S.markOn=d.markOn;
   S.facilities=d.facilities||{}; S.building=d.building||{}; S.mgrPost=d.mgrPost||null; S.farmMgrId=d.farmMgrId||"saeki"; S.farmStaff=Array.isArray(d.farmStaff)?d.farmStaff:[]; S.mgrCandidates=Array.isArray(d.mgrCandidates)?d.mgrCandidates:[]; S.fame=d.fame||0; S.fameYr=d.fameYr||null; S.yeRetirePending=Array.isArray(d.yeRetirePending)?d.yeRetirePending:[]; S._polC=null;
@@ -15549,6 +15586,7 @@ function compStaffById(id){ const c=S.company; return c&&Array.isArray(c.staff)?
 function compState(){ const c=S.company; if(!c) return null;
   if(!Array.isArray(c.staff))c.staff=[]; if(!Array.isArray(c.candidates))c.candidates=[]; if(!c.roles||typeof c.roles!=="object")c.roles={}; if(c.invest==null)c.invest=0;
   try{ execState(); }catch(e){} /* 役員レイヤー・議案・グッズ在庫の初期化（旧セーブ補完） */
+  try{ biz2(); }catch(e){} /* 経営第2弾（保険・スポンサー・ファンクラブ・貸出・税金）の初期化（旧セーブ補完） */
   const ids=new Set(c.staff.map(s=>s.id));
   for(const r of COMP_ROLES){ let cur=c.roles[r.id]; if(!cur||typeof cur!=="object"){cur={main:null,subs:[]};c.roles[r.id]=cur;}
     if(cur.main==null||!ids.has(cur.main)){ const best=c.staff.slice().sort((a,b)=>compRankOf(b,r)-compRankOf(a,r)||(a.id-b.id))[0]; cur.main=best?best.id:null; }
@@ -15646,7 +15684,7 @@ function foundCompany(){ const c=S.company; if(c) return; if((S.fame||0)<FOUND_F
   log(`🏢 会社を設立しました（設立費 ${fmt(FOUND_COST)}万円）。スタッフを雇って12の担当枠を埋めましょう`); toast("会社を設立しました"); saveAuto(); renderAll(); }
 function hireStaff(id){ const c=compState(); if(!c) return; const i=c.candidates.findIndex(s=>s.id===id); if(i<0) return; const st=c.candidates[i]; const sign=st.salary*2;
   if(S.funds<sign){ toast("契約金が不足しています"); return; }
-  undoPush(`スタッフ雇用（${st.name}）の前`); S.funds-=sign; ledOut("salary",sign);
+  undoPush(`スタッフ雇用（${st.name}）の前`); S.funds-=sign; ledOut("salary",sign,`契約金：${st.name} の雇用`);
   c.staff.push(st); c.candidates.splice(i,1); compState(); try{ mAct().hire++; }catch(e){}
   /* 担当が不足している枠へ副担当として自動で入れる */
   for(const r of COMP_ROLES){ const cv=compCoverage(r.id); if(cv.short>0 && c.roles[r.id].main!==st.id && !c.roles[r.id].subs.includes(st.id)) c.roles[r.id].subs.push(st.id); }
@@ -15664,20 +15702,29 @@ function toggleCompSub(roleId, sid, on){ const c=compState(); if(!c) return; con
 function compInvest(){ const c=compState(); if(!c) return; const amt=Math.floor(S.funds*0.10); if(amt<=0){ toast("運用に回せる資金がありません"); return; }
   const cap=Math.floor(S.funds*0.30); if((c.invest||0)+amt>cap){ toast("運用額は資金の30%が上限です"); return; }
   c.invest=(c.invest||0)+amt; log(`🏢 余剰資金 ${fmt(amt)}万円 を運用に回しました（運用中 ${fmt(c.invest)}万円）`); saveAuto(); renderAll(); }
-function compWithdraw(){ const c=compState(); if(!c||!(c.invest>0)) return; S.funds+=c.invest; ledIn("finance", c.invest); log(`🏢 運用資金 ${fmt(c.invest)}万円 を全額引き出しました`); c.invest=0; saveAuto(); renderAll(); }
+function compWithdraw(){ const c=compState(); if(!c||!(c.invest>0)) return; S.funds+=c.invest; ledIn("finance", c.invest, "運用資金の引き出し（CFO）"); log(`🏢 運用資金 ${fmt(c.invest)}万円 を全額引き出しました`); c.invest=0; saveAuto(); renderAll(); }
 /* 月次決算：給与・ファンビジネス収入・保険料・運用益（月初週に呼ばれる） */
 function companyMonthly(){ const c=S.company; if(!c||!Array.isArray(c.staff)) return;
-  const sal=compSalaryTotal(); if(sal>0){ S.funds-=sal; ledOut("salary",sal); }
+  /* 給与はスタッフごとに明細ノートつきで記録する（月次明細の内訳で誰の給与か分かる） */
+  c.staff.forEach(st=>{ if(st.salary>0){ S.funds-=st.salary; ledOut("salary",st.salary,`給与：${st.name}（月給）`); } });
   /* 福利厚生費（継続支出）と士気の月次変動：士気は福利厚生の水準が決める
      目標へ少しずつ寄り、全担当枠の効果（compEff）に小さく効く */
-  try{ const m=mgmt(); if(m){ const wcost=[0,15,40,80][m.welfareLv||0]*(c.staff.length||0); m.lastWelfare=wcost; if(wcost>0){ S.funds-=wcost; ledOut("welfare",wcost); }
+  try{ const m=mgmt(); if(m){ const wcost=[0,15,40,80][m.welfareLv||0]*(c.staff.length||0); m.lastWelfare=wcost; if(wcost>0){ S.funds-=wcost; ledOut("welfare",wcost,`福利厚生費（Lv.${m.welfareLv||0}・スタッフ ${c.staff.length}名分）`); }
     const target=35+(m.welfareLv||0)*18; const d=target-m.morale; m.morale=clamp(m.morale+Math.sign(d)*Math.min(4,Math.abs(d)),0,100); } }catch(e){}
-  if(compMain("mkt")){ const fb=Math.min(8000, Math.round(((S.fame||0)*6+(S.champions||0)*300+(S.g1Wins||0)*80)*(0.3+0.14*compRank("mkt"))*compEff("mkt")/compCoverage("mkt").frac||0)); if(fb>0){ S.funds+=fb; ledIn("fanbiz",fb); } }
-  if(c.insOn){ const per=Math.max(2, Math.ceil(10*(1-0.3*compEff("ins")))); const prem=per*(S.horses||[]).length; if(prem>0){ S.funds-=prem; ledOut("insurance",prem); } }
+  if(compMain("mkt")){ const fb=Math.min(8000, Math.round(((S.fame||0)*6+(S.champions||0)*300+(S.g1Wins||0)*80)*(0.3+0.14*compRank("mkt"))*compEff("mkt")/compCoverage("mkt").frac||0)); if(fb>0){ S.funds+=fb; ledIn("fanbiz",fb,"ファンビジネス収入（有名馬・名声連動／マーケティング担当）"); } }
+  if(c.insOn){ const per=Math.max(2, Math.ceil(10*(1-0.3*compEff("ins")))); const prem=per*(S.horses||[]).length; if(prem>0){ S.funds-=prem; ledOut("insurance",prem,`団体保険の掛金（一括加入・対象 ${(S.horses||[]).length}頭）`); try{ biz2().ms.insPrem+=prem; }catch(e){} } }
   if(c.invest>0){ const gain=Math.max(0, Math.round(c.invest*(0.001+0.0004*compRank("fin"))*rnd(0.7,1.3))); if(gain>0){ c.invest+=gain; } c._lastGain=gain; }
+  try{ biz2Monthly(); }catch(e){} /* 経営第2弾の月次処理（馬ごと保険料・スポンサー・ファンクラブ・貸出） */
 }
-/* 保険給付（調教中の故障発生時に呼ばれる） */
-function insurancePayout(h, weeks){ const c=S.company; if(!c||!c.insOn) return 0; const pay=Math.min(4000, Math.round(weeks*70*(0.7+0.5*compEff("ins")))); if(pay>0){ S.funds+=pay; ledIn("insurancePay",pay); try{ const A=mAct(); A.insPay+=pay; A.insPayN++; A.inj++; }catch(e){} log(`🛡 ${h.name} の故障に保険金 ${fmt(pay)}万円 が支払われました`); } return pay; }
+/* 保険給付（調教中の故障発生時に呼ばれる）：馬ごとのプランが優先、
+   無ければ従来の団体保険（一括加入）。給付は発生時に一度だけ */
+function insurancePayout(h, weeks){ const c=S.company; if(!c) return 0;
+  const plan=(typeof horseInsPlan==="function")? horseInsPlan(h) : null;
+  if(plan){ let pay=Math.min(plan.cap, Math.round(weeks*80*plan.injMul*(0.7+0.5*compEff("ins")))); let sevTxt="";
+    if(plan.sevRate>0&&weeks>=5&&h._insSevY!==year()){ const sev=Math.round(horseSellPrice(h)*plan.sevRate); if(sev>0){ pay+=sev; h._insSevY=year(); sevTxt=`＋重度故障・死亡給付 ${fmt(sev)}万円（評価額の${Math.round(plan.sevRate*100)}%）`; } }
+    if(pay>0){ S.funds+=pay; ledIn("insurancePay",pay,`${h.name} の保険給付（${plan.name}・故障 ${weeks}週${sevTxt?"／重度故障・死亡給付を含む":""}）`); try{ const A=mAct(); A.insPay+=pay; A.insPayN++; A.inj++; }catch(e){} try{ const ms=biz2().ms; ms.insPay+=pay; ms.insPayN++; }catch(e){} log(`🛡 ${h.name} の故障に保険金 ${fmt(pay)}万円 が支払われました（${plan.name}${sevTxt}）`); }
+    return pay; }
+  if(!c.insOn) return 0; const pay=Math.min(4000, Math.round(weeks*70*(0.7+0.5*compEff("ins")))); if(pay>0){ S.funds+=pay; ledIn("insurancePay",pay,`${h.name} の保険給付（団体保険・故障 ${weeks}週）`); try{ const A=mAct(); A.insPay+=pay; A.insPayN++; A.inj++; }catch(e){} try{ const ms=biz2().ms; ms.insPay+=pay; ms.insPayN++; }catch(e){} log(`🛡 ${h.name} の故障に保険金 ${fmt(pay)}万円 が支払われました`); } return pay; }
 /* ============ 役員レイヤー（C○O）と株主総会・マーチャンダイジング ============
    会社の担当枠（13枠）の上に役員を置く。役員は雇用済みスタッフから任命し
    （担当枠の正担当との兼任OK）、管轄分野の意思決定を自律的に行う。
@@ -15718,18 +15765,19 @@ function merchUnitPrice(){ return Math.round(3*(1+0.5*compEff("merch"))*(1+0.15*
 function produceMerch(lotId, byExec){ const c=execState(); if(!c) return false; const lot=MERCH_LOTS.find(l=>l.id===lotId)||MERCH_LOTS[0];
   if(!compMain("merch")){ if(!byExec) toast("マーチャンダイジング担当（正）が必要です"); return false; }
   if(S.funds<lot.cost){ if(!byExec) toast("資金が不足しています"); return false; }
-  const h=merchHorse(); S.funds-=lot.cost; ledOut("merch", lot.cost);
+  const h=merchHorse(); S.funds-=lot.cost; ledOut("merch", lot.cost, `グッズ制作：${h?h.name:"有名馬"} グッズ（${lot.name} ${lot.units}個）`);
   c.merch.stock+=lot.units; if(h) c.merch.horse=h.name;
   log(`🧸 グッズを制作しました：${h?h.name:"有名馬"} グッズ ${lot.units}個（制作費 ${fmt(lot.cost)}万円／マーチャンダイジング担当）`);
   if(!byExec){ saveAuto(); renderAll(); }
   return true; }
 function merchWeekly(){ const c=S.company; if(!c||!c.merch||!(c.merch.stock>0)) return;
   const h=merchHorse(); const fameScore=h? (h.wins||0)*2+Math.min(20,(h.earnings||0)/2000) : 0;
-  const rate=clamp(0.05+0.02*execAbility("cmo")+0.03*compEff("merch")+fameScore*0.004, 0.03, 0.35);
+  let rate=clamp(0.05+0.02*execAbility("cmo")+0.03*compEff("merch")+fameScore*0.004, 0.03, 0.35);
+  let fanNote=""; try{ const b=biz2(); if(b&&b.fan&&b.fan.on&&(b.fan.members||0)>0){ rate+=Math.min(0.05, b.fan.members*0.000004); fanNote="（ファンクラブ先行販売を含む）"; } }catch(e){} /* ファンクラブ会員向け先行販売で売れ行きが上がる */
   const sold=Math.min(c.merch.stock, Math.max(1, Math.round(c.merch.stock*rate*rnd(0.8,1.2))));
   const rev=Math.round(sold*merchUnitPrice());
   c.merch.stock-=sold; c.merch.sold=(c.merch.sold||0)+sold; c.merch.revenue=(c.merch.revenue||0)+rev;
-  if(rev>0){ S.funds+=rev; ledIn("goods", rev); } }
+  if(rev>0){ S.funds+=rev; ledIn("goods", rev, `グッズ売上：${h?h.name:(c.merch.horse||"有名馬")} グッズ ${sold}個${fanNote}`); } }
 /* ---- 役員の意思決定（週次） ---- */
 let _propSeq=1;
 function execLogPush(execId, type, text, amt){ const c=S.company; if(!c) return; c.execLog.unshift({key:ledKey(), week:S.week, exec:execId, type, text, amt:amt||0}); if(c.execLog.length>120) c.execLog.length=120; }
@@ -15743,9 +15791,9 @@ function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); co
     execLogPush("ceo","small",`経費の見直しで ${fmt(gain)}万円 を捻出しました（CEO ${name}）`, gain); log(`🏢 CEO（${name}）：経費の見直しで ${fmt(gain)}万円 を捻出`); return; }
   if(e.id==="ev"){ const cost=500;
     if(overLimit(cost)){ addProposal("ev","miniEvent","小規模イベント（見学会）の開催","権限額を超えるため総会の判断を仰ぎます",cost,{}); return; }
-    S.funds-=cost; ledOut("event",cost);
+    S.funds-=cost; ledOut("event",cost,`イベント：見学会（小規模／役員の判断で実施）`);
     const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab));
-    if(income>0){ S.funds+=income; ledIn("biz",income); }
+    if(income>0){ S.funds+=income; ledIn("biz",income,"イベント収入：見学会（小規模）"); }
     try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(err){}
     execLogPush("ev","small",`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円（チーフイベントオフィサー ${name}）`, income-cost);
     log(`🏢 チーフイベントオフィサー（${name}）：見学会を実施（来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円）`); return; }
@@ -15779,16 +15827,16 @@ function execWeekly(){ const c=execState(); if(!c||!c.staff.length) return;
 }
 /* ---- 株主総会：議案の実行・承認・却下 ---- */
 function execProposal(p){ const c=S.company; const m=mgmt();
-  if(p.kind==="land"){ const t=LAND_TIERS[(m.land||0)+1]; if(!t) return {ok:false, msg:"これ以上拡張できません"}; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("land",t.cost); m.land++; return {ok:true, msg:`土地を購入しました（${t.name}／繁殖牝馬・幼駒の収容上限 各+5頭）`}; }
-  if(p.kind==="eventBig"){ const sz=EVENT_SIZES[2]; if(S.funds<sz.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=sz.cost; ledOut("event",sz.cost);
+  if(p.kind==="land"){ const t=LAND_TIERS[(m.land||0)+1]; if(!t) return {ok:false, msg:"これ以上拡張できません"}; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("land",t.cost,`土地の購入・拡張：${t.name}（株主総会の承認）`); m.land++; return {ok:true, msg:`土地を購入しました（${t.name}／繁殖牝馬・幼駒の収容上限 各+5頭）`}; }
+  if(p.kind==="eventBig"){ const sz=EVENT_SIZES[2]; if(S.funds<sz.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=sz.cost; ledOut("event",sz.cost,"イベント：ファン感謝祭（大規模／株主総会の承認）");
     const planE=compEff("plan"), opsE=compEff("ops"), prE=compEff("pr"); const att=Math.round(sz.att*(0.5+0.55*opsE)*(0.6+0.65*prE)*(1+0.2*campActive())*rnd(0.85,1.15)); const income=Math.round(att*3.5*(0.5+0.5*planE)*rnd(0.9,1.1)/10)*10;
-    if(income>0){ S.funds+=income; ledIn("biz",income); } const fg=Math.round(4*(0.5+prE)); if(fg>0) addFame(fg,"株主総会で承認された大規模イベントの反響");
+    if(income>0){ S.funds+=income; ledIn("biz",income,"イベント収入：ファン感謝祭（大規模）"); } const fg=Math.round(4*(0.5+prE)); if(fg>0) addFame(fg,"株主総会で承認された大規模イベントの反響");
     c.clubBoostUntil=S.week+8; c.eventCdUntil=S.week+4; c.lastReport={week:S.week, type:"ファン感謝祭（総会承認）", size:sz.name, att, income, cost:sz.cost, fame:fg, notes:["株主総会の承認を受けて開催しました。クラブ募集の後押しが8週間続きます"]};
     try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=sz.cost; }catch(e){}
     return {ok:true, msg:`ファン感謝祭（大規模）を開催：来場 ${att.toLocaleString()}人／収入 ${fmt(income)}万円／名声 +${fg}`}; }
-  if(p.kind==="campaign3"){ const t=CAMP_TIERS[2]; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("camp",t.cost); m.campUntil=S.week+t.weeks; m.campLv=3; c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+t.weeks); return {ok:true, msg:`大規模ブランド戦略を開始しました（${t.weeks}週間）`}; }
+  if(p.kind==="campaign3"){ const t=CAMP_TIERS[2]; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("camp",t.cost,`広告キャンペーン：${t.name}（株主総会の承認）`); m.campUntil=S.week+t.weeks; m.campLv=3; c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+t.weeks); return {ok:true, msg:`大規模ブランド戦略を開始しました（${t.weeks}週間）`}; }
   if(p.kind==="merchBig"){ if(S.funds<MERCH_LOTS[2].cost) return {ok:false, msg:"資金が不足しています"}; if(!produceMerch(3,true)) return {ok:false, msg:"制作できませんでした"}; return {ok:true, msg:`グッズを大ロット（${MERCH_LOTS[2].units}個）制作しました`}; }
-  if(p.kind==="headhunt"){ const st=p.data&&p.data.staff; if(!st) return {ok:false, msg:"候補の情報がありません"}; if(S.funds<p.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=p.cost; ledOut("salary",p.cost); c.staff.push(st); compState(); try{ mAct().hire++; }catch(e){} return {ok:true, msg:`${st.name} を幹部スタッフとして迎えました（月給 ${fmt(st.salary)}万円）`}; }
+  if(p.kind==="headhunt"){ const st=p.data&&p.data.staff; if(!st) return {ok:false, msg:"候補の情報がありません"}; if(S.funds<p.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=p.cost; ledOut("salary",p.cost,`ヘッドハント費用：${st.name}（幹部級スタッフ）`); c.staff.push(st); compState(); try{ mAct().hire++; }catch(e){} return {ok:true, msg:`${st.name} を幹部スタッフとして迎えました（月給 ${fmt(st.salary)}万円）`}; }
   if(p.kind==="investBig"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min((p.data&&p.data.amt)||0, room); if(amt<=0) return {ok:false, msg:"運用枠（資金の30%）に空きがありません"}; c.invest=(c.invest||0)+amt; return {ok:true, msg:`余剰資金 ${fmt(amt)}万円 を運用に回しました（運用中 ${fmt(c.invest)}万円）`}; }
   if(p.kind==="miniEvent"){ const cost=p.cost||500; if(S.funds<cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=cost; ledOut("event",cost); const ab=execAbility("ev"); const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab)); if(income>0){ S.funds+=income; ledIn("biz",income); } try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(e){} return {ok:true, msg:`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円`}; }
   return {ok:false, msg:"不明な議案です"};
@@ -15865,7 +15913,7 @@ const CAMP_TIERS=[{lv:1,name:"地域広告",cost:2000,weeks:4},{lv:2,name:"全�
 function runCampaign(lv){ const c=compState(); if(!c) return; const m=mgmt(); const t=CAMP_TIERS.find(x=>x.lv===lv); if(!t) return;
   if(!compMain("pr")){ toast("広報担当（正）が必要です"); return; }
   if(S.funds<t.cost){ toast("資金が不足しています"); return; }
-  undoPush(`広告キャンペーン（${t.name}）の前`); S.funds-=t.cost; ledOut("camp",t.cost);
+  undoPush(`広告キャンペーン（${t.name}）の前`); S.funds-=t.cost; ledOut("camp",t.cost,`広告キャンペーン：${t.name}（${t.weeks}週間／広報担当）`);
   m.campUntil=S.week+t.weeks; m.campLv=lv; c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+t.weeks);
   log(`📣 広告キャンペーン「${t.name}」を開始（${fmt(t.cost)}万円／${t.weeks}週間）。イベント集客・名声の伸び・スポンサーと命名権の関心が上がります（広報担当：${compMain("pr").name}）`);
   toast("キャンペーンを開始しました"); saveAuto(); renderAll(); }
@@ -15874,7 +15922,7 @@ const LAND_TIERS=[{name:"現状",cost:0},{name:"第1期拡張",cost:60000},{name
 function landValue(){ const c=S.company; if(!c||!c.mgmt) return 0; let v=0; for(let i=1;i<=(c.mgmt.land||0)&&i<LAND_TIERS.length;i++) v+=LAND_TIERS[i].cost; return v; }
 function buyLand(){ const c=compState(); if(!c) return; const m=mgmt(); if(m.land>=LAND_TIERS.length-1){ toast("これ以上拡張できません"); return; }
   const t=LAND_TIERS[m.land+1]; if(S.funds<t.cost){ toast("資金が不足しています"); return; }
-  undoPush("土地購入の前"); S.funds-=t.cost; ledOut("land",t.cost); m.land++;
+  undoPush("土地購入の前"); S.funds-=t.cost; ledOut("land",t.cost,`土地の購入・拡張：${t.name}`); m.land++;
   log(`🌱 土地を購入しました（${t.name}・${fmt(t.cost)}万円）。牧場の価値が上がり、繁殖牝馬・幼駒の収容上限が各+5頭になりました（施設管理：${compMain("fac")?compMain("fac").name:"―"}／CFO：${compMain("fin")?compMain("fin").name:"―"}）`);
   toast("土地を購入しました"); saveAuto(); renderAll(); }
 /* ---- 経営目標 ---- */
@@ -15905,7 +15953,7 @@ function startStaffTraining(sid){ const c=compState(); if(!c) return; const st=c
   if((st.ranks[key]||0)>=5){ toast(`「${an}」は上限（5）に達しています`); return; }
   if((st.trainCnt||0)>=6){ toast("研修の上限回数（6回）に達しています"); return; }
   const cost=staffTrainCost(st); if(S.funds<cost){ toast("資金が不足しています"); return; }
-  undoPush(`研修（${st.name}）の前`); S.funds-=cost; ledOut("training",cost); st.trainUntil=S.week+4; st.trainKey=key;
+  undoPush(`研修（${st.name}）の前`); S.funds-=cost; ledOut("training",cost,`研修：${st.name}（スタッフ・${an}）`); st.trainUntil=S.week+4; st.trainKey=key;
   log(`🎓 ${st.name} の研修を開始しました（${an} を伸ばす・4週間・${fmt(cost)}万円／採用担当の管轄）`); saveAuto(); renderAll(); }
 function trainerTrainKey(d){ const st=rolesState(); if(st.train&&st.train.main===d.id) return "train"; if(st.eye&&st.eye.main===d.id) return "eye"; if(st.cond&&st.cond.main===d.id) return "cond"; let bk="train", bv=-1; ["train","eye","idea","cond","weight"].forEach(k=>{ const v=rankVal(d.ranks[k]); if(v>bv){ bv=v; bk=k; } }); return bk; }
 function trainerBoostOf(tid,key){ return (S.trainerBoost&&S.trainerBoost[tid]&&S.trainerBoost[tid][key])||0; }
@@ -15917,13 +15965,174 @@ function startTrainerTraining(tid){ const d=trainerById(tid); if(!d) return; if(
   if(rankVal(d.ranks[key])>=5){ toast(`「${TR_RANK_LBL[key]}」は上限（S）に達しています`); return; }
   if(trainerBoostTotal(tid)>=3){ toast("研修の上限（3回）に達しています"); return; }
   const cost=2000; if(S.funds<cost){ toast("資金が不足しています"); return; }
-  undoPush(`研修（${d.name}）の前`); S.funds-=cost; ledOut("training",cost); S.trainerTrain[tid]={key, until:S.week+8};
+  undoPush(`研修（${d.name}）の前`); S.funds-=cost; ledOut("training",cost,`研修：${d.name}（調教師・${TR_RANK_LBL[key]||key}）`); S.trainerTrain[tid]={key, until:S.week+8};
   log(`🎓 調教師 ${d.name} の研修を開始しました（${TR_RANK_LBL[key]} を伸ばす・8週間・${fmt(cost)}万円／採用担当の管轄）`); saveAuto(); renderAll(); }
 /* 研修の完了処理（週送り後に呼ばれる） */
 function mgmtWeekly(){ const c=S.company;
   if(c&&Array.isArray(c.staff)) c.staff.forEach(st=>{ if(st.trainUntil&&S.week>=st.trainUntil){ const key=st.trainKey; st.trainUntil=0; st.trainKey=null; if(key){ st.ranks[key]=Math.min(5,(st.ranks[key]||0)+1); st.trainCnt=(st.trainCnt||0)+1; try{ mAct().trainDone++; }catch(e){} const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key; log(`🎓 ${st.name} の研修が完了しました：${an} が ${st.ranks[key]} に上がりました`); } } });
   if(S.trainerTrain) Object.keys(S.trainerTrain).forEach(tid=>{ const t=S.trainerTrain[tid]; if(t&&S.week>=t.until){ delete S.trainerTrain[tid]; if(!S.trainerBoost) S.trainerBoost={}; if(!S.trainerBoost[tid]) S.trainerBoost[tid]={}; S.trainerBoost[tid][t.key]=(S.trainerBoost[tid][t.key]||0)+1; applyTrainerBoosts(); try{ mAct().trainDone++; }catch(e){} const d=trainerById(tid); log(`🎓 調教師 ${d?d.name:""} の研修が完了しました：${TR_RANK_LBL[t.key]||t.key} が ${d?d.ranks[t.key]:""} に上がりました`); } });
 }
+/* ============ 経営機能 第2弾（保険の馬ごと加入／スポンサー契約／ファンクラブ／
+   融資の種類と信用格付け／資産の貸出・売却／年次税金精算） ============
+   すべて S.company.biz2 にぶら下げ、既存の担当枠・台帳・月次報告書に接続する。
+   お金の流れは必ず ledIn/ledOut（内訳ノートつき）を通し、月次明細の内訳と
+   カテゴリ合計・資金残高が一致する形にする。序盤の資金では届かない段階制：
+   会社設立（名声10・2億円）が前提で、各機能にも担当の正配置と費用が要る */
+function biz2(){ const c=S.company; if(!c) return null; if(!c.biz2||typeof c.biz2!=="object") c.biz2={}; const b=c.biz2;
+  if(!b.ins||typeof b.ins!=="object") b.ins={};
+  if(!Array.isArray(b.sponsors)) b.sponsors=[];
+  if(!Array.isArray(b.spOffers)) b.spOffers=[];
+  if(typeof b.spOfferWeek!=="number") b.spOfferWeek=-99;
+  if(!b.fan||typeof b.fan!=="object") b.fan={on:false, members:0, fee:600};
+  if(typeof b.fan.fee!=="number") b.fan.fee=600;
+  if(!b.facLease||typeof b.facLease!=="object") b.facLease={};
+  if(!b.snap||typeof b.snap!=="object") b.snap={g:0, g1:0};
+  if(!b.ms||typeof b.ms!=="object") b.ms={};
+  ["insPrem","insPay","insPayN","spIn","spBonus","spCut","fanIn","rentIn","assetSell"].forEach(k=>{ if(typeof b.ms[k]!=="number") b.ms[k]=0; });
+  if(!("lastTax" in b)) b.lastTax=null;
+  if(!("pendingTaxNote" in b)) b.pendingTaxNote="";
+  return b; }
+/* ---- 1. 馬ごとの保険（保険・リスク担当の管轄） ---- */
+const INS_PLANS=[
+ {id:"inj", name:"故障プラン", rate:0.004, injMul:0.9, cap:5000, sevRate:0, desc:"故障の休養週数に応じた給付のみ"},
+ {id:"full", name:"故障・死亡プラン", rate:0.007, injMul:1.2, cap:9000, sevRate:0.5, desc:"故障給付＋重度故障・死亡時に評価額の50%"},
+ {id:"prem", name:"プレミアムプラン", rate:0.011, injMul:1.5, cap:14000, sevRate:0.8, desc:"故障給付（大）＋重度故障・死亡時に評価額の80%"},
+];
+function insPlanDef(id){ return INS_PLANS.find(p=>p.id===id)||null; }
+function insPremium(h, plan){ const v=horseSellPrice(h); return Math.max(20, Math.round(v*plan.rate*(1-0.3*compEff("ins")))); }
+function horseInsPlan(h){ const b=S.company&&S.company.biz2; if(!b||!h) return null; return insPlanDef(b.ins[h.id]); }
+function setHorseIns(hid, planId){ const c=compState(); if(!c) return; const b=biz2(); const h=(S.horses||[]).find(x=>x.id===hid); if(!h) return;
+  if(planId){ if(!compMain("ins")){ toast("保険・リスク担当（正）が必要です"); return; } const p=insPlanDef(planId); b.ins[hid]=planId; log(`🛡 ${h.name} が競走馬保険「${p.name}」に加入しました（掛金 月${fmt(insPremium(h,p))}万円／保険・リスク担当：${compMain("ins").name}）`); }
+  else { delete b.ins[hid]; log(`🛡 ${h.name} の競走馬保険を解約しました`); }
+  saveAuto(); renderAll(); }
+/* ---- 4. 信用格付け（CFOの管轄：財務と実績で変動し、金利と枠に効く） ---- */
+function creditRating(){ let score=50;
+  const assets=stableAssetValue(); const yp=yearlyPrizeIncome();
+  score+=clamp(Math.floor(assets/20000),0,20);            /* 総資産 */
+  score+=clamp(Math.floor(yp/5000),0,15);                 /* 直近1年の賞金収入 */
+  score+=clamp(Math.floor((S.fame||0)/10),0,8);           /* 名声 */
+  score+=clamp((S.champions||0)*2,0,10);                  /* G1実績 */
+  const debt=loanOutstanding(); if(assets>0) score-=clamp(Math.floor(debt/Math.max(1,assets)*40),0,15); /* 借入比率 */
+  score-=clamp((S._loanMissedTotal||0)*8,0,20);           /* 延滞履歴 */
+  if(S.funds<0) score-=10;
+  score=clamp(Math.round(score),0,100);
+  const g= score>=80? "S" : score>=65? "A" : score>=50? "B" : score>=35? "C" : "D";
+  return {grade:g, score, rateAdj:{"S":-3,"A":-1,"B":0,"C":2,"D":4}[g], limitMul:{"S":1.3,"A":1.15,"B":1,"C":0.85,"D":0.6}[g]}; }
+const LOAN_TYPES=[
+ {id:"short", name:"短期融資", weeks:12, rateAdj:0, desc:"12週で返済・金利は標準"},
+ {id:"long", name:"長期融資", weeks:48, rateAdj:3, desc:"48週で返済・週の返済は軽いが金利は高め"},
+ {id:"secured", name:"担保つき融資", weeks:48, rateAdj:-3, desc:"総資産の裏付けが必要・金利は低め・48週返済"},
+];
+function loanTypeDef(id){ return LOAN_TYPES.find(t=>t.id===id)||LOAN_TYPES[0]; }
+function loanRateFor(typeId){ const base=(typeof compEff==="function")? Math.max(9, 15-Math.round(6*compEff("fin"))) : 15; const rt=(typeof creditRating==="function"&&S.company)? creditRating().rateAdj : 0; return clamp(base+rt+loanTypeDef(typeId).rateAdj, 5, 25); }
+/* ---- 2. スポンサー契約（営業担当の管轄：複数年・成果条項つき） ---- */
+const SPONSOR_POOL=["ホクト飲料","サクラ自動車","ミナミ食品","ツバサ航空","カガミ電機","リュウセイ製薬","ホシゾラ銀行","タイヨウ建設","アオバ乳業","ケイバ運輸"];
+let _spSeq=1;
+function sponsorAnnualBase(){ return Math.round((2000+(S.fame||0)*120+(S.champions||0)*1500+yearlyPrizeIncome()*0.05)*(0.8+0.5*compEff("sales"))*(1+0.15*campActive())); }
+function genSponsorOffers(renewFor){ const b=biz2(); if(!b) return; const used=new Set(b.sponsors.map(s=>s.name)); const pool=SPONSOR_POOL.filter(n=>!used.has(n)); const out=[];
+  const mk=(name, mul)=>{ const years=ri(1,3); const annual=Math.max(500, Math.round(sponsorAnnualBase()*mul*rnd(0.85,1.2)/10)*10); return {id:(S.week+1)*100+(_spSeq++), name, years, annual, bonusG:Math.round(annual*0.10), bonusG1:Math.round(annual*0.35), cutPct:pick([0,3,5]), exposureNeed:years*4000}; };
+  if(renewFor){ const r=renewFor; const good=(r.exposure||0)>=(r.exposureNeed||999999)*0.7 || (r.wins||0)>=1; out.push(mk(r.name, good? 1.15 : 0.9)); out[out.length-1].renewNote= good? "前契約の露出・実績が評価され、条件が良くなっています" : "前契約の露出・実績が乏しく、条件はやや厳しめです"; }
+  while(out.length<2&&pool.length){ const n=pool.splice(ri(0,pool.length-1),1)[0]; out.push(mk(n,1)); }
+  b.spOffers=out; b.spOfferWeek=S.week; }
+function refreshSponsorOffers(){ const c=compState(); if(!c) return; if(!compMain("sales")){ toast("営業担当（正）が必要です"); return; } genSponsorOffers(null); log(`🤝 営業担当（${compMain("sales").name}）がスポンサー候補を探しました（${biz2().spOffers.length}件の提示があります）`); saveAuto(); renderAll(); }
+function acceptSponsor(oid){ const c=compState(); if(!c) return; const b=biz2(); const i=b.spOffers.findIndex(o=>o.id===oid); if(i<0) return; const o=b.spOffers[i];
+  undoPush(`スポンサー契約（${o.name}）の前`); b.spOffers.splice(i,1);
+  b.sponsors.push({id:o.id, name:o.name, startW:S.week, endW:S.week+o.years*48, years:o.years, annual:o.annual, monthly:Math.round(o.annual/12), bonusG:o.bonusG, bonusG1:o.bonusG1, cutPct:o.cutPct, exposure:0, exposureNeed:o.exposureNeed, wins:0});
+  b.snap={g:(S.horses||[]).reduce((a,h)=>a+(h.gWins||0),0), g1:(S.horses||[]).reduce((a,h)=>a+(h.g1w||0),0)};
+  log(`🤝 ${o.name} とスポンサー契約を結びました（${o.years}年契約・年 ${fmt(o.annual)}万円／重賞勝利ボーナス ${fmt(o.bonusG)}万円・G1勝利 ${fmt(o.bonusG1)}万円${o.cutPct?`／賞金の${o.cutPct}%を分配`:""}／営業担当：${compMain("sales")?compMain("sales").name:"―"}）`);
+  toast("スポンサー契約を結びました"); saveAuto(); renderAll(); }
+/* ---- 3. ファンクラブ有料会員（マーケティング・広報の管轄） ---- */
+const FAN_FEES=[300,600,1000];
+function fanTarget(){ const fee=(biz2()||{fan:{fee:600}}).fan.fee||600; const ff= fee<=300? 1.25 : fee>=1000? 0.7 : 1.0;
+  const star=(S.horses||[]).reduce((a,h)=>a+Math.min(400,(h.earnings||0)/50),0);
+  return Math.round(((S.fame||0)*40+(S.champions||0)*600+(S.g1Wins||0)*120+star)*ff); }
+function fanMonthlyIncome(){ const b=biz2(); if(!b||!b.fan.on) return 0; return Math.round(b.fan.members*(b.fan.fee||600)/10000); }
+function openFanclub(){ const c=compState(); if(!c) return; const b=biz2(); if(b.fan.on) return;
+  if(!compMain("mkt")&&!compMain("pr")){ toast("マーケティング担当か広報担当（正）が必要です"); return; }
+  const cost=3000; if(S.funds<cost){ toast("資金が不足しています"); return; }
+  undoPush("ファンクラブ開設の前"); S.funds-=cost; ledOut("camp",cost,"ファンクラブ開設費（公式ファンクラブ）");
+  b.fan.on=true; b.fan.members=Math.round(fanTarget()*0.3);
+  log(`🎟 公式ファンクラブを開設しました（開設費 ${fmt(cost)}万円／会員 ${b.fan.members.toLocaleString()}人からスタート／月額 ${b.fan.fee}円・マーケティング担当：${compMain("mkt")?compMain("mkt").name:"―"}）`);
+  toast("ファンクラブを開設しました"); saveAuto(); renderAll(); }
+function setFanFee(v){ const b=biz2(); if(!b) return; b.fan.fee=+v||600; log(`🎟 ファンクラブの月額を ${b.fan.fee}円 にしました（会員数の伸びと会費収入のバランスが変わります）`); saveAuto(); renderAll(); }
+/* ---- 5. 資産の貸出・売却（施設管理・CFOの管轄） ---- */
+function facRentOf(f){ return Math.round((f.maint||0)*4+(f.cost||0)*0.008); }
+function lendFacility(fid){ const c=compState(); if(!c) return; const b=biz2(); const f=FACILITIES.find(x=>x.id===fid); if(!f||facLv(fid)<=0) return;
+  if(!compMain("fac")){ toast("施設管理担当（正）が必要です"); return; }
+  if(b.facLease[fid]){ toast("すでに貸出中です"); return; }
+  undoPush(`施設の貸出（${f.n}）の前`); b.facLease[fid]={until:S.week+24, rent:facRentOf(f)};
+  log(`🏠 施設「${f.n}」を24週間貸し出しました（月 ${fmt(b.facLease[fid].rent)}万円の貸出収入／貸出中はこの施設の効果が止まります・施設管理担当：${compMain("fac").name}）`);
+  toast("施設を貸し出しました"); saveAuto(); renderAll(); }
+function endFacilityLease(fid){ const b=biz2(); if(!b) return; const f=FACILITIES.find(x=>x.id===fid); delete b.facLease[fid]; log(`🏠 施設「${f?f.n:fid}」の貸出を終了しました（効果が戻ります）`); saveAuto(); renderAll(); }
+function sellFacilityAsset(fid){ const c=compState(); if(!c) return; const f=FACILITIES.find(x=>x.id===fid); if(!f||facLv(fid)<=0) return;
+  const price=Math.round((f.cost||0)*facLv(fid)*0.5);
+  confirm2(`施設「${f.n}」を売却しますか？`, `売却額 ${fmt(price)}万円（取得費の約半額）。施設の効果は失われます。`, ()=>{ const b=biz2(); delete b.facLease[fid]; S.facilities[fid]=0; delete S.building[fid]; S.funds+=price; ledIn("assetSell",price,`施設の売却：${f.n}（Lv.${facLv(fid)||1}）`); if(biz2()) biz2().ms.assetSell+=price; log(`🏠 施設「${f.n}」を ${fmt(price)}万円 で売却しました（施設管理・CFOの判断）`); saveAuto(); renderAll(); }); }
+function sellLandPart(){ const c=compState(); if(!c) return; const m=mgmt(); if(!m||(m.land||0)<=0){ toast("売却できる土地（拡張分）がありません"); return; }
+  const t=LAND_TIERS[m.land]; const price=Math.round(t.cost*0.7);
+  confirm2("土地の一部を売却しますか？", `売却額 ${fmt(price)}万円（購入額の7割）。繁殖牝馬・幼駒の収容上限が各-5頭下がります。`, ()=>{ m.land--; S.funds+=price; ledIn("assetSell",price,`土地の一部売却（${t.name}分）`); biz2().ms.assetSell+=price; log(`🌱 土地の一部を売却しました（${t.name}分・${fmt(price)}万円／CFO）`); saveAuto(); renderAll(); }); }
+/* ---- 6. 年次の税金精算（CFO報告・決算に連動） ---- */
+function taxYearEnd(y){ const c=S.company; if(!c) return; const b=biz2(); if(!b||(b.lastTax&&b.lastTax.year===y)) return;
+  const agg={inn:{},out:{}}; const take=L=>{ if(!L) return; const p=String(L.key||"").split("-"); if(+p[0]!==y) return; ["inn","out"].forEach(s=>{ Object.keys(L[s]||{}).forEach(k=>{ agg[s][k]=(agg[s][k]||0)+L[s][k]; }); }); };
+  take(S.ledger); (S.ledgerHist||[]).forEach(take);
+  const profit=ledMonthSum(agg.inn)-ledMonthSum(agg.out);
+  let tax=0; if(profit>0){ tax=Math.round(Math.min(profit*0.25, Math.min(profit,10000)*0.10+Math.max(0,profit-10000)*0.20)); }
+  b.lastTax={year:y, profit, tax};
+  if(tax>0){ S.funds-=tax; ledOut("tax",tax,`${y}年分の税金精算（年間利益 ${fmt(profit)}万円に対する法人税等）`); b.pendingTaxNote=`${y}年分の税金精算：年間利益 ${fmt(profit)}万円に対し税金 ${fmt(tax)}万円を納めました`; log(`🧾 税金精算（${y}年分）：年間利益 ${fmt(profit)}万円／税金 ${fmt(tax)}万円 を納めました（CFO）`); }
+  else { b.pendingTaxNote=`${y}年分の税金精算：年間収支は ${fmt(profit)}万円のため、税金はかかりませんでした`; log(`🧾 税金精算（${y}年分）：年間収支 ${fmt(profit)}万円のため税金はかかりませんでした（CFO）`); } }
+/* ---- 経営第2弾の月次処理（companyMonthly から呼ばれる） ---- */
+function biz2Monthly(){ const c=S.company; if(!c) return; const b=biz2(); if(!b) return; const ms=b.ms;
+  /* 馬ごとの保険料（保険・リスク担当） */
+  (S.horses||[]).forEach(h=>{ if(h.retired) return; const p=insPlanDef(b.ins[h.id]); if(!p) return; const prem=insPremium(h,p); if(prem>0){ S.funds-=prem; ledOut("insurance",prem,`${h.name} の保険料（${p.name}）`); ms.insPrem+=prem; } });
+  /* 加入馬が厩舎を離れたら解約扱い */
+  const alive=new Set((S.horses||[]).map(h=>h.id)); Object.keys(b.ins).forEach(id=>{ if(!alive.has(+id)) delete b.ins[id]; });
+  /* スポンサー契約：月額の支払い・成果ボーナス・賞金分配・露出の蓄積 */
+  const gNow=(S.horses||[]).reduce((a,h)=>a+(h.gWins||0),0), g1Now=(S.horses||[]).reduce((a,h)=>a+(h.g1w||0),0);
+  const dG=Math.max(0,gNow-(b.snap.g||0)), dG1=Math.max(0,g1Now-(b.snap.g1||0)); b.snap={g:gNow, g1:g1Now};
+  const monthPrize=(ledger().inn||{}).prize||0; let evAtt=0; try{ evAtt=mAct().evAtt||0; }catch(e){}
+  b.sponsors=b.sponsors.filter(sp=>{ if(S.week>=sp.endW){ log(`🤝 ${sp.name} とのスポンサー契約が満了しました（期間中の重賞勝利 ${sp.wins||0}勝／露出 ${Math.round(sp.exposure||0).toLocaleString()}）。更新の提示は営業担当の候補に届きます`); genSponsorOffers(sp); return false; } return true; });
+  b.sponsors.forEach(sp=>{ if(sp.monthly>0){ S.funds+=sp.monthly; ledIn("finance",sp.monthly,`スポンサー契約料：${sp.name}（月額）`); ms.spIn+=sp.monthly; }
+    const bonus=dG*sp.bonusG+dG1*sp.bonusG1; if(bonus>0){ S.funds+=bonus; ledIn("finance",bonus,`スポンサー成果ボーナス：${sp.name}（重賞${dG}勝・G1 ${dG1}勝）`); ms.spBonus+=bonus; }
+    if(sp.cutPct>0&&monthPrize>0){ const cut=Math.round(monthPrize*sp.cutPct/100); if(cut>0){ S.funds-=cut; ledOut("sponsorCut",cut,`${sp.name} への賞金分配（今月の賞金の${sp.cutPct}%）`); ms.spCut+=cut; } }
+    sp.exposure=(sp.exposure||0)+evAtt+dG*800+dG1*2000; sp.wins=(sp.wins||0)+dG; });
+  /* ファンクラブ：会員は有名馬・名声で変動し、会費が継続収入になる */
+  if(b.fan.on){ const before=b.fan.members; const tgt=fanTarget(); let delta=Math.round(clamp(tgt-before, -before*0.10, Math.max(10,before*0.15||10))); delta+=Math.round((evAtt||0)*0.02); b.fan.members=Math.max(0,before+delta);
+    const inc=fanMonthlyIncome(); if(inc>0){ S.funds+=inc; ledIn("fanbiz",inc,`ファンクラブ会費：会員 ${b.fan.members.toLocaleString()}人×月額 ${b.fan.fee}円`); ms.fanIn+=inc; }
+    ms.fanD=(ms.fanD||0)+(b.fan.members-before); }
+  /* 施設の貸出収入と期限 */
+  Object.keys(b.facLease).forEach(fid=>{ const L=b.facLease[fid]; const f=FACILITIES.find(x=>x.id===fid); if(S.week>=(L.until||0)){ delete b.facLease[fid]; log(`🏠 施設「${f?f.n:fid}」の貸出期間が終わりました（効果が戻ります）`); return; } if(L.rent>0){ S.funds+=L.rent; ledIn("rentIn",L.rent,`施設の貸出収入：${f?f.n:fid}（貸出中・効果停止）`); ms.rentIn+=L.rent; } });
+}
+/* ---- 経営第2弾パネル（会社パネル／経営ダッシュボードに集約） ---- */
+function biz2PanelHTML(){ const c=S.company; if(!c) return ""; const b=biz2(); const m=mgmt();
+  const rt=creditRating();
+  const insRows=(S.horses||[]).filter(h=>!h.retired).map(h=>{ const cur=b.ins[h.id]||""; const p=insPlanDef(cur); return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1;min-width:130px"><b>${esc(h.name)}</b> <span class="small">評価 ${fmt(horseSellPrice(h))}万円</span></span><select data-ins-plan="${h.id}" style="max-width:230px"><option value="" ${cur===""?"selected":""}>未加入</option>${INS_PLANS.map(pl=>`<option value="${pl.id}" ${cur===pl.id?"selected":""}>${pl.name}（月${fmt(insPremium(h,pl))}万円）</option>`).join("")}</select>${p?`<span class="tag">加入中：${p.name}</span>`:""}</div>`; }).join("")||`<div class="small">現役馬がいません</div>`;
+  const spList=b.sponsors.length? b.sponsors.map(sp=>{ const left=Math.max(0,sp.endW-S.week); return `<div class="ye-lrow"><span><b>${esc(sp.name)}</b> <span class="small">あと${left}週（${sp.years}年契約）／重賞勝利 ${sp.wins||0}勝／露出 ${Math.round(sp.exposure||0).toLocaleString()}${sp.exposureNeed?`／${sp.exposureNeed.toLocaleString()}`:""}</span></span><span class="uchips" style="margin:0"><span class="uchip xs">年 <span class="uv">${fmt(sp.annual)}万円</span></span><span class="uchip xs">重賞ボーナス <span class="uv">${fmt(sp.bonusG)}万円</span></span><span class="uchip xs">G1 <span class="uv">${fmt(sp.bonusG1)}万円</span></span>${sp.cutPct?`<span class="uchip xs">賞金分配 <span class="uv">${sp.cutPct}%</span></span>`:""}</span></div>`; }).join("") : `<div class="small">契約中のスポンサーはありません。下の候補から選べます。</div>`;
+  const spOffers=b.spOffers.length? b.spOffers.map(o=>`<div class="panel" style="margin:4px 0"><b>${esc(o.name)}</b> <span class="tag">${o.years}年契約</span><div class="small" style="margin:3px 0">年 ${fmt(o.annual)}万円／重賞勝利ボーナス ${fmt(o.bonusG)}万円／G1勝利ボーナス ${fmt(o.bonusG1)}万円${o.cutPct?`／対価：賞金の${o.cutPct}%を分配`:"／賞金分配なし"}${o.renewNote?`<br>更新の提示：${esc(o.renewNote)}`:""}</div><button class="btn sm gold" data-sp-accept="${o.id}">この条件で契約する</button></div>`).join("") : `<div class="small">候補の提示はありません。「スポンサー候補を探す」で営業担当が探してきます。</div>`;
+  const fan=b.fan;
+  const leased=Object.keys(b.facLease);
+  const facRows=FACILITIES.filter(f=>facLv(f.id)>0&&f.id!=="base").map(f=>{ const L=b.facLease[f.id]; const price=Math.round((f.cost||0)*facLv(f.id)*0.5); return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1;min-width:130px"><b>${f.n}</b> <span class="small">Lv.${facLv(f.id)}</span></span>${L?`<span class="tag" style="background:#d23b2e;color:#fff">貸出中（効果停止・あと ${Math.max(0,L.until-S.week)}週／月 ${fmt(L.rent)}万円）</span><button class="btn sm" data-fac-unlend="${f.id}">貸出を終了する</button>`:`<button class="btn sm" data-fac-lend="${f.id}">24週貸し出す（月 ${fmt(facRentOf(f))}万円・効果は停止）</button><button class="btn sm ghost" data-fac-sellasset="${f.id}">売却する（${fmt(price)}万円）</button>`}</div>`; }).join("")||`<div class="small">貸出・売却できる施設がありません</div>`;
+  return `<div class="panel" id="biz2-panel" style="border:2px solid #3a6ea5">
+   <h3 style="margin:0 0 4px">🏦 経営機能 第2弾（保険／スポンサー／ファンクラブ／格付け／資産／税金）</h3>
+   <div class="flex"><span class="tag">信用格付け <b>${rt.grade}</b>（スコア ${rt.score}）</span><span class="tag">融資の金利補正 ${rt.rateAdj>0?"+":""}${rt.rateAdj}%／枠 ×${rt.limitMul}</span>${b.lastTax?`<span class="tag">前回の税金精算（${b.lastTax.year}年分）利益 ${fmt(b.lastTax.profit)}万円／税金 ${fmt(b.lastTax.tax)}万円</span>`:`<span class="tag">税金精算は年末に自動で行われます</span>`}</div>
+   <h4 style="margin:10px 0 4px">🛡 馬ごとの保険（保険・リスク担当：${compMain("ins")?esc(compMain("ins").name):"未配置"}）</h4>
+   <div class="small">馬ごとにプランを選びます。掛金は毎月の継続支出、給付は故障の発生時に一度だけ。重度故障（5週以上の休養）・死亡時は上位プランで評価額の一部が給付されます。全頭に手厚く掛けるか、主力だけに絞るかが経営判断です。従来の団体保険（一括加入）は下のボタンから引き続き使えます。</div>
+   ${insRows}
+   <h4 style="margin:10px 0 4px">🤝 スポンサー契約（営業担当：${compMain("sales")?esc(compMain("sales").name):"未配置"}）</h4>
+   ${spList}
+   <div class="flex mt"><button class="btn sm" id="btn-sp-refresh" ${compMain("sales")?"":"disabled"}>スポンサー候補を探す（営業担当）</button></div>
+   ${spOffers}
+   <div class="small">契約は複数年。期間中の露出（イベント来場・勝利）と実績で、満了時の更新条件が変わります。</div>
+   <h4 style="margin:10px 0 4px">🎟 ファンクラブ有料会員（マーケティング：${compMain("mkt")?esc(compMain("mkt").name):"未配置"}／広報：${compMain("pr")?esc(compMain("pr").name):"未配置"}）</h4>
+   ${fan.on?`<div class="flex"><span class="tag">会員 ${fan.members.toLocaleString()}人</span><span class="tag">会費収入 月 ${fmt(fanMonthlyIncome())}万円</span><span class="tag">人気の目安（目標） ${fanTarget().toLocaleString()}人</span></div>
+   <label class="small" style="display:flex;gap:8px;align-items:center;margin-top:4px">月額料金 <select data-fan-fee="1" style="flex:1">${FAN_FEES.map(v=>`<option value="${v}" ${fan.fee===v?"selected":""}>${v}円${v===300?"（会員が増えやすい）":v===1000?"（単価は高いが会員は増えにくい）":"（標準）"}</option>`).join("")}</select></label>
+   <div class="small">会員は有名馬と名声で増減します。会員向けにはイベント（来場が会員増につながる）とグッズ先行販売（マーチャンダイジングの売れ行き向上）で還元します。</div>`
+   :`<div class="flex" style="align-items:center"><button class="btn gold" id="btn-fan-open" ${(compMain("mkt")||compMain("pr"))?"":"disabled"}>公式ファンクラブを開設する（${fmt(3000)}万円）</button>${!(compMain("mkt")||compMain("pr"))?`<span class="small">マーケティング担当か広報担当（正）が必要です</span>`:""}</div><div class="small">有料会員制のファンクラブです。会員数は有名馬と名声で変動し、会費が毎月の継続収入になります。</div>`}
+   <h4 style="margin:10px 0 4px">🏠 資産の貸出・売却（施設管理：${compMain("fac")?esc(compMain("fac").name):"未配置"}／CFO：${compMain("fin")?esc(compMain("fin").name):"未配置"}）</h4>
+   <div class="small">使っていない施設は貸し出して収入にできますが、貸出中はその施設の効果が止まります。売却は即資金化できる代わりに資産を失います。土地の一部売却も可能です。</div>
+   ${facRows}
+   ${m.land>0?`<div class="flex mt" style="align-items:center"><button class="btn sm" id="btn-land-sell">土地の一部を売却する（${LAND_TIERS[m.land].name}分・${fmt(Math.round(LAND_TIERS[m.land].cost*0.7))}万円）</button><span class="small">収容上限が各-5頭下がります</span></div>`:`<div class="small" style="margin-top:4px">売却できる土地（拡張分）はありません</div>`}
+   <h4 style="margin:10px 0 4px">🧾 税金と融資の種類（CFO：${compMain("fin")?esc(compMain("fin").name):"未配置"}）</h4>
+   <div class="small">税金は年末に、その年の利益に応じて自動で精算されます（利益〜1億円は10%、超過分は20%、赤字年は税金なし）。結果はCFOの月次報告書と決算に載ります。<br>融資は資金繰り画面で「短期（12週）／長期（48週・金利高め）／担保つき（48週・金利低め・総資産の裏付け）」から選べます。信用格付け（現在 <b>${rt.grade}</b>）は財務と実績で変動し、金利と借入枠に効きます。延滞すると格付けが下がります。</div>
+  </div>`; }
 /* ============ 月次報告書（各正担当が月末に提出） ============
    実績はその月の実データ（月次活動カウンタ mAct＋月次台帳＋現在値の
    スナップショット）から作る。動きのない担当は「特記事項なし＋来月の
@@ -15974,6 +16183,17 @@ function genMonthlyReport(){
     push("データ分析担当", cmain("data")?cmain("data").name:"", [`分析対象は現役馬 ${(S.horses||[]).filter(h=>!h.retired).length}頭・繁殖牝馬 ${(S.mares||[]).length}頭 です`, "次走提案の勝率見込みは随時更新しています", "来月は重賞週の分析を厚くします"], "");
     push("採用担当", cmain("hr")?cmain("hr").name:"", [A.hire? `今月の雇用は ${A.hire}件 でした` : "今月の雇用はありません", A.trainDone? `研修の完了が ${A.trainDone}件 ありました` : "", `スタッフは現在 ${c.staff.length}名（月給合計 ${fmt(compSalaryTotal())}万円／福利厚生 ${fmt(m.lastWelfare||0)}万円）`, `士気は ${Math.round(m.morale)} です`, "来月も候補の質を保ち、必要な枠の人材を揃えます"], "");
     push("マーチャンダイジング担当", cmain("merch")?cmain("merch").name:"", [(L.inn.goods||0)>0||(L.out.merch||0)>0? `グッズ売上 ${fmt(L.inn.goods||0)}万円／制作費 ${fmt(L.out.merch||0)}万円（在庫 ${c.merch?c.merch.stock:0}個・対象 ${c.merch&&c.merch.horse?c.merch.horse:"有名馬"}）` : "グッズの動きはありませんでした", "来月も有名馬のグッズ展開を続けます（CMOが統括）"], "");
+    /* 経営第2弾の実績（保険・スポンサー・ファンクラブ・貸出・税金・格付け）を各担当の報告へ反映し、月次カウンタをリセットする */
+    try{ const b=biz2(); if(b){ const ms=b.ms; const addTo=(role,line)=>{ const s=secs.find(x=>x.role===role); if(s&&line) s.lines.push(line); };
+      const insN=Object.keys(b.ins).length;
+      if(insN||ms.insPrem||ms.insPay) addTo("保険・リスク担当", `馬ごとの保険：加入 ${insN}頭／今月の掛金 ${fmt(ms.insPrem)}万円／給付 ${fmt(ms.insPay)}万円（${ms.insPayN}件）`);
+      if(b.sponsors.length||ms.spIn||ms.spBonus||ms.spCut) addTo("営業担当", `スポンサー契約：契約中 ${b.sponsors.length}件／契約料 ${fmt(ms.spIn)}万円／成果ボーナス ${fmt(ms.spBonus)}万円／賞金分配 ${fmt(ms.spCut)}万円`);
+      if(b.fan.on) addTo("マーケティング担当", `ファンクラブ：会員 ${b.fan.members.toLocaleString()}人（今月 ${ms.fanD>=0?"+":""}${fmt(ms.fanD||0)}人）／会費収入 ${fmt(ms.fanIn)}万円`);
+      const leaseN=Object.keys(b.facLease).length; if(leaseN||ms.rentIn||ms.assetSell) addTo("施設管理担当", `資産の貸出・売却：貸出中 ${leaseN}件／貸出収入 ${fmt(ms.rentIn)}万円／売却収入 ${fmt(ms.assetSell)}万円`);
+      if(b.pendingTaxNote){ addTo("CFO（財務担当）", b.pendingTaxNote); b.pendingTaxNote=""; }
+      addTo("CFO（財務担当）", `信用格付けは ${creditRating().grade}（スコア ${creditRating().score}）です`);
+      ["insPrem","insPay","insPayN","spIn","spBonus","spCut","fanIn","rentIn","assetSell"].forEach(k=>{ ms[k]=0; }); ms.fanD=0;
+    } }catch(e){}
     /* 役員レイヤー：今月の判断（小さな判断の即時実行と、総会へ回した議案）を役員ごとに報告する */
     if(Array.isArray(c.execLog)){ EXEC_ROLES.forEach(e=>{ const es=c.execLog.filter(x=>x.key===key&&x.exec===e.id); if(!es.length) return; const holder=execHolder(e.id); const lines=es.slice(0,4).map(x=>x.text); if(es.length>4) lines.push(`ほか ${es.length-4}件の判断がありました`); if(es.some(x=>x.type==="big")) lines.push("大きな判断は株主総会の議案として提出済みです（承認されたものだけが実行されます）"); lines.push("来月も管轄分野の判断を続けます"); push(`役員：${e.title}`, holder?holder.name:"", lines, ""); }); }
   }
@@ -16046,12 +16266,12 @@ function runEvent(){ const c=compState(); if(!c) return; if(S.week<(c.eventCdUnt
   const t=EVENT_TYPES.find(x=>x.id===compEvSel.type)||EVENT_TYPES[0]; const sz=EVENT_SIZES.find(x=>x.id===compEvSel.size)||EVENT_SIZES[0];
   if(!eventSizeAllowed(sz.id)){ toast("その規模は事業担当の企画力・カバーが足りません"); return; }
   if(S.funds<sz.cost){ toast("資金が不足しています"); return; }
-  undoPush(`イベント（${t.name}）の前`); S.funds-=sz.cost; ledOut("event",sz.cost);
+  undoPush(`イベント（${t.name}）の前`); S.funds-=sz.cost; ledOut("event",sz.cost,`イベント費用：${t.name}（${sz.name}）`);
   const planE=compEff("plan"), opsE=compEff("ops"), prE=compEff("pr");
   const att=Math.round(sz.att*(0.5+0.55*opsE)*(0.6+0.65*prE)*(1+0.2*campActive())*rnd(0.85,1.15));
   try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evCost+=sz.cost; }catch(e){}
   const income=Math.round(att*t.unit*(0.5+0.5*planE)*rnd(0.9,1.1)/10)*10;
-  if(income>0){ S.funds+=income; ledIn("biz",income); try{ mAct().evIn+=income; }catch(e){} }
+  if(income>0){ S.funds+=income; ledIn("biz",income,`イベント収入：${t.name}（${sz.name}・来場 ${att.toLocaleString()}人）`); try{ mAct().evIn+=income; }catch(e){} }
   let fameGain=0; const notes=[];
   if(t.id==="tour"){ fameGain=Math.round((1+sz.id)*prE); notes.push("見学者の評判が牧場の知名度を押し上げました"); }
   if(t.id==="fan"){ c.clubBoostUntil=S.week+8; fameGain=Math.round((1+sz.id)*(0.5+prE)); notes.push("クラブ募集の後押しが8週間続きます"); }
@@ -16071,6 +16291,7 @@ function compRoleCardHTML(r){ const c=S.company; const cur=c.roles[r.id]; const 
   return `<div class="panel" style="margin:0;${short?"border:2px solid #d23b2e":""}">
    <div class="flex" style="justify-content:space-between;align-items:flex-start"><b>${r.name}</b>${short?`<span class="tag" style="background:#d23b2e;color:#fff">⚠ ${cv.short}頭分不足</span>`:`<span class="tag">カバー充足</span>`}</div>
    <div class="small">${r.desc}</div>
+   ${["ins","sales","mkt","pr","fin","fac"].includes(r.id)?`<div style="margin-top:3px"><button type="button" class="btn ghost sm" data-goto-biz2="1">🏦 経営機能 第2弾（${r.id==="ins"?"馬ごとの保険":r.id==="sales"?"スポンサー契約":r.id==="mkt"||r.id==="pr"?"ファンクラブ":r.id==="fin"?"格付け・税金":"資産の貸出・売却"}）へ</button></div>`:""}
    <div class="small" style="margin-top:4px">業務量 ${cv.need} 頭相当 ／ カバー上限 <b>${cv.cap}頭</b>（実効 ${cv.covered}頭）</div>
    <div style="margin-top:6px"><span class="small">正担当</span><br>${main?`<b>${esc(main.name)}</b> <span class="tag">${r.rankName} ${compRankOf(main,r)}</span> ${rankChips(main)}`:`<span class="small">未配置</span>`}</div>
    <label class="small">正担当を変更 <select data-comp-main="${r.id}" style="max-width:100%">${opts||'<option value="">（スタッフなし）</option>'}</select></label>
@@ -16085,7 +16306,7 @@ function companyPanelHTML(){ const c=S.company;
   const evBtns=EVENT_TYPES.map(t=>`<button class="btn sm ${compEvSel.type===t.id?"gold":""}" data-comp-evtype="${t.id}">${t.name}</button>`).join(" ");
   const szBtns=EVENT_SIZES.map(s=>`<button class="btn sm ${compEvSel.size===s.id?"gold":""}" data-comp-evsize="${s.id}" ${eventSizeAllowed(s.id)?"":"disabled"}>${s.name}（${fmt(s.cost)}万円）</button>`).join(" ");
   const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> <span class="tag">月給 ${fmt(st.salary)}万円</span><div class="small" style="margin:3px 0">${COMP_ABILITIES.map(([k,n])=>`<span class="tag">${n}${st.ranks[k]||0}</span>`).join(" ")}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
-  return reportsHTML()+mgmtDashboardHTML()+execPanelHTML()+meetingPanelHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
+  return reportsHTML()+mgmtDashboardHTML()+execPanelHTML()+meetingPanelHTML()+biz2PanelHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
    <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmt(sal)}万円</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmt(c.invest||0)}万円${c._lastGain?`（先月 +${fmt(c._lastGain)}万円）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span></div>
    <div class="flex" style="align-items:center;gap:8px;margin:8px 0 2px"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small">ワンタップで13枠すべてと役員レイヤーを最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順／役員は管轄能力トップを任命（対象は雇用中のスタッフのみ・兼任OK）</span></div>
    ${optSummaryHTML(lastCompOpt,"頭相当")}
