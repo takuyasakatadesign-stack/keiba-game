@@ -19,7 +19,7 @@
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{height:100%;}
-body{margin:0; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif; background:var(--bg); color:var(--ink); font-size:14px;}
+body{margin:0; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif; background:var(--bg); color:var(--ink); font-size:14px;}
 #app{height:100dvh; display:flex; flex-direction:column; max-width:1100px; margin:0 auto; background:linear-gradient(180deg,var(--bg2),var(--bg));}
 /* HUD */
 #hud{display:flex; align-items:center; gap:8px; padding:8px 10px; color:#fff; flex-wrap:wrap;}
@@ -148,7 +148,7 @@ tr.win td{font-weight:800;}
 .betpick{display:flex; gap:5px; flex-wrap:wrap; margin:6px 0;}
 .betpick button{min-width:44px; min-height:44px; border-radius:9px; background:var(--chip); color:var(--ink); font-weight:800; border:2px solid transparent;}
 .betpick button.on{background:var(--gold); color:#241a00; border-color:#8a6d10;}
-.betpick button small{display:block; font-size:9.5px; font-weight:700;}
+.betpick button small{display:block; font-size:10.5px; font-weight:700;}
 .ticket{background:var(--panel2); border:1.5px dashed var(--gold); border-radius:10px; padding:8px 10px; font-size:12.5px; margin-top:6px;}
 .causelist{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:8px;}
 .causelist li{background:var(--panel2); border-radius:10px; padding:8px 10px; font-size:13px; text-align:left; line-height:1.5;}
@@ -354,7 +354,7 @@ select,input[type="text"],input[type="number"]{min-height:36px;}
 .weakgrid .wg{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dashed var(--line);padding:2.5px 0;}
 .wg .st-bad{color:var(--red);font-weight:900;} .wg .st-unk{color:#7a5410;font-weight:900;} .wg .st-ok{color:var(--ink2);font-weight:700;}
 .posbar{display:flex;gap:2px;margin-top:3px;min-width:118px;}
-.posbar span{flex:1;text-align:center;font-size:9px;line-height:1.25;padding:2.5px 0;border-radius:4px;background:var(--chip);color:var(--ink2);font-weight:700;white-space:nowrap;}
+.posbar span{flex:1;text-align:center;font-size:10px;line-height:1.25;padding:2.5px 0;border-radius:4px;background:var(--chip);color:var(--ink2);font-weight:700;white-space:nowrap;}
 .posbar span.on{background:var(--gold);color:#241a00;font-weight:900;box-shadow:inset 0 0 0 1.5px rgba(36,26,0,.3);}
 .posbar span.spec{background:#7a4a9e;color:#fff;font-weight:900;flex:1.4;}
 .theoryrow{border-bottom:1px dashed var(--line);padding:6px 0;font-size:13px;}
@@ -1042,7 +1042,7 @@ input,select,textarea{ border:2px solid #2f7a33; border-radius:10px; background:
 .rkS{ background:#d23b2e; } .rkA{ background:#ef7d1a; } .rkB{ background:#e9bc2e; color:#442c00; } .rkC{ background:#43a047; } .rkD{ background:#5b8dd9; } .rkE{ background:#8a8f8a; }
 .gbar{ flex:1; height:14px; background:#22331f; border-radius:7px; position:relative; overflow:hidden; }
 .gbar i{ position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,#7bc043 0%,#cfe05a 45%,#f2c41c 75%,#e33 100%); border-radius:7px; }
-.gauge .glo,.gauge .ghi{ font-size:9.5px; font-weight:900; color:#7a8a72; }
+.gauge .glo,.gauge .ghi{ font-size:10.5px; font-weight:900; color:#7a8a72; }
 .aptrow{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:8px 0; }
 .aptchip{ background:#fff; border:2px solid #2f7a33; border-radius:999px; padding:3px 10px; font-weight:800; font-size:13px; }
 .aptchip b{ color:#b8860b; }
@@ -2070,6 +2070,21 @@ html,body{ height:auto; overflow:visible; }
 @media (max-width:640px){ #racestage #photo-banner{ top:86px !important; } }
 #racecam-float{ z-index:12 !important; }
 #racestage #raceov{ z-index:3; }
+
+/* HUD収まり調整（≤640px：1段固定のまま全要素を390px/360px幅に収める） */
+@media (max-width:640px){
+  #hud{ gap:3px; padding-left:5px; padding-right:5px; }
+  #hud .date{ gap:3px; }
+  #hud .dchip{ font-size:11.5px; padding:2px 5px; }
+  #hud .funds{ font-size:11.5px; }
+  #hud .btn.sm{ padding:6px 6px; font-size:11.5px; }
+  #hud #btn-undo{ padding-left:4px; padding-right:4px; }
+}
+@media (max-width:380px){
+  #hud .dchip{ font-size:11px; padding:2px 4px; }
+  #hud .funds{ font-size:11px; }
+  #hud .btn.sm{ padding:6px 5px; font-size:11px; }
+}
 </style>
 </head>
 <body>
@@ -2642,7 +2657,7 @@ const GRADED=[
  {name:"ニュージーランドT",month:4,week:2,course:"中山",dist:1600,surf:"芝",cls:7,age:3,minWins:0,weight:56,prize1:5400,maxField:18},
  {name:"阪神牝馬S",month:4,week:2,course:"阪神",dist:1600,surf:"芝",cls:7,ageMin:4,sex:"牝",minWins:3,weight:55,prize1:5500,maxField:18,straight:474},
  {name:"桜花賞",month:4,week:2,course:"阪神",dist:1600,surf:"芝",cls:8,age:3,sex:"牝",minWins:1,weight:55,prize1:14000,maxField:18,straight:474},
- {name:"アーリントンC",month:4,week:3,course:"阪神",dist:1600,surf:"芝",cls:6,age:3,minWins:0,weight:56,prize1:4100,maxField:18,straight:474},
+ {name:"チャーチルダウンズC",month:4,week:3,course:"阪神",dist:1600,surf:"芝",cls:6,age:3,minWins:0,weight:56,prize1:4100,maxField:18,straight:474},
  {name:"皐月賞",month:4,week:3,course:"中山",dist:2000,surf:"芝",cls:8,age:3,minWins:1,weight:57,prize1:20000,maxField:18},
  {name:"福島牝馬S",month:4,week:3,course:"福島",dist:1800,surf:"芝",cls:6,ageMin:4,sex:"牝",minWins:2,weight:54,prize1:3800,maxField:16},
  {name:"アンタレスS",month:4,week:3,course:"阪神",dist:1800,surf:"ダート",cls:6,ageMin:4,minWins:2,weight:57,prize1:4100,maxField:16},
@@ -2662,27 +2677,27 @@ const GRADED=[
  {name:"日本ダービー",month:5,week:4,course:"東京",dist:2400,surf:"芝",cls:8,age:3,minWins:1,weight:57,prize1:30000,maxField:18},
  /* ===== 6月 ===== */
  {name:"安田記念",month:6,week:1,course:"東京",dist:1600,surf:"芝",cls:8,ageMin:3,minWins:3,weight:58,prize1:18000,maxField:18},
- {name:"エプソムC",month:6,week:2,course:"東京",dist:1800,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
+ {name:"エプソムC",month:5,week:2,course:"東京",dist:1800,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
  {name:"函館スプリントS",month:6,week:2,course:"函館",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:16},
  {name:"宝塚記念",month:6,week:2,course:"阪神",dist:2200,surf:"芝",cls:8,ageMin:3,minWins:3,weight:58,prize1:22000,maxField:18},
- {name:"マーメイドS",month:6,week:3,course:"阪神",dist:2000,surf:"芝",cls:6,ageMin:3,sex:"牝",minWins:2,weight:55,prize1:3800,maxField:16},
- {name:"ユニコーンS",month:6,week:3,course:"東京",dist:1600,surf:"ダート",cls:6,age:3,minWins:0,weight:57,prize1:4100,maxField:16},
+ {name:"府中牝馬S",month:6,week:3,course:"東京",dist:1800,surf:"芝",cls:6,ageMin:3,sex:"牝",minWins:1,weight:55,prize1:3800,maxField:18},
+ {name:"ユニコーンS",month:5,week:1,course:"京都",dist:1900,surf:"ダート",cls:6,age:3,minWins:1,weight:56,prize1:3700,maxField:16},
  /* ===== 7月 ===== */
  {name:"ラジオNIKKEI賞",month:7,week:1,course:"福島",dist:1800,surf:"芝",cls:6,age:3,minWins:0,weight:55,prize1:4100,maxField:16},
- {name:"CBC賞",month:6,week:4,course:"中京",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
+ {name:"CBC賞",month:8,week:2,course:"中京",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
  {name:"七夕賞",month:7,week:2,course:"福島",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:16},
- {name:"函館記念",month:7,week:3,course:"函館",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:16},
+ {name:"函館記念",month:6,week:4,course:"函館",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:16},
  {name:"函館2歳S",month:7,week:3,course:"函館",dist:1200,surf:"芝",cls:6,age:2,minWins:0,weight:54,prize1:3800,maxField:16},
  {name:"アイビスサマーダッシュ",month:7,week:4,course:"新潟",dist:1000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
  /* ===== 8月 ===== */
  {name:"クイーンS",month:8,week:1,course:"札幌",dist:1800,surf:"芝",cls:6,ageMin:3,sex:"牝",minWins:2,weight:55,prize1:3800,maxField:16},
  {name:"レパードS",month:8,week:1,course:"新潟",dist:1800,surf:"ダート",cls:6,age:3,minWins:0,weight:56,prize1:4100,maxField:16},
  {name:"エルムS",month:8,week:2,course:"札幌",dist:1700,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:16},
- {name:"関屋記念",month:8,week:2,course:"新潟",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
- {name:"小倉記念",month:8,week:3,course:"小倉",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:16},
+ {name:"関屋記念",month:7,week:4,course:"新潟",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
+ {name:"小倉記念",month:7,week:3,course:"小倉",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:16},
  {name:"札幌記念",month:8,week:3,course:"札幌",dist:2000,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:7000,maxField:16},
  {name:"中京記念",month:8,week:3,course:"中京",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
- {name:"北九州記念",month:8,week:4,course:"小倉",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
+ {name:"北九州記念",month:7,week:1,course:"小倉",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
  {name:"キーンランドC",month:8,week:4,course:"札幌",dist:1200,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:16},
  {name:"新潟2歳S",month:8,week:4,course:"新潟",dist:1600,surf:"芝",cls:6,age:2,minWins:0,weight:54,prize1:3800,maxField:18},
  /* ===== 9月 ===== */
@@ -2690,7 +2705,7 @@ const GRADED=[
  {name:"京成杯オータムハンデ",month:9,week:1,course:"中山",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:18},
  {name:"セントウルS",month:9,week:1,course:"阪神",dist:1200,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6200,maxField:16},
  {name:"セントライト記念",month:9,week:2,course:"中山",dist:2200,surf:"芝",cls:7,age:3,minWins:0,weight:56,prize1:5400,maxField:18},
- {name:"ローズS",month:9,week:2,course:"阪神",dist:2000,surf:"芝",cls:7,age:3,sex:"牝",minWins:0,weight:54,prize1:5200,maxField:18,straight:474},
+ {name:"ローズS",month:9,week:2,course:"阪神",dist:1800,surf:"芝",cls:7,age:3,sex:"牝",minWins:0,weight:54,prize1:5200,maxField:18,straight:474},
  {name:"神戸新聞杯",month:9,week:3,course:"阪神",dist:2400,surf:"芝",cls:7,age:3,minWins:0,weight:56,prize1:5400,maxField:16,straight:474},
  {name:"オールカマー",month:9,week:3,course:"中山",dist:2200,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6700,maxField:18},
  {name:"シリウスS",month:9,week:4,course:"阪神",dist:2000,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:56,prize1:4100,maxField:16},
@@ -2698,8 +2713,8 @@ const GRADED=[
  /* ===== 10月 ===== */
  {name:"毎日王冠",month:10,week:1,course:"東京",dist:1800,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6700,maxField:18},
  {name:"京都大賞典",month:10,week:2,course:"京都",dist:2400,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6700,maxField:18},
- {name:"府中牝馬S",month:10,week:2,course:"東京",dist:1800,surf:"芝",cls:7,ageMin:3,sex:"牝",minWins:3,weight:55,prize1:5500,maxField:18},
- {name:"富士S",month:10,week:3,course:"東京",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
+ {name:"アイルランドトロフィー",month:10,week:2,course:"東京",dist:1800,surf:"芝",cls:7,ageMin:3,sex:"牝",minWins:3,weight:55,prize1:5500,maxField:18},
+ {name:"富士S",month:10,week:3,course:"東京",dist:1600,surf:"芝",cls:7,ageMin:3,minWins:2,weight:57,prize1:5900,maxField:18},
  {name:"秋華賞",month:10,week:3,course:"京都",dist:2000,surf:"芝",cls:8,age:3,sex:"牝",minWins:1,weight:55,prize1:11000,maxField:18},
  {name:"スワンS",month:10,week:4,course:"京都",dist:1400,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6200,maxField:18,straight:328},
  {name:"菊花賞",month:10,week:4,course:"京都",dist:3000,surf:"芝",cls:8,age:3,minWins:1,weight:57,prize1:20000,maxField:18},
@@ -2726,6 +2741,36 @@ const GRADED=[
  {name:"阪神C",month:12,week:4,course:"阪神",dist:1400,surf:"芝",cls:7,ageMin:3,minWins:3,weight:57,prize1:6700,maxField:18},
  {name:"ホープフルS",month:12,week:4,course:"中山",dist:2000,surf:"芝",cls:8,age:2,minWins:1,weight:56,prize1:7000,maxField:18},
  {name:"有馬記念",month:12,week:4,course:"中山",dist:2500,surf:"芝",cls:8,ageMin:3,minWins:3,weight:58,prize1:50000,maxField:16},
+ /* ===== 2025年番組との照合で追加した平地重賞（JRA公式2025一覧に基づく） ===== */
+ {name:"小倉牝馬S",month:1,week:4,course:"小倉",dist:2000,surf:"芝",cls:6,ageMin:4,sex:"牝",minWins:2,weight:55,prize1:3800,maxField:18},
+ {name:"プロキオンS",month:1,week:4,course:"中京",dist:1800,surf:"ダート",cls:7,ageMin:4,minWins:2,weight:57,prize1:5500,maxField:16},
+ {name:"金鯱賞",month:3,week:3,course:"中京",dist:2000,surf:"芝",cls:7,ageMin:4,minWins:2,weight:57,prize1:6700,maxField:18},
+ {name:"ファルコンS",month:3,week:4,course:"中京",dist:1400,surf:"芝",cls:6,age:3,minWins:0,weight:56,prize1:4100,maxField:18},
+ {name:"愛知杯",month:3,week:4,course:"中京",dist:1400,surf:"芝",cls:6,ageMin:4,sex:"牝",minWins:2,weight:55,prize1:3800,maxField:18},
+ {name:"葵S",month:5,week:4,course:"京都",dist:1200,surf:"芝",cls:6,age:3,minWins:1,weight:56,prize1:4100,maxField:18},
+ {name:"しらさぎS",month:6,week:4,course:"阪神",dist:1600,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4100,maxField:18},
+ {name:"東海S",month:7,week:4,course:"中京",dist:1400,surf:"ダート",cls:6,ageMin:4,minWins:2,weight:56,prize1:3800,maxField:16},
+ {name:"新潟記念",month:8,week:4,course:"新潟",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:56,prize1:4300,maxField:18},
+ {name:"中京2歳S",month:8,week:4,course:"中京",dist:1400,surf:"芝",cls:6,age:2,minWins:0,weight:55,prize1:3100,maxField:18},
+ {name:"札幌2歳S",month:9,week:1,course:"札幌",dist:1800,surf:"芝",cls:6,age:2,minWins:0,weight:55,prize1:3100,maxField:16},
+ {name:"チャレンジC",month:9,week:2,course:"阪神",dist:2000,surf:"芝",cls:6,ageMin:3,minWins:2,weight:57,prize1:4300,maxField:18},
+ {name:"サウジアラビアロイヤルC",month:10,week:2,course:"東京",dist:1600,surf:"芝",cls:6,age:2,minWins:1,weight:55,prize1:3300,maxField:18},
+ {name:"アルテミスS",month:10,week:4,course:"東京",dist:1600,surf:"芝",cls:6,age:2,sex:"牝",minWins:0,weight:55,prize1:2900,maxField:18},
+ {name:"ファンタジーS",month:11,week:1,course:"京都",dist:1400,surf:"芝",cls:6,age:2,sex:"牝",minWins:0,weight:55,prize1:2900,maxField:18},
+ {name:"武蔵野S",month:11,week:3,course:"東京",dist:1600,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:57,prize1:4000,maxField:16},
+ {name:"京都2歳S",month:11,week:4,course:"京都",dist:2000,surf:"芝",cls:6,age:2,minWins:0,weight:55,prize1:3300,maxField:18},
+ {name:"カペラS",month:12,week:2,course:"中山",dist:1200,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:57,prize1:3800,maxField:16},
+ /* ===== 障害重賞（J-G1×2／J-G2×3／J-G3×5）。レース表現は平地と同じエンジンで処理する ===== */
+ {name:"阪神スプリングジャンプ",month:3,week:2,course:"阪神",dist:3900,surf:"芝",cls:7,ageMin:4,minWins:1,weight:60,prize1:3200,maxField:16,jump:true},
+ {name:"中山グランドジャンプ",month:4,week:3,course:"中山",dist:4250,surf:"芝",cls:8,ageMin:4,minWins:1,weight:62,prize1:6300,maxField:16,jump:true},
+ {name:"京都ハイジャンプ",month:5,week:3,course:"京都",dist:3930,surf:"芝",cls:7,ageMin:4,minWins:1,weight:60,prize1:3200,maxField:16,jump:true},
+ {name:"東京ジャンプS",month:6,week:2,course:"東京",dist:3110,surf:"芝",cls:6,ageMin:3,minWins:1,weight:60,prize1:1600,maxField:16,jump:true},
+ {name:"新潟ジャンプS",month:7,week:4,course:"新潟",dist:3250,surf:"芝",cls:6,ageMin:3,minWins:1,weight:60,prize1:1600,maxField:16,jump:true},
+ {name:"小倉サマージャンプ",month:8,week:1,course:"小倉",dist:3390,surf:"芝",cls:6,ageMin:3,minWins:1,weight:60,prize1:1600,maxField:16,jump:true},
+ {name:"阪神ジャンプS",month:9,week:3,course:"阪神",dist:3140,surf:"芝",cls:6,ageMin:3,minWins:1,weight:60,prize1:1600,maxField:16,jump:true},
+ {name:"東京ハイジャンプ",month:10,week:3,course:"東京",dist:3110,surf:"芝",cls:7,ageMin:4,minWins:1,weight:60,prize1:3200,maxField:16,jump:true},
+ {name:"京都ジャンプS",month:11,week:2,course:"京都",dist:3170,surf:"芝",cls:6,ageMin:3,minWins:1,weight:60,prize1:1600,maxField:16,jump:true},
+ {name:"中山大障害",month:12,week:4,course:"中山",dist:4100,surf:"芝",cls:8,ageMin:4,minWins:1,weight:62,prize1:6300,maxField:16,jump:true},
 ];
 /* ============ コースレコード（裏取り済みのもののみ収録） ============
    出典：JRA公式レース結果・各レース回顧（2025年）。time=秒 */
@@ -2851,6 +2896,22 @@ const EXCHANGE_RACES=[
  {name:"帝王賞",month:6,week:4,course:"大井",dist:2000,surf:"ダート",cls:7,ageMin:4,minWins:2,weight:57,prize1:10000,maxField:16,exchange:true},
  {name:"JBCクラシック",month:11,week:1,course:"門別",dist:2000,surf:"ダート",cls:7,ageMin:3,minWins:2,weight:57,prize1:9000,maxField:16,exchange:true},
  {name:"東京大賞典",month:12,week:4,course:"大井",dist:2000,surf:"ダート",cls:8,ageMin:3,minWins:3,weight:57,prize1:11000,maxField:16,exchange:true},
+ {name:"エンプレス杯",month:3,week:1,course:"川崎",dist:2100,surf:"ダート",cls:6,ageMin:4,sex:"牝",minWins:2,weight:55,prize1:4000,maxField:14,exchange:true},
+ {name:"ダイオライト記念",month:3,week:2,course:"船橋",dist:2400,surf:"ダート",cls:6,ageMin:4,minWins:2,weight:56,prize1:4000,maxField:14,exchange:true},
+ {name:"川崎記念",month:4,week:2,course:"川崎",dist:2100,surf:"ダート",cls:7,ageMin:4,minWins:2,weight:57,prize1:10000,maxField:16,exchange:true},
+ {name:"羽田盃",month:4,week:4,course:"大井",dist:1800,surf:"ダート",cls:7,age:3,minWins:1,weight:56,prize1:5000,maxField:16,exchange:true},
+ {name:"東京ダービー",month:6,week:2,course:"大井",dist:2000,surf:"ダート",cls:7,age:3,minWins:1,weight:56,prize1:10000,maxField:16,exchange:true},
+ {name:"さきたま杯",month:6,week:4,course:"浦和",dist:1400,surf:"ダート",cls:7,ageMin:4,minWins:2,weight:57,prize1:5000,maxField:14,exchange:true},
+ {name:"ジャパンダートクラシック",month:10,week:1,course:"大井",dist:2000,surf:"ダート",cls:7,age:3,minWins:1,weight:56,prize1:7000,maxField:16,exchange:true},
+ {name:"日本テレビ盃",month:10,week:1,course:"船橋",dist:1800,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:56,prize1:4000,maxField:14,exchange:true},
+ {name:"マイルチャンピオンシップ南部杯",month:10,week:2,course:"盛岡",dist:1600,surf:"ダート",cls:7,ageMin:3,minWins:2,weight:57,prize1:8000,maxField:16,exchange:true},
+ {name:"東京盃",month:10,week:2,course:"大井",dist:1200,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:56,prize1:4000,maxField:14,exchange:true},
+ {name:"レディスプレリュード",month:10,week:2,course:"大井",dist:1800,surf:"ダート",cls:6,ageMin:3,sex:"牝",minWins:1,weight:55,prize1:3500,maxField:14,exchange:true},
+ {name:"JBCスプリント",month:11,week:1,course:"門別",dist:1200,surf:"ダート",cls:7,ageMin:3,minWins:2,weight:57,prize1:7000,maxField:16,exchange:true},
+ {name:"JBCレディスクラシック",month:11,week:1,course:"門別",dist:1800,surf:"ダート",cls:7,ageMin:3,sex:"牝",minWins:1,weight:55,prize1:6000,maxField:16,exchange:true},
+ {name:"浦和記念",month:11,week:4,course:"浦和",dist:2000,surf:"ダート",cls:6,ageMin:4,minWins:2,weight:56,prize1:4000,maxField:14,exchange:true},
+ {name:"全日本2歳優駿",month:12,week:3,course:"川崎",dist:1600,surf:"ダート",cls:7,age:2,minWins:0,weight:55,prize1:6000,maxField:16,exchange:true},
+ {name:"兵庫ゴールドトロフィー",month:12,week:4,course:"園田",dist:1400,surf:"ダート",cls:6,ageMin:3,minWins:2,weight:56,prize1:3000,maxField:14,exchange:true},
 ];
 const SIRE_NAMES=["ディープインパクト系","キングカメハメハ系","ハーツクライ系","ロードカナロア系","エピファネイア系","キタサンブラック系","ドゥラメンテ系","オルフェーヴル系","モーリス系","サトノダイヤモンド系"];
 /* ============ 血統データ基盤（系統・因子・牝系） ============ */
@@ -3441,7 +3502,7 @@ const TRENDS={
  shoumo:{n:"消耗戦型", d:"序盤から速く流れ、馬場も含めて消耗の大きいタフなレース"},
 };
 /* 競馬場データ（実値）：直線距離(m)・回り・坂・特徴。レース側に straight がある場合はそちら（阪神外回り等）を優先 */
-const COURSE_STRAIGHT={"東京":526,"新潟":659,"京都":404,"阪神":356,"中山":310,"中京":412,"函館":262,"札幌":266,"福島":292,"小倉":293};
+const COURSE_STRAIGHT={"東京":526,"新潟":659,"京都":404,"阪神":356,"中山":310,"中京":412,"函館":262,"札幌":266,"福島":292,"小倉":293,"大井":386,"川崎":400,"船橋":308,"浦和":220,"門別":330,"盛岡":300,"園田":213};
 const COURSE_INFO={
  "東京":{dir:"左回り",note:"直線525.9mと長く緩い坂。差し・追い込みも届く"},
  "中山":{dir:"右回り",note:"直線310mと短く、ゴール前に急坂（高低差2.2m）。パワーと先行力が要る"},
@@ -3453,7 +3514,7 @@ const COURSE_INFO={
  "札幌":{dir:"右回り",note:"直線266.4mの小回り。平坦な洋芝"},
  "福島":{dir:"右回り",note:"直線291.7mの小回りコース"},
  "小倉":{dir:"右回り",note:"直線293.0mの小回り。平坦で夏開催の主場"},
-};
+"大井":{dir:"右回り",note:"直線386m。地方の中心場で、大舞台の交流重賞が多い"},"川崎":{dir:"左回り",note:"直線400m。スパイラルカーブで先行有利になりやすい"},"船橋":{dir:"左回り",note:"直線308m。ハートビートコースと呼ばれ、コーナーがきつい"},"浦和":{dir:"左回り",note:"直線220mと短く、小回り。先行・内枠が有利"},"門別":{dir:"右回り",note:"直線330m。北海道の門別競馬場。JBCの開催地"},"盛岡":{dir:"左回り",note:"直線300m。南部杯の舞台。ダートは起伏がある"},"園田":{dir:"右回り",note:"直線213mと短い小回りコース"}};
 const STEEP_COURSES=["中山","阪神","中京"]; // 直線に急坂がある競馬場（パワーが効く）
 function initTrendApt(h){
   const base={kire:ri(38,68), jizoku:ri(38,68), shoumo:ri(38,68)};
@@ -3521,7 +3582,7 @@ function ensureTacApt(h){ if(!h.tacApt) h.tacApt=initTacApt(h.style); return h.t
 function distBand(d){ return d<=1400?"sprint":d<=1800?"mile":d<=2400?"middle":"long"; }
 const COURSE_TURF={東京:"軽め",中山:"標準",京都:"標準",阪神:"重め",中京:"標準",新潟:"軽め",小倉:"標準",札幌:"重め",函館:"重め",福島:"標準"};
 const LOCAL_COURSES=["札幌","函館","福島","新潟","小倉"];
-const COURSE_DIR={東京:"左",中山:"右",京都:"右",阪神:"右",中京:"左",新潟:"左",小倉:"右",札幌:"右",函館:"右",福島:"右"};
+const COURSE_DIR={東京:"左",中山:"右",京都:"右",阪神:"右",中京:"左",新潟:"左",小倉:"右",札幌:"右",函館:"右",福島:"右",大井:"右",川崎:"左",船橋:"左",浦和:"左",門別:"右",盛岡:"左",園田:"右"};
 const COURSE_SMALL=["中山","小倉","福島","函館"];
 function effRange(h){ const w=Math.round((h.flx-50)/50*300); return {lo:Math.max(800,h.dmin-Math.max(0,w)), hi:h.dmax+w}; }
 function distFactorEff(h,dist){ const r=effRange(h); if(dist<r.lo) return traitOf(h,"shortdash")?0.94:0.86; if(dist>r.hi){ if(traitOf(h,"bigheart")) return 0.90; return Math.max(0.55, 1-(dist-r.hi)/1600); } return 1; }
@@ -4394,7 +4455,7 @@ const LEGENDS=[
 ];
 const FICTIONAL_WORLD=["タイタンクイーン","ゴールドエンペラー","シルバーストーム","ルミナスハート","オーシャンキング","コスモブレイズ","アストラノヴァ","ハヤブサエース"];
 function legendWorld(){ return LEGENDS.map(L=>({name:L.n,sex:L.sex,born:L.born,coatName:L.coat,sire:L.sire,dam:L.dam,wins:L.wins,races:L.races,earnings:L.earn,g1:L.g1,rider:L.rider,style:L.style,dmin:L.dmin,dmax:L.dmax,dept:L.dept,rating:L.rating,legend:true,spd:92,sta:92,pow:90,bst:92,gut:90})); }
-function currentWorld(){ return Object.keys(REAL_DEFS).map(n=>{ const d=REAL_DEFS[n]; return {name:n,sex:d.sex,age:d.age,wins:d.wins,races:d.races,earnings:d.earnings,gWins:d.gWins,note:d.note,current:true,spd:d.spd,sta:d.sta,pow:(d.pow!=null?d.pow:d.bst),bst:d.bst,gut:(d.gut!=null?d.gut:Math.round((d.spd+d.sta)/2)),rating:Math.round((d.spd+d.sta+d.bst)/3+d.wins*2)}; }); }
+function currentWorld(){ return Object.keys(REAL_DEFS).map(n=>{ const d=REAL_DEFS[n]; return {name:n,sex:d.sex,age:d.age,wins:d.wins,races:d.races,earnings:d.earnings,gWins:d.gWins,note:d.note,current:true,mainJockey:(d.jockey!=null?d.jockey:null),spd:d.spd,sta:d.sta,pow:(d.pow!=null?d.pow:d.bst),bst:d.bst,gut:(d.gut!=null?d.gut:Math.round((d.spd+d.sta)/2)),rating:Math.round((d.spd+d.sta+d.bst)/3+d.wins*2)}; }); }
 function defaultWorld(){ return [...legendWorld(), ...currentWorld()]; }
 function legendAboveBelow(earn){
   const sorted=[...LEGENDS].sort((a,b)=>b.earn-a.earn);
@@ -6374,7 +6435,14 @@ function genPersonName(){
 function worldYearStep(prevY){
   const sts=rivalStables();
   const world=(S.worldHorses||(S.worldHorses=[]));
-  world.forEach(w=>{ if(w.legend) return; w.age=(w.age||4)+1; }); /* 歴代名馬は現役ではないので年齢を進めない（殿堂・ランキング用の記録として残す） */
+  world.forEach(w=>{ if(w.legend) return; w.age=(w.age||4)+1; });
+  /* 個体の成長・衰退と年間戦績のリセット（年齢が進んだ後の新しい年齢で判定） */
+  world.forEach(w=>{ if(w.legend) return;
+    w.yr={year:prevY+1, races:0, wins:0, gWins:0, g1Wins:0, earn:0};
+    const drift= w.age<=3? ri(1,3) : w.age===4? ri(0,2) : w.age===5? ri(-1,1) : w.age===6? ri(-2,0) : w.age===7? ri(-3,-1) : ri(-4,-2);
+    if(drift!==0){ ["spd","sta","bst","pow","flx","gut"].forEach(k=>{ if(w[k]!=null) w[k]=clamp(w[k]+drift,25,99); }); }
+    w.rating=wRating(w);
+  }); /* 歴代名馬は現役ではないので年齢を進めない（殿堂・ランキング用の記録として残す） */
   /* 実在の現役馬も年を取って引退し、世界で生まれた馬へ世代が移る（時代分離） */
   let retiredN=0;
   for(let i=world.length-1;i>=0;i--){ if((world[i].age||0)>=9&&!world[i].legend){ world.splice(i,1); retiredN++; } }
@@ -6406,14 +6474,14 @@ function worldYearStep(prevY){
       const ma=mares[bi], si=sires.length? sires[bi%sires.length] : null;
       if(!ma||!si||st.funds<=1200) break;
       const f=newHorse({base:clamp(Math.round((wRating(ma)+wRating(si))/2)+ri(-5,9),45,95), age:2, sire:si.name, dam:ma.name});
-      f.stable=st.name; f.worldBred=true; ensureFullHorse(f); f.rating=wRating(f);
+      f.stable=st.name; f.worldBred=true; f.mainJockey=ri(0,JOCKEYS.length-1); ensureFullHorse(f); f.rating=wRating(f);
       world.push(f); st.funds-=600;
     }
     /* 購買：購買型は積極的に（2頭まで）、他は余裕がある時だけセール級の若馬を買い増す */
     const buyP= isBuyer?0.75 : isBreeder?0.3 : 0.5;
     const buyN= (isBuyer&&st.funds>16000)?2:1;
     for(let bi=0; bi<buyN; bi++){
-      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base:ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; ensureFullHorse(f); f.rating=wRating(f); world.push(f); const paid=Math.round(ri(800,2400)*lineHeatOf(f.sire)); st.funds-=paid;
+      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base:ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; f.mainJockey=ri(0,JOCKEYS.length-1); ensureFullHorse(f); f.rating=wRating(f); world.push(f); const paid=Math.round(ri(800,2400)*lineHeatOf(f.sire)); st.funds-=paid;
         if(!Array.isArray(S.saleHist))S.saleHist=[];
         S.saleHist.unshift({name:f.name, price:paid, week:S.week, buyer:st.name}); if(S.saleHist.length>12)S.saleHist.length=12;
         if(newsBudget>0&&paid>=1800){ newsBudget--; pushNews(`${st.name}がセールで${f.name}を落札`, `今年のセールで、${st.name}が若馬の${f.name}を ${fmt(paid)}万円 で落札した（父 ${esc(f.sire)}）。${lineHeatOf(f.sire)>1.05?`父系の流行も価格を押し上げた格好だ。`:""}来季のデビューが注目される。`); }
@@ -6508,6 +6576,75 @@ function stableTrainerName(stable){
   let hs=0; for(let i=0;i<stable.length;i++) hs=(hs*31+stable.charCodeAt(i))>>>0;
   return roster[hs%roster.length].name;
 }
+/* ============ 世界の個体への書き戻しと、全レース結果台帳 ============
+   レース結果は必ず recordAwardLedger を通る（自厩舎のレースも、世界の
+   シミュレーションも）。ここで世界の個体（worldRef を持つクローン、
+   または同名の現役個体）へ通算・年間の戦績を書き戻し、台帳と個体記録が
+   常に一致するようにする（二重計上は recordAwardLedger が1レース1回
+   だけ呼ばれることで防ぐ） */
+/* 世界の馬の主戦騎手（個体ごとに固定。名前ハッシュで決定的に割り当て、
+   現役実在馬は実データの主戦を優先する） */
+function worldMainJockey(w){ if(!w) return null; if(w.mainJockey==null){ let hs=0; const s=w.name||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; w.mainJockey=hs%JOCKEYS.length; } return w.mainJockey; }
+function worldStableFallback(w){ let hs=0; const s=(w&&w.name)||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; return ["北嶺牧場","青浜ファーム","高原ステーブル","帝都レーシング"][hs%4]; }
+function writebackWorldHorse(h, own, place, prz, r){
+  if(own||!h) return;
+  const wname=h.worldRef||h.name; if(!wname) return;
+  const w=(S.worldHorses||[]).find(x=>x.name===wname&&!x.legend);
+  if(!w) return;
+  w.races=(w.races||0)+1; w.earn=(w.earn||0)+prz; w.lastRaceWeek=S.week;
+  if(!w.yr||w.yr.year!==year()) w.yr={year:year(),races:0,wins:0,gWins:0,g1Wins:0,earn:0};
+  w.yr.races++; w.yr.earn+=prz;
+  if(place===1){ w.wins=(w.wins||0)+1; w.yr.wins++;
+    if(r.cls>=6){ w.gWins=(w.gWins||0)+1; w.yr.gWins++; }
+    if(r.cls>=8){ w.g1Wins=(w.g1Wins||0)+1; w.yr.g1Wins++; } }
+  try{ const rt=ratingOf(h); if(rt>(w.rating||0)) w.rating=rt; }catch(e){}
+}
+/* プレイヤーが出走しなかったレースも毎週、世界の馬同士で結果だけを
+   シミュレーションし、台帳と個体記録へ残す（全レース台帳）。
+   出走馬は makeRivals と同じ生成（重賞は世界の個体が参戦）を使い、
+   着順は ability（着順計算と同じ物差し）＋ばらつきで決める軽い処理 */
+function simulateWorldWeek(){
+  const races=S.races||[]; if(!races.length) return;
+  const played=S._playedRaceIds||{};
+  const t0=(typeof performance!=="undefined"? performance.now() : Date.now());
+  let n=0;
+  races.forEach(r=>{
+    if(!r||r.id==null||played[r.id]) return;
+    try{
+      let field=makeRivals(r);
+      if(!field||!field.length) return;
+      /* 重賞は世界の個体を厚く参戦させる（最大6頭まで個体プールから） */
+      if(r.cls>=6){
+        try{
+          const have=new Set(field.map(x=>x.name));
+          const ownedN=ownedNameSet(), legN=legendNameSet();
+          const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)
+            &&(!r.age||w.age===r.age)&&(!r.ageMin||(w.age||0)>=r.ageMin)&&(w.lastRaceWeek==null||S.week-w.lastRaceWeek>=3)&&(!r.sex||r.sex==="牡騸"? w.sex!=="牝" : w.sex==="牝"))
+            .sort((a,b)=>wRating(b)-wRating(a)).slice(0,6);
+          let wc=field.filter(x=>x.worldRef).length;
+          for(const w of pool){
+            if(wc>=6) break;
+            const x=ensureFullHorse(JSON.parse(JSON.stringify(w)));
+            x.rival=true; x.worldRef=w.name; x.stable=w.stable||worldStableFallback(w); { const mj=worldMainJockey(w); if(mj!=null&&Math.random()<0.75) x.jockey=mj; }
+            x.silk=RIVAL_SILKS[field.length%RIVAL_SILKS.length]; x.jockey=ri(0,JOCKEYS.length-1);
+            const ms=managedState(r.cls); x.cond=ms.cond; x.fat=ms.fat;
+            ensurePublicRecord(x);
+            if(field.length<(r.maxField||16)) field.push(x); else field[field.length-1]=x;
+            wc++;
+          }
+        }catch(e){}
+      }
+      field.forEach(h=>{ let ab=0; try{ ab=ability(h, r, jockOf(h)); }catch(e){ ab=50; } h._wperf=ab+gauss()*4.5; });
+      field.sort((a,b)=>b._wperf-a._wperf);
+      recordAwardLedger(r, field, []);
+      if(r.cls>=8&&field[0]){ try{ pushNews(`🏆 ${r.name}は${field[0].name}が制す`, `${r.course}・${r.dist}mの${r.name}は、${field[0].stable||"世界の有力馬"}の${field[0].name}が制した。`); }catch(e){} }
+      n++;
+    }catch(e){}
+  });
+  S._worldSimMs=(typeof performance!=="undefined"? performance.now() : Date.now())-t0;
+  S._worldSimCount=n;
+  S._playedRaceIds={};
+}
 function recordAwardLedger(r, sorted, owns){
   try{
     const L=awardLedger(), p1=prize1Of(r);
@@ -6517,21 +6654,22 @@ function recordAwardLedger(r, sorted, owns){
       const e=L.horses[h.name]||(L.horses[h.name]={name:h.name, own:false, hid:null, age:h.age, sex:h.sex, coat:h.coat||0, sire:h.sire||"", dam:h.dam||"", stable:"", races:0, wins:0, gWins:0, g1Wins:0, g1Place:0, g2Wins:0, g3Wins:0, earn:0, winsList:[], spr:{w:0,gw:0,g1:0,g1p:0,g2:0,g3:0,earn:0}, mil:{w:0,gw:0,g1:0,g1p:0,g2:0,g3:0,earn:0}, dirt:{w:0,gw:0,g1:0,g1p:0,g2:0,g3:0,earn:0}, ovs:{r:0,w:0,earn:0}, rating:0, rider:""});
       if(own){ e.own=true; e.hid=h.id; } if(h.stable) e.stable=h.stable;
       e.races++; e.earn+=prz;
+      try{ writebackWorldHorse(h, own, place, prz, r); }catch(_){}
       try{ const rt=ratingOf(h); if(rt>(e.rating||0)) e.rating=rt; }catch(_){}
       if(place===1){
         e.wins++;
         if(r.cls>=6){ e.gWins++; e.winsList.push(r.name); }
-        if(r.cls>=8) e.g1Wins++;
+        if((r.cls>=8&&!r.jump)) e.g1Wins++;
         if(r.cls===7) e.g2Wins++;
         if(r.cls===6) e.g3Wins++;
         const band= r.dist<=1400? "spr" : r.dist<=1800? "mil" : null;
-        if(band){ const c=e[band]; c.w++; if(r.cls>=6)c.gw++; if(r.cls>=8)c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
-        if(r.surf==="ダート"){ const c=e.dirt; c.w++; if(r.cls>=6)c.gw++; if(r.cls>=8)c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
+        if(band){ const c=e[band]; c.w++; if(r.cls>=6)c.gw++; if((r.cls>=8&&!r.jump))c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
+        if(r.surf==="ダート"){ const c=e.dirt; c.w++; if(r.cls>=6)c.gw++; if((r.cls>=8&&!r.jump))c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
         const jk= own? JOCKEYS[h._effJockey!=null?h._effJockey:h.jockey] : jockOf(h);
         if(jk) e.rider=jk.name;
-        if(r.cls>=8) L.g1.push({m:month(), race:r.name, horse:h.name, own});
+        if((r.cls>=8&&!r.jump)) L.g1.push({m:month(), race:r.name, horse:h.name, own});
       }
-      if((place===2||place===3)&&r.cls>=8){
+      if((place===2||place===3)&&(r.cls>=8&&!r.jump)){
         e.g1Place++;
         const bandP= r.dist<=1400? "spr" : r.dist<=1800? "mil" : null;
         if(bandP) e[bandP].g1p=(e[bandP].g1p||0)+1;
@@ -6541,21 +6679,21 @@ function recordAwardLedger(r, sorted, owns){
       const jid= own? (h._effJockey!=null? h._effJockey : h.jockey) : (h.jockey!=null? h.jockey : null);
       if(jid!=null&&JOCKEYS[jid]){ const j=L.jockeys[jid]||(L.jockeys[jid]={jid, name:JOCKEYS[jid].name, rides:0, wins:0, top2:0, earn:0, gWins:0, g1Wins:0, best:""});
         j.rides++; j.earn+=prz; if(place<=2) j.top2++;
-        if(place===1){ j.wins++; if(r.cls>=6){ j.gWins++; if(!j.best) j.best=`${r.name}（${h.name}）`; } if(r.cls>=8) j.g1Wins++; } }
-      const tName= own? TRAINER.name : stableTrainerName(h.stable||"");
+        if(place===1){ j.wins++; if(r.cls>=6){ j.gWins++; if(!j.best) j.best=`${r.name}（${h.name}）`; } if((r.cls>=8&&!r.jump)) j.g1Wins++; } }
+      const tName= own? trainerOf(h).name : stableTrainerName(h.stable||"");
       if(tName){ const t=L.trainers[tName]||(L.trainers[tName]={name:tName, own:false, rides:0, wins:0, top2:0, earn:0, gWins:0, g1Wins:0, best:""});
         if(own) t.own=true;
         t.rides++; t.earn+=prz; if(place<=2) t.top2++;
-        if(place===1){ t.wins++; if(r.cls>=6){ t.gWins++; if(!t.best) t.best=`${r.name}（${h.name}）`; } if(r.cls>=8) t.g1Wins++; } }
+        if(place===1){ t.wins++; if(r.cls>=6){ t.gWins++; if(!t.best) t.best=`${r.name}（${h.name}）`; } if((r.cls>=8&&!r.jump)) t.g1Wins++; } }
       const oKey= own? "あなた（自厩舎）" : (h.stable||"");
       if(oKey){ const o=L.owners[oKey]||(L.owners[oKey]={name:oKey, own:false, earn:0, gWins:0, g1Wins:0, best:"", bestEarn:-1});
         if(own) o.own=true; o.earn+=prz;
-        if(place===1){ if(r.cls>=6)o.gWins++; if(r.cls>=8)o.g1Wins++; }
+        if(place===1){ if(r.cls>=6)o.gWins++; if((r.cls>=8&&!r.jump))o.g1Wins++; }
         if(prz>o.bestEarn){ o.bestEarn=prz; o.best=h.name; } }
       const bKey= own? (h.bredOwn? "あなた（自厩舎）" : "") : (h.stable||"");
       if(bKey){ const b=L.breeders[bKey]||(L.breeders[bKey]={name:bKey, own:false, earn:0, gWins:0, g1Wins:0, best:"", bestEarn:-1});
         if(own) b.own=true; b.earn+=prz;
-        if(place===1){ if(r.cls>=6)b.gWins++; if(r.cls>=8)b.g1Wins++; }
+        if(place===1){ if(r.cls>=6)b.gWins++; if((r.cls>=8&&!r.jump))b.g1Wins++; }
         if(prz>b.bestEarn){ b.bestEarn=prz; b.best=h.name; } }
     });
   }catch(e){}
@@ -6604,11 +6742,11 @@ function computeYearAwards(L, yr){
     hoty=Object.assign({cat:"年度代表馬"}, JSON.parse(JSON.stringify(top3[0])), {votes:votes[0], runners: top3.slice(1).map((x,i)=>({name:x.name, own:!!x.own, votes:votes[i+1]}))});
   }
   const jocks=Object.values(L.jockeys||{});
-  const jWin=[...jocks].sort((a,b)=> (b.wins-a.wins)||(b.earn-a.earn))[0]||null;
-  const jEarn=[...jocks].sort((a,b)=> (b.earn-a.earn)||(b.wins-a.wins))[0]||null;
+  const jWin=[...jocks].sort((a,b)=> (b.wins-a.wins)||((b.g1Wins||0)-(a.g1Wins||0))||((b.gWins||0)-(a.gWins||0))||(b.earn-a.earn))[0]||null;
+  const jEarn=[...jocks].sort((a,b)=> (b.earn-a.earn)||((b.g1Wins||0)-(a.g1Wins||0))||(b.wins-a.wins))[0]||null;
   const trs=Object.values(L.trainers||{});
-  const tWin=[...trs].sort((a,b)=> (b.wins-a.wins)||(b.earn-a.earn))[0]||null;
-  const tEarn=[...trs].sort((a,b)=> (b.earn-a.earn)||(b.wins-a.wins))[0]||null;
+  const tWin=[...trs].sort((a,b)=> (b.wins-a.wins)||((b.g1Wins||0)-(a.g1Wins||0))||((b.gWins||0)-(a.gWins||0))||(b.earn-a.earn))[0]||null;
+  const tEarn=[...trs].sort((a,b)=> (b.earn-a.earn)||((b.g1Wins||0)-(a.g1Wins||0))||(b.wins-a.wins))[0]||null;
   const owners=Object.values(L.owners||{});
   const bestOwner=[...owners].sort((a,b)=> (b.earn-a.earn)||(b.gWins-a.gWins))[0]||null;
   const breeders=Object.values(L.breeders||{});
@@ -7099,6 +7237,7 @@ function nextWeekBody(){
       if(S.loan.missed===1) S._loanWarn=true; // 1回目の延滞は週送り後に警告画面でも知らせる
       if(S.loan.missed>=2){ gameOver("loan"); return; } }
   }
+  try{ simulateWorldWeek(); }catch(e){} /* 全レース台帳：出走しなかったレースも結果を残す（年跨ぎ前に呼ぶこと。前年の台帳が新年分へリセットされる前に記録する） */
   S.week++;
   /* 調教の指示による自動実行（手動で調教した馬＝trainsLeft<2 の馬はその週は手動優先で自動実行しない） */
   S.weekReport=[];
@@ -7535,10 +7674,10 @@ function makeRivals(r){
     try{ rivalStables();
       const have=new Set(out.map(x=>x.name));
       const ownedN=ownedNameSet(), legN=legendNameSet();
-      const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)).sort((a2,b2)=>((b2.exPlayer?1000:0)+wRating(b2))-((a2.exPlayer?1000:0)+wRating(a2))).slice(0,6); /* 売却した元自厩舎馬は優先的に参戦し、古巣との対戦が起きやすくする */
+      const pool=(S.worldHorses||[]).filter(w=>!have.has(w.name)&&!w.legend&&!legN.has(w.name)&&!ownedN.has(w.name)&&(w.lastRaceWeek==null||S.week-w.lastRaceWeek>=3)).sort((a2,b2)=>((b2.exPlayer?1000:0)+wRating(b2))-((a2.exPlayer?1000:0)+wRating(a2))).slice(0,6); /* 売却した元自厩舎馬は優先的に参戦し、古巣との対戦が起きやすくする */
       let added=0;
       for(const w of pool){ if(added>=2||out.length>=n)break;
-        const x=ensureFullHorse(JSON.parse(JSON.stringify(w))); x.rival=true; x.worldRef=w.name; x.stable=w.stable||"";
+        const x=ensureFullHorse(JSON.parse(JSON.stringify(w))); x.rival=true; x.worldRef=w.name; x.stable=w.stable||worldStableFallback(w); { const mj=worldMainJockey(w); if(mj!=null&&Math.random()<0.75) x.jockey=mj; }
         x.silk=RIVAL_SILKS[out.length%RIVAL_SILKS.length]; x.jockey=ri(0,JOCKEYS.length-1); x._wDev=ri(-14,2);
         ensurePublicRecord(x);
         { const ms=managedState(r.cls); x.cond=ms.cond; x.fat=ms.fat; } /* 世界の個体も重賞では管理の効いた状態で出走する（生成馬と同じ土俵） */
@@ -7565,7 +7704,7 @@ function makeRivals(r){
     if(r.cls===0){h.races=0; h.wins=0;}
     else if(r.cls===1){h.races=r.age===2?ri(1,3):ri(1,8); h.wins=0;}
     else {h.races=ri(2,20); h.wins=clamp(Math.round(h.races*rnd(0.05,0.3)),0,9);}
-    h.rival=true; h.silk=RIVAL_SILKS[i%RIVAL_SILKS.length]; h.jockey=ri(0,JOCKEYS.length-1);
+    h.rival=true; h.silk=RIVAL_SILKS[i%RIVAL_SILKS.length]; h.jockey=ri(0,JOCKEYS.length-1); h.stable=["北嶺牧場","青浜ファーム","高原ステーブル","帝都レーシング"][ri(0,3)];
     // NPCの作戦：本脚質に合う作戦が中心、たまに隣接作戦
     const nat=TAC_BY_STYLE[h.style]; const ti=TACTICS.findIndex(t=>t.id===nat);
     const roll=Math.random();
@@ -7630,7 +7769,7 @@ function renderRace(){
     const svg=`<svg viewBox="0 0 300 128" style="width:100%;max-width:340px;display:block;margin:6px auto" role="img" aria-label="${c}競馬場のコース図（${info.dir}・直線${st}m）"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#7fb069" stroke="#3d6b35" stroke-width="7"/><line x1="${cx-rx+8}" y1="${cy+ry}" x2="${cx+rx-8}" y2="${cy+ry}" stroke="#f2c41c" stroke-width="5"/><circle cx="${cx+rx-14}" cy="${cy+ry}" r="5" fill="#fff" stroke="#b3362b" stroke-width="2.4"/><text x="${cx}" y="${cy-2}" font-size="13" font-weight="900" text-anchor="middle" fill="#173c1e">${c}競馬場</text><text x="${cx}" y="${cy+15}" font-size="10" text-anchor="middle" fill="#173c1e">${info.dir}・最終直線 ${st}m（黄色）・ゴールは右端</text><text x="${cx}" y="${cy+ry+16}" font-size="9.5" text-anchor="middle" fill="var(--ink2)">${info.dir==="左回り"?"◀ 左回り":"右回り ▶"}／${small?"小回り":"大回り"}／${steep?"直線に急坂":"平坦"}</text></svg>`;
     return svg+`<dl class="kv"><dt>形態</dt><dd>${info.dir}・${small?"小回りコース":"大回りコース"}</dd><dt>直線の長さ</dt><dd>${st}m</dd><dt>坂</dt><dd>${steep?"直線に急坂あり（パワーが要る）":"平坦（スピードが活きる）"}</dd><dt>特徴</dt><dd>${info.note}</dd><dt>大レース</dt><dd>${g1s.length? g1s.join("、") : "G1の開催なし"}（重賞 ${gAll.length}鞍）</dd><dt>大レースの傾向</dt><dd>${st>=450?"直線が長く、差し・追い込みが届きやすい。切れ味勝負型になりやすい":st<=300?"直線が短く、先行・内枠が有利になりやすい。持続力・消耗戦型に注意":"標準的な直線で、脚質の偏りは小さい"}</dd></dl>`; })()}
   </div>`;
-  let calInner=`<div class="panel"><div class="calgrid">${[1,2,3,4,5,6,7,8,9,10,11,12].map(mo=>{ const gs=GRADED.filter(g=>g.month===mo); const g1=gs.filter(g=>g.cls===8); return `<div class="calcell"><b>${mo}月</b> 重賞${gs.length}鞍<br>${g1.length? g1.map(g=>`<span class="g1n">${g.name}</span>`).join("、") : '<span class="small">G1なし</span>'}</div>`; }).join("")}</div>
+  let calInner=`<div class="panel"><h3 style="margin:2px 0 6px">📅 年間重賞カレンダー（全重賞）</h3><div class="calgrid">${[1,2,3,4,5,6,7,8,9,10,11,12].map(mo=>{ const gs=GRADED.filter(g=>g.month===mo); const ex=EXCHANGE_RACES.filter(g=>g.month===mo); const all=[...gs].sort((a,b)=>(a.week-b.week)||(b.cls-a.cls)); return `<div class="calcell"><b>${mo}月</b> 重賞${gs.length}鞍${ex.length?`＋交流${ex.length}鞍`:""}<br><span style="font-size:10.5px;line-height:1.45">${all.map(g=> g.cls===8? `<span class="g1n">${g.name}${g.jump?"（障害）":""}</span>` : `${g.name}${g.jump?"（障害）":""}`).join("、")}${ex.length? `<br><span style="color:var(--ink2)">交流：${ex.map(g=>g.name).join("、")}</span>`:""}</span></div>`; }).join("")}</div>
   <p class="small">今後の重賞の日程・適性は「先行エントリー」タブで確認できます。</p>
   </div><p class="small">人気・オッズは、戦績・近走・馬場／距離の実績・馬体重・騎手・枠順・休養明けといった公開情報だけで決まります（能力値では決まりません）。</p>`;
   let html= subnavHTML("race", [["list","レース一覧"],["card","出馬表"],["settings","作戦・単勝"],["future","先行エントリー"],["trend","コース分析"],["cal","カレンダー"]])
@@ -10462,6 +10601,7 @@ function finishRace(){
     sc.fatA=h.fat; sc.condA=h.cond; sc.weightA=h.weight;
     ownResults.push({h, place, prize:prz, stateChange:sc});
   }
+  try{ (S._playedRaceIds||(S._playedRaceIds={}))[r.id]=1; }catch(e){}
   try{ recordAwardLedger(r, sorted, owns); }catch(e){} /* 年間表彰の台帳：全出走馬・騎手・調教師・馬主・生産者をこの年の成績として積む */
   if(ownResults.length){
     const prim=ownResults.find(o=>o.h===mine)||ownResults.slice().sort((a,b)=>a.place-b.place)[0];
@@ -11398,6 +11538,7 @@ function renderJockey(){
  html+=panelHTML("jockey","detail",`<div class="panel"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${jockeyFaceSVG(dj)}<div style="min-width:0"><span class="jname" style="font-size:19px;font-weight:900">${dj.name}</span> <span class="aptchip ${dj.tier==="S"?"strong":""}">${dj.tier}級</span><br><span class="small">総合力 ${dj.skill}／騎乗料 ${dj.fee}万円</span></div></div>
  <dl class="kv mt"><dt>友好度（信頼）</dt><dd>${heartsHTML(dfr)}</dd>
  <dt>自厩舎での成績</dt><dd>騎乗 ${dst.rides}回／勝利 ${dst.wins}回（勝率 ${dwr}%）</dd>
+ <dt>今季の成績（全レース）</dt><dd>${(()=>{ const jl=(awardLedger().jockeys||{})[selJockey]; if(!jl||!jl.rides) return "今季の騎乗はまだありません"; return `騎乗 ${jl.rides}回／勝利 ${jl.wins}回（勝率 ${Math.round(jl.wins/jl.rides*100)}%）／重賞 ${jl.gWins||0}勝／G1 ${jl.g1Wins||0}勝／獲得賞金 ${fmt(jl.earn||0)}万円`; })()}</dd>
  <dt>実績（実データ）</dt><dd>${dj.fact||"―"}</dd>
  <dt>主な勝鞍</dt><dd>${dst.wins>0?`自厩舎で ${dst.wins}勝を挙げている`:"自厩舎での勝利はまだありません"}${dj.traits.includes("bigrace")?"／大レースでの実績が豊富":""}${dj.traits.includes("classic")?"／クラシック戦線に強い":""}</dd>
  <dt>特性</dt><dd>${dj.traits.map(x=>`<span class="trait plus">${JOCKEY_TRAITS[x]||x}</span>`).join(" ")}</dd>
@@ -12824,7 +12965,7 @@ function showAutoSettings(){
   const fixedN=(S.horses||[]).filter(h=>h.planFixed).length;
   const chip=(on,label,jump)=>`<button class="planchip ${on?"fixed":""}" data-omkjump="${jump||""}" style="margin:2px 2px 2px 0">${on?"●":"○"} ${label}</button>`;
   const summary=`<div class="ticket" style="border-color:var(--gold)"><b>🤝 おまかせ状況（いま任せていること）</b>
-  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${entryPolicy().n}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(!!cfg.mateOmakase,"おまかせ種づけ（調教師への指示）","trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(!!cfg.buyYoungOmakase,"幼駒のおまかせ購入（調教師への指示）","trainer")} ${chip(!!cfg.buyMareOmakase,"繁殖牝馬のおまかせ購入（調教師への指示）","trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
+  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(!!cfg.mateOmakase,"おまかせ種づけ（調教師への指示）","trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(!!cfg.buyYoungOmakase,"幼駒のおまかせ購入（調教師への指示）","trainer")} ${chip(!!cfg.buyMareOmakase,"繁殖牝馬のおまかせ購入（調教師への指示）","trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
   <div class="small" style="margin-top:4px">止まる条件：${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", cfg.mateOmakase===false?"種付け":"", "年末（表彰式・年末処理）・資金マイナス・確認画面"].filter(Boolean).join("／")}</div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   ${summary}
