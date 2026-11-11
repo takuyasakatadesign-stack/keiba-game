@@ -2662,6 +2662,18 @@ const T_BIRTH={"矢作芳人":1961,"国枝栄":1955,"音無秀孝":1954,"森秀�
 function hashStr2(s){ let h=7; s=String(s); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
 function seedJockeyAge(j){ if(J_BIRTH[j.id]!=null) return 2026-J_BIRTH[j.id]; if(j.age) return j.age; return 20+hashStr2("ja"+j.id)%26; }
 function seedJockeyParams(j){ const age=seedJockeyAge(j); const pr={peak:28+hashStr2("pk"+j.id)%11, late:0.7+(hashStr2("lt"+j.id)%60)/100}; pr.cv=jockeyCurve(age,pr); return pr; }
+/* ============ 人物の成長（伸びしろ・実績連動・天才） ============
+   新人は一人ひとり「到達できる上限（ポテンシャル）」が違い、年齢の伸び率と
+   その年の実績（騎手＝騎乗・勝利、調教師＝担当馬の出走・勝利）で上限へ近づく。
+   乗らない・結果が出ない年は伸びが鈍る（完全な自動成長にはしない）。
+   騎手は若いうちに速く伸びて40代でピークを過ぎ緩やかに衰え、調教師は
+   もっと遅く（50〜60代）まで伸びる。まれに（数%以下）新人のうちから
+   能力が高い「天才」がデビューし、上限も高い。新聞で「期待の新人」と分かる */
+const RANK_L6=["E","D","C","B","A","S"];
+function seedJockeyPot(j){ const age=seedJockeyAge(j); const sk=j.skill||70; const head= age<=24? 6+hashStr2("pot"+j.id)%11 : age<=30? 3+hashStr2("pot"+j.id)%7 : age<=36? hashStr2("pot"+j.id)%5 : hashStr2("pot"+j.id)%3; return clamp(Math.max(sk, sk+head), 40, 99); }
+function seedTrainerPot(t){ const o={}; ["train","eye","idea","cond","weight"].forEach(k=>{ const ix=RANK_L6.indexOf(t.ranks[k]); o[k]=clamp(ix+(hashStr2("tpot"+t.id+k)%3), ix, 5); }); return o; }
+function jockeyPerfMul(je){ if(!je) return 0.8; const rides=je.rides||0, wins=je.wins||0; return clamp((rides>=40?1.0:rides>=15?0.8:rides>=5?0.6:0.35)+(wins>=10?0.5:wins>=5?0.35:wins>=2?0.2:wins>=1?0.1:0), 0.3, 1.5); }
+function trainerPerfMul(te){ if(!te) return 0.7; const rides=te.rides||0, wins=te.wins||0; return clamp((rides>=40?1.0:rides>=15?0.85:rides>=5?0.65:0.4)+(wins>=8?0.5:wins>=4?0.35:wins>=1?0.15:0), 0.35, 1.5); }
 function jockeyCurve(age, pr){ let v=0; if(age<pr.peak) v-=(pr.peak-age)*0.55; if(age>pr.peak+9) v-=(age-pr.peak-9)*0.5*pr.late; return v; }
 function seedTrainerAge(t){ if(T_BIRTH[t.name]!=null) return 2026-T_BIRTH[t.name]; const dy=parseInt(t.debut,10); if(dy>=1950&&dy<=2026) return (2026-dy)+(36+hashStr2("ta"+t.id)%9); if(t.region==="eu"||t.region==="us") return 46+hashStr2("ta"+t.id)%16; return 42+hashStr2("ta"+t.id)%14; }
 function ensurePeople(){ if(typeof S==="undefined"||!S||S._peopleReady) return; applyPeople(S.people||null); }
@@ -2669,10 +2681,13 @@ function applyPeople(pd){
   const P=(pd&&typeof pd==="object")? pd : ((S.people&&typeof S.people==="object")? S.people : null);
   const st=S.people=P||{ages:{},tAges:{},retired:{},tRetired:{},added:[],tAdded:[],skill:{},tRank:{},params:{},nextJid:1000,nextTid:1};
   st.ages=st.ages||{}; st.tAges=st.tAges||{}; st.retired=st.retired||{}; st.tRetired=st.tRetired||{}; st.added=st.added||[]; st.tAdded=st.tAdded||[]; st.skill=st.skill||{}; st.tRank=st.tRank||{}; st.params=st.params||{}; st.nextJid=st.nextJid||1000; st.nextTid=st.nextTid||1;
+  st.pot=st.pot||{}; st.genius=st.genius||{}; st.tPot=st.tPot||{}; st.tGenius=st.tGenius||{}; /* 成長システム（旧セーブは決定的シードで補完） */
   st.added.forEach(j=>{ if(!JOCKEYS.some(x=>x.id===j.id)) JOCKEYS.push(j); });
   st.tAdded.forEach(t=>{ if(!TRAINER_ROSTER.some(x=>x.id===t.id)) TRAINER_ROSTER.push(t); });
   JOCKEYS.forEach(j=>{ if(st.ages[j.id]==null) st.ages[j.id]=seedJockeyAge(j); if(!st.params[j.id]) st.params[j.id]=seedJockeyParams(j); j.age=st.ages[j.id]; j.retired=!!st.retired[j.id]; if(st.skill[j.id]!=null) j.skill=st.skill[j.id]; });
   TRAINER_ROSTER.forEach(t=>{ if(st.tAges[t.id]==null) st.tAges[t.id]=seedTrainerAge(t); t.age=st.tAges[t.id]; t.retired=!!st.tRetired[t.id]; if(st.tRank[t.id]) t.ranks=Object.assign({}, t.ranks, st.tRank[t.id]); });
+  JOCKEYS.forEach(j=>{ if(st.pot[j.id]==null) st.pot[j.id]=seedJockeyPot(j); if(st.genius[j.id]) j.genius=true; });
+  TRAINER_ROSTER.forEach(t=>{ if(!st.tPot[t.id]) st.tPot[t.id]=seedTrainerPot(t); if(st.tGenius[t.id]) t.genius=true; });
   /* 旧セーブの騎手参照の不整合を正す：存在しないIDを指す参照は、配列順の
      解釈で救済できるものはその騎手のIDに直し、救済できない主戦は現役騎手へ、
      依頼・カード・実効騎手は外す（dangling 参照でレース消化が落ちるのを防ぐ） */
@@ -2716,10 +2731,15 @@ function makeNewJockey(fixedName, fixedAge){
   while(!nm&&tries++<40){ const c=NEWJ_SUR[ri(0,NEWJ_SUR.length-1)]+NEWJ_GIV[ri(0,NEWJ_GIV.length-1)]; if(!personNameTaken(c)) nm=c; }
   if(!nm){ for(const s of NEWJ_SUR){ for(const g of NEWJ_GIV){ const c=s+g; if(!personNameTaken(c)){ nm=c; break; } } if(nm) break; } }
   if(!nm) nm="新人騎手";
-  const roll=Math.random(); const skill= fixedName? ri(68,80) : roll<0.08? ri(85,90) : roll<0.33? ri(77,84) : ri(62,76);
-  const j={id:st.nextJid++, name:nm, skill, fee:clamp(Math.round(skill*0.28),6,40), tier:skill>=92?"S":skill>=85?"A":skill>=75?"B":"C", fam:{front:ri(2,5),mid:ri(2,5),late:ri(2,5)}, dist:{sprint:pick(["A","B","B","C"]),mile:pick(["A","B","B","C"]),middle:pick(["A","B","C"]),long:pick(["B","C","C"])}, traits:[], rookie:true};
+  /* 天才は低確率（通常デビュー3%）：新人のうちから能力が高く、上限も高い */
+  const genius= fixedName? Math.random()<0.02 : Math.random()<0.03;
+  let skill, pot;
+  if(genius){ skill=ri(85,91); pot=ri(94,99); }
+  else if(fixedName){ skill=ri(68,80); pot=clamp(skill+ri(8,16),0,99); }
+  else { const roll=Math.random(); if(roll<0.12){ skill=ri(76,83); pot=clamp(skill+ri(6,11),0,95); } else { skill=ri(60,75); pot=clamp(skill+ri(5,15),0,90); } }
+  const j={id:st.nextJid++, name:nm, skill, genius:!!genius, fee:clamp(Math.round(skill*0.28),6,40), tier:skill>=92?"S":skill>=85?"A":skill>=75?"B":"C", fam:{front:ri(2,5),mid:ri(2,5),late:ri(2,5)}, dist:{sprint:pick(["A","B","B","C"]),mile:pick(["A","B","B","C"]),middle:pick(["A","B","C"]),long:pick(["B","C","C"])}, traits:[], rookie:true};
   const age=fixedAge||ri(18,22);
-  st.ages[j.id]=age; st.skill[j.id]=skill; st.params[j.id]={peak:ri(29,38), late:0.7+Math.random()*0.6}; st.params[j.id].cv=jockeyCurve(age, st.params[j.id]);
+  st.ages[j.id]=age; st.skill[j.id]=skill; st.pot[j.id]=pot; if(genius) st.genius[j.id]=true; st.params[j.id]={peak:genius? ri(31,38) : ri(29,38), late:0.7+Math.random()*0.6}; st.params[j.id].cv=jockeyCurve(age, st.params[j.id]);
   j.age=age; JOCKEYS.push(j); st.added.push(j); return j;
 }
 function makeNewTrainer(region, fixedName, fixedAge){
@@ -2729,8 +2749,12 @@ function makeNewTrainer(region, fixedName, fixedAge){
   if(!nm) nm="新規調教師";
   const L=["E","D","C","B","A","S"]; const rk=()=>{ const r=Math.random(); return r<0.3?"D":r<0.62?"C":r<0.87?"B":r<0.97?"A":"S"; };
   const t={id:"new"+(st.nextTid++), name:nm, kana:region==="jp"?nm:"", base:region==="jp"?"美浦":region==="eu"?"欧州":"米国", debut:String(2025+year()), ranks:{train:rk(),eye:rk(),idea:rk(),cond:rk(),weight:rk()}, dist:{sprint:rk(),mile:rk(),middle:rk(),long:rk()}, traits:[], region, ageApt:"若手・中堅中心", policy:"新進", desc:"新規開業の調教師"};
+  /* 天才調教師は低確率（3%）：開業時から2能力が高く、上限も天井（S）まで届く */
+  const geniusT=Math.random()<0.03;
+  if(geniusT){ const ks=["train","eye","idea","cond","weight"]; const k1=pick(ks); let k2=pick(ks); if(k2===k1) k2=(k1==="eye")? "train" : "eye"; t.ranks[k1]="A"; t.ranks[k2]="A"; t.genius=true; }
+  const tPot={}; ["train","eye","idea","cond","weight"].forEach(k=>{ const ix=RANK_L6.indexOf(t.ranks[k]); tPot[k]= (geniusT&&t.ranks[k]==="A")? 5 : clamp(ix+ri(0,2), ix, 5); });
   const age=fixedAge||ri(38,47);
-  st.tAges[t.id]=age; t.age=age; TRAINER_ROSTER.push(t); st.tAdded.push(t); return t;
+  st.tAges[t.id]=age; st.tPot[t.id]=tPot; if(geniusT) st.tGenius[t.id]=true; t.age=age; TRAINER_ROSTER.push(t); st.tAdded.push(t); return t;
 }
 function bestFriendActiveJockey(){ let best=null, bf=-1; activeJockeys().forEach(j=>{ const f=friendshipOf(j.id); if(f>bf){ bf=f; best=j.id; } }); if(best==null){ const a=activeJockeys().slice().sort((x,y)=>y.skill-x.skill); best=a.length?a[0].id:null; } return best; }
 function handleTrainerRetire(t, news){
@@ -2750,13 +2774,26 @@ function peopleYearEnd(prevYear, data){
   let retJ=0;
   JOCKEYS.forEach(j=>{ if(j.retired) return; const age=(st.ages[j.id]=(st.ages[j.id]||seedJockeyAge(j))+1); j.age=age;
     const pr=st.params[j.id]||(st.params[j.id]=seedJockeyParams(j)); const cv=jockeyCurve(age,pr); const d=cv-pr.cv; pr.cv=cv;
-    let ns=(st.skill[j.id]!=null? st.skill[j.id] : j.skill)+d+rnd(-0.4,0.4); ns=Math.round(clamp(ns,40,99)*10)/10; st.skill[j.id]=ns; j.skill=ns;
+    /* 成長：上限（st.pot）へ、年齢の伸び率×その年の実績（騎乗・勝利）で近づく。
+       乗らない・勝てない年は伸びが鈍り、上限到達後は年齢曲線の衰えだけが残る */
+    if(st.pot[j.id]==null) st.pot[j.id]=seedJockeyPot(j);
+    const pot=st.pot[j.id], curS=(st.skill[j.id]!=null? st.skill[j.id] : j.skill);
+    const je=led&&led.jockeys? (led.jockeys[j.id]||Object.values(led.jockeys).find(x=>x&&x.jid===j.id)) : null;
+    const perfMul=jockeyPerfMul(je);
+    const ageRate= age<=22?0.20 : age<=26?0.15 : age<=30?0.10 : age<=34?0.06 : age<=pr.peak+4?0.03 : 0;
+    let delta;
+    if(d>=0) delta= d*(0.45+0.75*perfMul) + Math.max(0,pot-curS)*ageRate*perfMul*0.5;
+    else delta= d*(perfMul>=1.2? 0.85 : 1);
+    let ns=curS+delta+rnd(-0.3,0.3);
+    if(delta>0) ns=Math.min(ns, pot);
+    ns=Math.round(clamp(ns,40,99)*10)/10; st.skill[j.id]=ns; j.skill=ns;
+    if(j.id>=1000){ j.fee=clamp(Math.round(ns*0.28),6,40); j.tier=ns>=92?"S":ns>=85?"A":ns>=75?"B":"C"; }
     let p=jockeyRetireP(age); if(st.retiring["j"+j.id]) p=1; if(p>0){ if(jWins(j.id)===0&&age>=45) p*=1.5; if((j.skill||0)>=90) p*=0.6; if(Math.random()<p){ const key="j"+j.id; const affected=(S.horses||[]).some(h=>!h.retired&&h.jockey===j.id);
       if(affected&&!st.retiring[key]){ st.retiring[key]=year(); news.push(`🏇 騎手の${j.name}が${age}歳で、来年末の引退を表明しました。主戦の付け替えができます（付け替えが完了すると引退し、付け替えない場合は来年末に自動で引き継がれます）`); }
       else { st.retired[j.id]=prevYear+2; j.retired=true; retJ++; delete st.retiring[key]; news.push(`🏇 騎手の${j.name}が${age}歳で引退しました`); } } }
   });
   let needJ=retJ; const actN=activeJockeys().length; if(actN<28) needJ+=28-actN;
-  for(let i=0;i<needJ;i++){ const nj=makeNewJockey(); if(nj) news.push(`🌱 新人騎手・${nj.name}（${st.ages[nj.id]}歳）がデビューしました`); }
+  for(let i=0;i<needJ;i++){ const nj=makeNewJockey(); if(nj){ if(nj.genius){ news.push(`🌟 期待の新人騎手・${nj.name}（${st.ages[nj.id]}歳）がデビューしました（初年度から能力 ${Math.round(nj.skill)} の逸材）`); try{ pushNews(`期待の新人・${nj.name}がデビュー`, `騎手課程を首席級の成績で修了した ${nj.name}（${st.ages[nj.id]}歳）がデビューした。初年度から能力 ${Math.round(nj.skill)} を示す逸材で、関係者の間では「いきなり重賞級」と評判だ。伸びしろも大きく、将来のトップ騎手候補として注目を集めている。`); }catch(e){} } else news.push(`🌱 新人騎手・${nj.name}（${st.ages[nj.id]}歳）がデビューしました`); } }
   (S.horses||[]).forEach(h=>{ if(h.retired) return;
     if(h.jockey!=null&&jockById(h.jockey)&&jockById(h.jockey).retired){ const sub=bestFriendActiveJockey(); if(sub!=null){ news.push(`🔁 ${h.name} の主戦騎手が引退のため、${(jockById(sub)||{}).name||""}に変更されました`); h.jockey=sub; } }
     if(h.reqJockey!=null&&jockById(h.reqJockey)&&jockById(h.reqJockey).retired) h.reqJockey=null;
@@ -2766,21 +2803,27 @@ function peopleYearEnd(prevYear, data){
   const retiredTr=[];
   TRAINER_ROSTER.forEach(t=>{ if(t.retired) return; const age=(st.tAges[t.id]=(st.tAges[t.id]||seedTrainerAge(t))+1); t.age=age;
     const employed=(S.trainers||[]).includes(t.id)||S.trainerId===t.id;
-    if(age<58&&Math.random()<0.08){ const ks=["train","eye","idea","cond","weight"]; const k=pick(ks); const ix=RANKL.indexOf(t.ranks[k]); if(ix>=0&&ix<5){ t.ranks=Object.assign({},t.ranks); t.ranks[k]=RANKL[ix+1]; st.tRank[t.id]=Object.assign({}, st.tRank[t.id]||{}, {[k]:t.ranks[k]}); } }
-    else if(age>=70&&Math.random()<0.08){ const ks=["train","eye","idea","cond","weight"]; const k=pick(ks); const ix=RANKL.indexOf(t.ranks[k]); if(ix>0){ t.ranks=Object.assign({},t.ranks); t.ranks[k]=RANKL[ix-1]; st.tRank[t.id]=Object.assign({}, st.tRank[t.id]||{}, {[k]:t.ranks[k]}); } }
+    /* 成長：能力ごとの上限（st.tPot）へ、年齢の伸び率×担当馬の実績（出走・勝利）
+       で近づく。調教師は騎手より遅く（50〜60代）まで伸び、実績の乏しい年は鈍る */
+    if(!st.tPot[t.id]) st.tPot[t.id]=seedTrainerPot(t);
+    const tPot=st.tPot[t.id];
+    const te=led&&led.trainers? led.trainers[t.name] : null;
+    const upP=(age<=44?0.26 : age<=54?0.20 : age<=62?0.13 : age<=69?0.07 : 0.03)*trainerPerfMul(te);
+    if(Math.random()<upP){ const ks=["train","eye","idea","cond","weight"].filter(k=>RANKL.indexOf(t.ranks[k])<(tPot[k]!=null?tPot[k]:5)); if(ks.length){ ks.sort((a,b)=>((tPot[b]||5)-RANKL.indexOf(t.ranks[b]))-((tPot[a]||5)-RANKL.indexOf(t.ranks[a]))); const k=ks[0]; const ix=RANKL.indexOf(t.ranks[k]); t.ranks=Object.assign({},t.ranks); t.ranks[k]=RANKL[ix+1]; st.tRank[t.id]=Object.assign({}, st.tRank[t.id]||{}, {[k]:t.ranks[k]}); } }
+    else if(age>=68&&Math.random()<(age>=74?0.18:0.12)){ const ks=["train","eye","idea","cond","weight"].filter(k=>RANKL.indexOf(t.ranks[k])>=2); if(ks.length){ const k=pick(ks); const ix=RANKL.indexOf(t.ranks[k]); t.ranks=Object.assign({},t.ranks); t.ranks[k]=RANKL[ix-1]; st.tRank[t.id]=Object.assign({}, st.tRank[t.id]||{}, {[k]:t.ranks[k]}); } }
     const p=st.retiring["t"+t.id]? 1 : trainerRetireP(age);
     if(p>0&&Math.random()<p){ if(!employed&&retiredTr.length>=10) return; const key="t"+t.id; const affected=employed&&((assignedHorses(t.id)||[]).length>0||S.trainerId===t.id);
       if(affected&&!st.retiring[key]){ st.retiring[key]=year(); news.push(`🏇 調教師の${t.name}が${age}歳で、来年末での引退を表明しました。担当馬の付け替えができます（付け替えが完了すると引退し、付け替えない場合は来年末に自動で引き継がれます）`); return; }
       st.tRetired[t.id]=prevYear+2; t.retired=true; retiredTr.push(t); delete st.retiring[key]; news.push(`🏇 調教師の${t.name}が${age}歳で引退しました（厩舎解散）`); handleTrainerRetire(t, news); }
   });
-  retiredTr.forEach(t=>{ const nt=makeNewTrainer(t.region||"jp"); if(nt) news.push(`🌱 新規開業：${nt.name} 調教師（${st.tAges[nt.id]}歳）が厩舎を開きました`); });
+  retiredTr.forEach(t=>{ const nt=makeNewTrainer(t.region||"jp"); if(nt){ if(nt.genius){ news.push(`🌟 期待の新進調教師・${nt.name}（${st.tAges[nt.id]}歳）が厩舎を開きました（開業時から高い能力を持つ逸材）`); try{ pushNews(`期待の新進調教師・${nt.name}が開業`, `長く他厩舎で腕を磨いた ${nt.name} 調教師（${st.tAges[nt.id]}歳）が独立開業した。開業時から調教・相馬眼ともに一流級と評判で、「すぐに重賞を勝てる厩舎」と関係者の注目を集めている。伸びしろも大きい。`); }catch(e){} } else news.push(`🌱 新規開業：${nt.name} 調教師（${st.tAges[nt.id]}歳）が厩舎を開きました`); } });
   data.peopleNews=news; news.forEach(n=>log(n));
 }
 
 function retireJockeyNow(jid){ ensurePeople(); const st=S.people; const j=jockById(jid); if(!j||j.retired) return; st.retired[jid]=year()+1; j.retired=true; if(st.retiring) delete st.retiring["j"+jid];
   (S.horses||[]).forEach(h=>{ if(h.retired) return; if(h.jockey===jid){ const sub=bestFriendActiveJockey(); if(sub!=null) h.jockey=sub; } if(h.reqJockey===jid) h.reqJockey=null; if(h.cardJockey===jid) h.cardJockey=null; });
   (S.worldHorses||[]).forEach(w=>{ if(w.mainJockey===jid) w.mainJockey=null; });
-  const nj=makeNewJockey(); log(`🏇 騎手の${j.name}が引退しました${nj?`（新人騎手・${nj.name} がデビューしました）`:""}`); }
+  const nj=makeNewJockey(); log(`🏇 騎手の${j.name}が引退しました${nj?`（${nj.genius?"🌟 期待の新人騎手":"新人騎手"}・${nj.name} がデビューしました）`:""}`); }
 function retireTrainerNow(tid){ ensurePeople(); const st=S.people; const t=TRAINER_ROSTER.find(x=>x.id===tid); if(!t||t.retired) return; st.tRetired[tid]=year()+1; t.retired=true; if(st.retiring) delete st.retiring["t"+tid]; const news=[]; handleTrainerRetire(t, news); news.forEach(n=>log(n)); const nt=makeNewTrainer(t.region||"jp"); log(`🏇 調教師の${t.name}が引退しました${nt?`（新規開業：${nt.name} 調教師）`:""}`); }
 function showRetirePicker(kind, pid){ ensurePeople();
   if(kind==="jockey"){ const j=jockById(pid); if(!j) return; const hs=(S.horses||[]).filter(h=>!h.retired&&h.jockey===pid);
@@ -5014,8 +5057,8 @@ function upkeep(){ return upkeepItems().reduce((a,x)=>a+x.v,0); }
 /* ============ 月次明細（収支台帳） ============
    主な取引を項目別に月単位で記録し、設定画面から明細として見られるようにする。
    月が替わると前月分は履歴（最大12か月）へ移る */
-const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費", salary:"人件費（会社）", welfare:"福利厚生費", training:"研修費", camp:"広告費", land:"土地購入費", event:"イベント費用", insurance:"競走馬保険料",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
-const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金", biz:"イベント事業収入", fanbiz:"ファンビジネス収入", insurancePay:"保険給付金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
+const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費", salary:"人件費（会社）", welfare:"福利厚生費", training:"研修費", camp:"広告費", land:"土地購入費", event:"イベント費用", merch:"グッズ制作費", insurance:"競走馬保険料",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
+const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金", biz:"イベント事業収入", fanbiz:"ファンビジネス収入", goods:"グッズ売上", insurancePay:"保険給付金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
 function ledKey(){ return year()+"-"+month(); }
 function ledLabel(k){ const p=String(k||"").split("-"); return (p[0]||"?")+"年目 "+(p[1]||"?")+"月"; }
 function ledger(){
@@ -8559,6 +8602,8 @@ function nextWeekBody(){
   try{ simulateWorldWeek(); }catch(e){} /* 全レース台帳：出走しなかったレースも結果を残す（年跨ぎ前に呼ぶこと。前年の台帳が新年分へリセットされる前に記録する） */
   S.week++;
   try{ mgmtWeekly(); }catch(e){} /* 研修の完了処理 */
+  try{ execWeekly(); }catch(e){} /* 役員（C○O）の意思決定：小さな判断は即時実行、大きな判断は株主総会の議案へ */
+  try{ merchWeekly(); }catch(e){} /* グッズ在庫の週次販売 */
   /* 調教の指示による自動実行（手動で調教した馬＝trainsLeft<2 の馬はその週は手動優先で自動実行しない） */
   S.weekReport=[];
   if(S.omakase) omakaseReview(); /* おまかせ中は、調教師が指示の見直しを代行してから週次実行に入る */
@@ -13559,7 +13604,7 @@ function renderJockey(){
   const fr=friendshipOf(j.id); const st=(S.jockStats||{})[j.id]||{rides:0,wins:0};
   const isMain=S.horses.some(h=>h.jockey===j.id);
   jcards.push(`<div class="jcard ${j.id===dj.id?"sel":""}" data-jock="${j.id}" style="cursor:pointer;${j.id===dj.id?"border-color:var(--green);box-shadow:0 0 0 2px rgba(30,122,61,.35)":""}"><div style="display:flex;gap:8px;align-items:center">${jockeyFaceSVG(j)}<div style="min-width:0"><span class="jname">${j.name}</span> <span class="aptchip ${j.tier==="S"?"strong":""}">${j.tier}級</span>${isMain?` <span class="aptchip on">主戦</span>`:""}<br><span class="small">総合力 ${j.skill}／騎乗料 ${j.fee}万円／友好度 ${fr}</span></div></div>
-  <div class="uchips" style="margin-top:4px"><span class="uchip">${j.age||"―"}歳</span>${j.age>=47?`<span class="uchip warn"><span class="um">▲</span><span>引退間近</span></span>`:""}<span class="uchip">自厩舎での騎乗 <span class="uv">${st.rides}回</span></span><span class="uchip">勝利 <span class="uv">${st.wins}回</span></span></div>
+  <div class="uchips" style="margin-top:4px"><span class="uchip">${j.age||"―"}歳</span>${j.genius?`<span class="uchip gold">🌟 期待の新人</span>`:""}${(()=>{ try{ const pot=(S.people&&S.people.pot&&S.people.pot[j.id])||0; const gap=pot-(j.skill||0); return pot? `<span class="uchip">伸びしろ <span class="uv">${gap>=12?"大":gap>=6?"中":"小"}</span></span>` : ""; }catch(e){ return ""; } })()}${j.age>=47?`<span class="uchip warn"><span class="um">▲</span><span>引退間近</span></span>`:""}<span class="uchip">自厩舎での騎乗 <span class="uv">${st.rides}回</span></span><span class="uchip">勝利 <span class="uv">${st.wins}回</span></span></div>
   <div class="mt"><button class="btn sm" data-main="${j.id}" ${fr>=60||j.tier==="B"||j.tier==="C"?"":"disabled"}>この騎手を主戦にする</button>${fr<60&&(j.tier==="S"||j.tier==="A")?`<span class="small"> 友好度60で主戦契約可</span>`:""}</div></div>`);
  });
  html+=panelHTML("jockey","list",`<p class="small">現役騎手（引退・新人の登場で顔ぶれは変わります）。騎手名と「実績」はJRA公式等の公表実績に基づく実データ、総合力・適性・特性はゲーム内の換算値です。カードを押すと詳細が見られます。主戦契約は友好度60以上（S・A級）が必要です。</p><div class="hgrid">${pageSlice("jockList",jcards,6).join("")}</div>`+pagerHTML("jockList",jcards.length,6)+retiredJockeysHTML());
@@ -13766,7 +13811,7 @@ function renderFarm(){
  html+=panelOpen("farm","club")+`<h2 class="sec">クラブ <span class="tag">資金・所有馬・収支はここで確認できます</span></h2>`+clubPanelHTML()+panelClose();
   html+=panelOpen("farm","family")+`<h2 class="sec">家庭 <span class="tag">結婚・配偶者・子供</span></h2>`+familyPanelHTML()+panelClose();
   html+=panelOpen("farm","biz")+`<h2 class="sec">経営 <span class="tag">牧場の持分・配当・預かり事業</span></h2>`+bizPanelHTML()+panelClose();
-  html+=panelOpen("farm","company")+`<h2 class="sec">会社 <span class="tag">経営組織・12担当枠・牧場イベント</span></h2>`+companyPanelHTML()+panelClose();
+  html+=panelOpen("farm","company")+`<h2 class="sec">会社 <span class="tag">経営組織・13担当枠・役員・株主総会・牧場イベント</span></h2>`+companyPanelHTML()+panelClose();
  html+=`</div>`;
  el.innerHTML=html;
  el.querySelectorAll("[data-fmark]").forEach(b=>b.addEventListener("click",()=>{ selFac=b.dataset.fmark; UI.farm="fac"; renderAll(); }));
@@ -13800,6 +13845,14 @@ function renderFarm(){
  el.querySelectorAll("[data-train-trainer]").forEach(b=>b.addEventListener("click",()=>startTrainerTraining(b.dataset.trainTrainer)));
  el.querySelectorAll("[data-welfare]").forEach(sel=>sel.addEventListener("change",()=>{ const m=mgmt(); if(!m) return; m.welfareLv=+sel.value||0; log(`💝 福利厚生の水準を Lv.${m.welfareLv} にしました（士気の目標が変わります）`); saveAuto(); renderAll(); }));
  const blb=el.querySelector("#btn-land-buy"); if(blb) blb.addEventListener("click",()=>buyLand());
+ /* 役員レイヤー・株主総会・グッズの配線（会社パネル内で完結） */
+ el.querySelectorAll("[data-exec-holder]").forEach(sel=>sel.addEventListener("change",()=>setExecHolder(sel.dataset.execHolder, sel.value)));
+ el.querySelectorAll("[data-exec-limit]").forEach(sel=>sel.addEventListener("change",()=>setExecLimit(sel.dataset.execLimit, sel.value)));
+ el.querySelectorAll("[data-prop-approve]").forEach(b=>b.addEventListener("click",()=>approveProposal(+b.dataset.propApprove)));
+ el.querySelectorAll("[data-prop-reject]").forEach(b=>b.addEventListener("click",()=>rejectProposal(+b.dataset.propReject)));
+ const bma2=el.querySelector("#btn-meeting-approve-all"); if(bma2) bma2.addEventListener("click",()=>approveAllProposals());
+ const bgm3=el.querySelector("#btn-goto-meeting"); if(bgm3) bgm3.addEventListener("click",()=>{ const t=document.getElementById("meeting-panel"); if(t) t.scrollIntoView({block:"start"}); });
+ el.querySelectorAll("[data-merch-prod]").forEach(b=>b.addEventListener("click",()=>produceMerch(+b.dataset.merchProd,false)));
  /* 牧場長の任命・交代と新規雇用の操作（牧場トップの牧場長欄で完結する） */
  el.querySelectorAll("[data-mgr-appoint]").forEach(b=>b.addEventListener("click",()=>appointManager(b.dataset.mgrAppoint)));
  el.querySelectorAll("[data-mgr-hire]").forEach(b=>b.addEventListener("click",()=>hireMgrCandidate(+b.dataset.mgrHire)));
@@ -13975,9 +14028,11 @@ function showSettings(){
 <div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
 <div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。厩舎全体の代行（種付け・幼駒購入・繁殖牝馬購入）の担当は見極め担当（正）が固定で務め、判断の質はその人の相馬眼で決まります。代行するか否かは調教師への指示の3項目のオン／オフで決め、見極め担当（正）を付け替えると代行担当もその人に切り替わります。見極め担当（正）が未設定のときは、相馬眼トップの調教師が暫定で担当します。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
 <div class="rulecard"><b>経営機能（予算・決算／研修／広告／福利厚生／土地／経営目標）</b><p>会社パネルの「経営ダッシュボード」に集約します。<br>・<b>年度予算と決算</b>：購入／建設／イベント／種付の年間予算枠を設定でき、部門別（競走／生産・販売／イベント事業／ファンビジネス／管理・その他）の収支が今月・今年で見られます。予算は管理・報告用で、超過しても支出は自動で止まりません。差異は月次報告書でCFOが報告します。<br>・<b>人材育成（研修）</b>：スタッフ（4週間）と調教師（8週間）に費用をかけて研修を受けさせると、担当に合った能力が1段階上がります（能力上限5・研修回数の上限あり）。採用担当の管轄です。<br>・<b>広告キャンペーン</b>：広報担当の管轄で、費用と期間（3段階）に応じてイベント集客・名声の伸び・スポンサー金額・命名権の関心が上がります。<br>・<b>福利厚生と士気</b>：福利厚生の水準（月額／人）を上げると継続支出が増える代わりに士気が上がり、全担当枠の効果に小さく（最大±6%程度）効きます。下げると士気は下がります。<br>・<b>土地の購入・拡張</b>：3期まで買い増しでき（6億／15億／35億）、牧場の価値（持分の価格に連動）と繁殖牝馬・幼駒の収容上限（各期+5頭）が上がります。施設管理とCFOに接続する終盤向けの資金の使い道です。<br>・<b>経営目標</b>：年度の目標（賞金収入／名声の伸び／G1勝利数／イベント収入から選択）を設定し、年末に判定します。達成で名声+3・士気+10、未達で士気-5。いずれも任意で、設定しなくても序盤が詰まることはありません。</p></div>
-<div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の12枠）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括など）、関係する収支、来月の予定が数行で読めます。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「会社・イベント」の先頭で読め、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
-<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（12枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
-<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（12枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
+<div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
+<div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
+<div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「会社・イベント」の先頭で読め、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
+<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
+<div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
 <div class="rulecard"><b>馬主・牧場・調教師・クラブの役割と金の流れ</b><p>馬主（あなた）は馬を所有し、賞金を受け取る側です。購入代金・種付け料・海外遠征費・預託料を払います。牧場はあなたが経営する生産と育成・休養の場所で、産駒の生産と売却を担います。調教師はトレーニングセンターの厩舎で現役馬を預かり、馬主は担当馬1頭ごとの月額で預託料を払います（単価は調教師の能力で変動）。牧場は持分で所有するもので、新規開始の時点では持っていません。牧場にいる馬は預かり料（繋養料）を払い、持分を買うと事業収益の配当が入り、100%の買収で自分の馬の預かり料が止まって、他馬主の馬を預かる収入が入ります。馬の所在は、在厩（調教師の厩舎）／育成中（牧場）／休養中（牧場）／繁殖（牧場）で表示します。クラブは馬主の集まりで、クラブ馬の生産・育成の本拠はあなたの牧場、デビュー後は在厩として世界のレースを回ります。</p></div>
 <div class="rulecard"><b>融資</b><p>枠＝基礎4,000万円＋重賞ウィナー1,500万円/頭＋G1勝利500万円/勝＋所有馬300万円/頭。金利15%は借入額に対する固定率（返済総額＝借入額×1.15、12週分割）。延滞が2回続くと破産です。</p></div>
@@ -14320,6 +14375,7 @@ function buildGuide(){
   try{ const c=S.company; if(c){ if(S.week>=(c.eventCdUntil||0)&&compMain("plan")) cards.push({key:"compevent"+Math.floor(S.week/4), who:"秘書・佐倉 澪", face:"sec", text:"牧場イベントを実施できます。会社の事業担当が企画を用意しています（見学会／ファン感謝祭／マルシェ／チャリティオークション）。", btn:"イベントを開く", act:"company"}); } else if((S.fame||0)>=FOUND_FAME&&S.funds>=FOUND_COST){ cards.push({key:"compfound", who:"秘書・佐倉 澪", face:"sec", text:`会社化の条件が整いました（名声 ${S.fame||0}）。会社を作ると牧場イベントや事業・広報などの担当枠が開けます。`, btn:"会社・イベントを見る", act:"company"}); } }catch(e){}
   /* 月次報告書の知らせ（オート中も止めず、未読件数だけ知らせる） */
   try{ if((S.reportUnread||0)>0&&(S.reports||[]).length) cards.push({key:"reports"+(S.reports[0].key||""), who:"秘書・佐倉 澪", face:"sec", text:`月次報告書が ${S.reportUnread}件 届いています（${S.reports[0].label}分まで）。各担当の正担当からの報告です。`, btn:"報告書を読む", act:"company"}); }catch(e){}
+  try{ const cc=S.company; if(cc&&Array.isArray(cc.proposals)&&cc.proposals.length) cards.push({key:"meeting"+cc.proposals.map(p=>p.id).join(","), who:"秘書・佐倉 澪", face:"sec", text:`株主総会の議案が ${cc.proposals.length}件 積み上がっています（次回総会：${nextMeetingLabel()}）。承認した議案だけが実行されます。`, btn:"株主総会を開く", act:"company"}); }catch(e){}
   /* 役割のカバーが不足している枠があると、その役割の効果が届かないので
      枠ごとに具体的に知らせる（例：コンディション担当のカバーが○頭不足） */
   try{ const shorts=ROLES.map(r=>({ r, n: roleUncovered(r.id).length })).filter(x=>x.n>0);
@@ -14703,6 +14759,10 @@ function autoCfg(){
   if(typeof S.autoCfg.stopOfferLoan!=="boolean") S.autoCfg.stopOfferLoan=true;
   if(typeof S.autoCfg.stopOfferBuy!=="boolean") S.autoCfg.stopOfferBuy=true;
   if(typeof S.autoCfg.stopOfferLease!=="boolean") S.autoCfg.stopOfferLease=true;
+  /* 株主総会の停止設定（stopMeeting）：四半期末に議案が積み上がっているとき
+     オートを止めて総会の知らせを出す。既定はON（止まる）。OFFのときは議案が
+     次の総会まで持ち越されるだけで、自動承認は絶対にしない */
+  if(typeof S.autoCfg.stopMeeting!=="boolean") S.autoCfg.stopMeeting=true;
   /* 旧フィールド stopTransferOffer は「馬主系オファーのいずれかで止まる」の
      集約として同期しておく（旧コード経路との互換用） */
   S.autoCfg.stopTransferOffer = !!(S.autoCfg.stopOfferTransfer||S.autoCfg.stopOfferLoan||S.autoCfg.stopOfferBuy||S.autoCfg.stopOfferLease);
@@ -15238,6 +15298,13 @@ function autoStepBody(){
   /* 年末処理を跨ぐ週送りでは必ず止まる：年末処理（引退判断・明け2歳の処遇・
      お守り交換・クラブ処理）にはプレイヤーの意思決定が含まれるため自動消化しない。
      48週オートでも、年が替わる手前で停止して年末処理を済ませてもらう */
+  /* 株主総会（四半期末）：議案が積み上がっていて停止設定がONなら、四半期を
+     跨ぐ前に止めて総会の知らせを出す（画面へは強制遷移しない）。OFFなら
+     議案は次の総会まで持ち越され、自動承認はしない */
+  if([11,23,35].includes(S.week%48) && cfg.stopMeeting!==false){
+    let pendN=0; try{ const cc=execState(); pendN=cc? (cc.proposals||[]).length : 0; }catch(e){}
+    if(pendN>0){ autoStop(`株主総会の時期です（四半期末）。議案が ${pendN} 件 積み上がっています。馬主タブ→「会社・イベント」の株主総会で承認／却下を決めてください（停止条件：株主総会）`); return; }
+  }
   if((S.week+1)%48===0){ autoStop("年末処理の週です。年末処理（引退判断・世代更新など）を確認してから、必要ならオートを再開してください"); return; }
   AUTO.steps++; AUTO.weeksDone++; AUTO.label="次の週へ（調教は定常指示が自動実行）";
   try{ nextWeek(); }catch(e){}
@@ -15260,12 +15327,13 @@ function renderAutoBar(){
     const sb=$("#ab-auto-stop"); if(sb) sb.addEventListener("click",()=>autoStop("手動で停止しました"));
     return;
   }
-  bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート（提案どおり）</span>${AUTO.stopReason? "前回："+esc(AUTO.stopReason) : "提案どおりに進めます。調教は定常指示に設定し、週送りで自動実行されます"}</div>${(S.sale&&AUTO.stopReason&&AUTO.stopReason.includes("セール"))?`<button class="ab-btn btn" id="ab-goto-sale">セールを見る</button>`:""}${(AUTO.stopReason&&AUTO.stopReason.includes("出走週"))?`<button class="ab-btn btn gold" id="ab-goto-race">🏁 レースへ進む</button>`:""}${(AUTO.stopReason&&(AUTO.stopReason.includes("オファー")||AUTO.stopReason.includes("申し出")||AUTO.stopReason.includes("届いています")))?`<button class="ab-btn btn" id="ab-goto-stable">🏠 厩舎ホームで確認</button>`:""}<button class="ab-btn btn ghost" id="ab-auto-cfg">停止条件</button><button class="ab-btn btn gold" id="ab-auto-start">▶ オート開始</button>`;
+  bar.innerHTML=`<div class="ab-text"><span class="ab-kicker">🤖 オート（提案どおり）</span>${AUTO.stopReason? "前回："+esc(AUTO.stopReason) : "提案どおりに進めます。調教は定常指示に設定し、週送りで自動実行されます"}</div>${(S.sale&&AUTO.stopReason&&AUTO.stopReason.includes("セール"))?`<button class="ab-btn btn" id="ab-goto-sale">セールを見る</button>`:""}${(AUTO.stopReason&&AUTO.stopReason.includes("出走週"))?`<button class="ab-btn btn gold" id="ab-goto-race">🏁 レースへ進む</button>`:""}${(AUTO.stopReason&&(AUTO.stopReason.includes("オファー")||AUTO.stopReason.includes("申し出")||AUTO.stopReason.includes("届いています")))?`<button class="ab-btn btn" id="ab-goto-stable">🏠 厩舎ホームで確認</button>`:""}${(AUTO.stopReason&&AUTO.stopReason.includes("株主総会"))?`<button class="ab-btn btn gold" id="ab-goto-meeting">🏛 株主総会へ</button>`:""}<button class="ab-btn btn ghost" id="ab-auto-cfg">停止条件</button><button class="ab-btn btn gold" id="ab-auto-start">▶ オート開始</button>`;
   const st=$("#ab-auto-start"); if(st) st.addEventListener("click",autoStart);
   const cf=$("#ab-auto-cfg"); if(cf) cf.addEventListener("click",showAutoSettings);
   const gs=$("#ab-goto-sale"); if(gs) gs.addEventListener("click",()=>{ UI.farm="sale"; switchView("farm"); renderAll(); const t=document.getElementById("farm-sale"); if(t) t.scrollIntoView({block:"start"}); });
   const gr=$("#ab-goto-race"); if(gr) gr.addEventListener("click",()=>{ switchView("race"); });
   const gt=$("#ab-goto-stable"); if(gt) gt.addEventListener("click",()=>{ switchView("stable"); });
+  const gm=$("#ab-goto-meeting"); if(gm) gm.addEventListener("click",()=>{ UI.farm="company"; switchView("farm"); renderAll(); const t=document.getElementById("meeting-panel"); if(t) t.scrollIntoView({block:"start"}); });
 }
 function showAutoSettings(){
   if(typeof AUTO!=="undefined"&&AUTO.running) autoStop("オート設定を開いたため停止しました");
@@ -15278,7 +15346,7 @@ function showAutoSettings(){
   const chip=(on,label,jump)=>`<button class="planchip ${on?"fixed":""}" data-omkjump="${jump||""}" style="margin:2px 2px 2px 0">${on?"●":"○"} ${label}</button>`;
   const summary=`<div class="ticket" style="border-color:var(--gold)"><b>🤝 おまかせ状況（いま任せていること）</b>
   <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(mateOmakaseOn(),`おまかせ種づけ（担当：${(delegationAssignee("mateOmakase")||{}).name||"なし"}${delegationProvisional("mateOmakase")?"・暫定":""}）`,"trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(buyYoungOmakaseOn(),`幼駒のおまかせ購入（担当：${(delegationAssignee("buyYoungOmakase")||{}).name||"なし"}${delegationProvisional("buyYoungOmakase")?"・暫定":""}）`,"trainer")} ${chip(buyMareOmakaseOn(),`繁殖牝馬のおまかせ購入（担当：${(delegationAssignee("buyMareOmakase")||{}).name||"なし"}${delegationProvisional("buyMareOmakase")?"・暫定":""}）`,"trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
-  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", !mateOmakaseOn()?"種付け":"", "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
+  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", !mateOmakaseOn()?"種付け":"", cfg.stopMeeting!==false?"株主総会（四半期末・議案あり）":"", "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   ${summary}<div class="ticket"><b>💤 スリープ防止</b><br><span class="small">オート実行中は画面スリープを防止します（Wake Lock API${"wakeLock" in navigator?"に対応しています":"未対応の環境では無音動画で防止を試みます"}）。オートを止めると解放されます。</span></div>
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
@@ -15300,6 +15368,8 @@ function showAutoSettings(){
   ${tog("stopOfferLoan","貸付の申し出で止まる（OFFなら見送ります。勝手に貸しません）")}
   ${tog("stopOfferBuy","相手からの売却打診で止まる（OFFなら見送ります。勝手に買いません）")}
   ${tog("stopOfferLease","繁殖牝馬の貸し借りで止まる（OFFなら見送ります。勝手に貸したり借りたりしません）")}
+  <p class="small mt"><b>株主総会で止まるか</b><br>ONなら四半期末（3・6・9・12月の末）に未決の議案があるときオートを止めて総会の知らせを出します（画面へは強制遷移しません）。OFFなら議案は次の総会まで持ち越されます。どちらの場合も議案が自動で承認されることはありません。</p>
+  ${tog("stopMeeting","株主総会で止まる（四半期末・未決の議案があるとき）")}
   <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${buyYoungOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyYoungOmakase").name)+"）" : "OFF"}</b>／繁殖牝馬 <b>${buyMareOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyMareOmakase").name)+"）" : "OFF"}</b>）は調教師への指示で決めます（担当は見極め担当（正）が務めます）。ONのセール種別は、止まらず通過する時に担当の評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
   <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${mateOmakaseOn()? "おまかせ種づけする（担当："+esc(delegationAssignee("mateOmakase").name)+"）" : "代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
   <label class="small" style="display:block;margin-top:10px">代行種付けのシーズン予算上限（5〜6月の合計金額。手動の種付けには適用されません）<br><select id="auto-mate-budget" style="width:100%">${[[0,"上限なし"],[1000,"1,000万円まで"],[2000,"2,000万円まで"],[3000,"3,000万円まで"],[5000,"5,000万円まで"],[10000,"1億円まで"]].map(([v,l])=>`<option value="${v}" ${cfg.mateBudgetSeason===v?"selected":""}>${l}</option>`).join("")}</select></label><p class="small" style="margin-top:4px">今シーズンの代行種付けの使用済み：${fmt(mateSeasonSpent())}万円</p></div>
@@ -15398,6 +15468,7 @@ const COMP_ROLES=[
  {id:"legal", name:"法務担当", group:"経営", ranks:["legal"], rankName:"法務", desc:"命名権・馬主間取引など契約条件の改善とトラブル回避"},
  {id:"plan", name:"事業担当", group:"事業", ranks:["plan"], rankName:"企画", desc:"牧場イベントの企画。イベントの質と規模の上限を決める"},
  {id:"mkt", name:"マーケティング担当", group:"事業", ranks:["mkt"], rankName:"マーケティング", desc:"有名馬グッズ等のファンビジネス収入とクラブ会員の募集"},
+ {id:"merch", name:"マーチャンダイジング担当", group:"事業", ranks:["mkt"], rankName:"販促", desc:"有名馬のグッズを企画・制作（制作費がかかり、在庫が週ごとに売れる）。CMOが統括する"},
  {id:"sales", name:"営業担当", group:"事業", ranks:["sales"], rankName:"営業", desc:"スポンサー契約の金額と再契約までの期間"},
  {id:"pr", name:"広報担当", group:"事業", ranks:["pr"], rankName:"広報", desc:"成績・イベントの反響を増幅（名声の伸び・命名権の関心）"},
  {id:"ops", name:"運営担当", group:"運営支援", ranks:["ops"], rankName:"運営", desc:"イベント実施の成否と集客の質"},
@@ -15417,6 +15488,7 @@ function compRankOf(st, role){ if(!st||!st.ranks) return 0; return role.ranks.re
 function compStaffById(id){ const c=S.company; return c&&Array.isArray(c.staff)? c.staff.find(s=>s.id===id)||null : null; }
 function compState(){ const c=S.company; if(!c) return null;
   if(!Array.isArray(c.staff))c.staff=[]; if(!Array.isArray(c.candidates))c.candidates=[]; if(!c.roles||typeof c.roles!=="object")c.roles={}; if(c.invest==null)c.invest=0;
+  try{ execState(); }catch(e){} /* 役員レイヤー・議案・グッズ在庫の初期化（旧セーブ補完） */
   const ids=new Set(c.staff.map(s=>s.id));
   for(const r of COMP_ROLES){ let cur=c.roles[r.id]; if(!cur||typeof cur!=="object"){cur={main:null,subs:[]};c.roles[r.id]=cur;}
     if(cur.main==null||!ids.has(cur.main)){ const best=c.staff.slice().sort((a,b)=>compRankOf(b,r)-compRankOf(a,r)||(a.id-b.id))[0]; cur.main=best?best.id:null; }
@@ -15486,10 +15558,12 @@ function optimizeCompRoles(){
     for(const s of sorted.slice(1)){ if(cap>=W) break; subs.push(s); cap+=compCapSub(r,s); }
     c.roles[r.id].main=main.id; c.roles[r.id].subs=subs.map(s=>s.id);
   });
+  /* 役員レイヤーも適正配置の対象：管轄能力の平均が最も高いスタッフを任命する */
+  try{ const ec=execState(); if(ec){ EXEC_ROLES.forEach(e=>{ const sorted=c.staff.slice().sort((a,b)=>{ const av=e.keys.reduce((s,k)=>s+(a.ranks[k]||0),0)/e.keys.length, bv=e.keys.reduce((s,k)=>s+(b.ranks[k]||0),0)/e.keys.length; return bv-av || totRank(b)-totRank(a) || a.id-b.id; }); if(sorted[0]) ec.exec[e.id].holder=sorted[0].id; }); } }catch(err){}
   const rows=COMP_ROLES.map(r=>{ const cv=compCoverage(r.id); const cur=c.roles[r.id]; const main=compStaffById(cur.main); return {roleName:r.name, mainName:main?main.name:"", subNames:(cur.subs||[]).map(id=>{ const s=compStaffById(id); return s?s.name:""; }).filter(Boolean), covered:cv.covered, total:cv.need, short:cv.short}; });
   lastCompOpt={rows};
   const shortTxt=rows.filter(x=>x.short>0).map(x=>`${x.roleName}があと${x.short}頭分不足`).join("／");
-  log(`🏢 適正配置を実行しました（12枠を最適化）${shortTxt?` ― ⚠ ${shortTxt}（人材が足りません）`:" ― 全枠カバー充足"}`);
+  log(`🏢 適正配置を実行しました（${COMP_ROLES.length}枠と役員レイヤーを最適化）${shortTxt?` ― ⚠ ${shortTxt}（人材が足りません）`:" ― 全枠カバー充足"}`);
   toast(shortTxt? `適正配置しました（${shortTxt}）` : "適正配置しました（全枠カバー充足）");
   saveAuto(); renderAll();
 }
@@ -15544,6 +15618,159 @@ function companyMonthly(){ const c=S.company; if(!c||!Array.isArray(c.staff)) re
 }
 /* 保険給付（調教中の故障発生時に呼ばれる） */
 function insurancePayout(h, weeks){ const c=S.company; if(!c||!c.insOn) return 0; const pay=Math.min(4000, Math.round(weeks*70*(0.7+0.5*compEff("ins")))); if(pay>0){ S.funds+=pay; ledIn("insurancePay",pay); try{ const A=mAct(); A.insPay+=pay; A.insPayN++; A.inj++; }catch(e){} log(`🛡 ${h.name} の故障に保険金 ${fmt(pay)}万円 が支払われました`); } return pay; }
+/* ============ 役員レイヤー（C○O）と株主総会・マーチャンダイジング ============
+   会社の担当枠（13枠）の上に役員を置く。役員は雇用済みスタッフから任命し
+   （担当枠の正担当との兼任OK）、管轄分野の意思決定を自律的に行う。
+   小さな判断（権限額以内）は即時実行され月次報告書に載る。大きな判断
+   （大規模イベント／土地／大きなキャンペーン／幹部級の採用／多額の商品
+   制作など）は株主総会の議案として積み上がり、オーナーが承認したもの
+   だけが実行される。株主総会は年4回（四半期ごと）で、オートの停止条件
+   にもなる。役員の能力（管轄能力の平均）は判断の質（金額・成果）に効く。
+   マーチャンダイジング担当は有名馬のグッズを制作し、在庫は週ごとに
+   売れていく（馬の人気とマーケティングで変動）。CMOが統括する */
+const EXEC_ROLES=[
+ {id:"ceo", title:"CEO", full:"最高経営責任者", scope:"全体統括：予算・経営目標・土地など大きな判断", keys:["fin","plan","mkt","hr","legal"], limit:50000},
+ {id:"ev", title:"チーフイベントオフィサー", full:"イベント担当役員", scope:"イベントの意思決定：事業・運営を統括", keys:["plan","ops"], limit:15000},
+ {id:"cmo", title:"CMO", full:"チーフマーケティングオフィサー", scope:"マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括", keys:["mkt","pr"], limit:15000},
+ {id:"cro", title:"CRO", full:"チーフリクルーティングオフィサー", scope:"採用の意思決定：採用を統括", keys:["hr"], limit:5000},
+ {id:"cfo", title:"CFO", full:"チーフフィナンシャルオフィサー", scope:"財務の意思決定：資金運用・経費の最適化", keys:["fin"], limit:20000},
+];
+const EXEC_LIMIT_OPTS=[3000,5000,10000,20000,50000,100000];
+function execDef(id){ return EXEC_ROLES.find(e=>e.id===id); }
+function execState(){ const c=S.company; if(!c) return null;
+  if(!c.exec||typeof c.exec!=="object") c.exec={};
+  EXEC_ROLES.forEach(e=>{ if(!c.exec[e.id]||typeof c.exec[e.id]!=="object") c.exec[e.id]={holder:null, limit:e.limit}; if(typeof c.exec[e.id].limit!=="number") c.exec[e.id].limit=e.limit; if(!("holder" in c.exec[e.id])) c.exec[e.id].holder=null; });
+  if(!Array.isArray(c.proposals)) c.proposals=[];
+  if(!Array.isArray(c.deferred)) c.deferred=[];
+  if(!Array.isArray(c.execLog)) c.execLog=[];
+  if(!c.execMeta||typeof c.execMeta!=="object") c.execMeta={};
+  if(!c.merch||typeof c.merch!=="object") c.merch={stock:0, sold:0, revenue:0, horse:""};
+  return c; }
+function execHolder(id){ const c=execState(); if(!c) return null; const h=c.exec[id]&&c.exec[id].holder; return h!=null? compStaffById(h) : null; }
+function execAbility(id){ const st=execHolder(id); if(!st) return 0; const e=execDef(id); const vs=e.keys.map(k=>st.ranks[k]||0); return Math.round(vs.reduce((a,b)=>a+b,0)/Math.max(1,vs.length)*10)/10; }
+function setExecHolder(id, sid){ const c=execState(); if(!c) return; c.exec[id].holder=(sid===""||sid==null)? null : +sid; const st=compStaffById(c.exec[id].holder); log(`🏢 ${execDef(id).title} に ${st?st.name:"（空席）"} を任命しました`); saveAuto(); renderAll(); }
+function setExecLimit(id, v){ const c=execState(); if(!c) return; c.exec[id].limit=+v||0; log(`🏢 ${execDef(id).title} の権限額を ${fmt(c.exec[id].limit)}万円 に設定しました（これを超える大きな判断は株主総会の議案になります）`); saveAuto(); renderAll(); }
+function nextMeetingLabel(){ const w=S.week%48; const ends=[11,23,35,47]; const e=ends.find(x=>x>=w); const endW=(e==null? 59 : e); const months={11:"3月",23:"6月",35:"9月",47:"12月",59:"3月"}; const left=endW-w+1; return `${year()+(e==null?1:0)}年目 ${months[endW]}末（あと${left}週）`; }
+/* ---- マーチャンダイジング（グッズ制作と週次販売） ---- */
+function merchHorse(){ const hs=(S.horses||[]).slice(); if(!hs.length) return null; return hs.sort((a,b)=>((b.wins||0)*100000+(b.earnings||0))-((a.wins||0)*100000+(a.earnings||0)))[0]; }
+const MERCH_LOTS=[{id:1,name:"小ロット",units:100,cost:300},{id:2,name:"中ロット",units:400,cost:1000},{id:3,name:"大ロット",units:1200,cost:2500}];
+function merchUnitPrice(){ return Math.round(3*(1+0.5*compEff("merch"))*(1+0.15*campActive())*10)/10; }
+function produceMerch(lotId, byExec){ const c=execState(); if(!c) return false; const lot=MERCH_LOTS.find(l=>l.id===lotId)||MERCH_LOTS[0];
+  if(!compMain("merch")){ if(!byExec) toast("マーチャンダイジング担当（正）が必要です"); return false; }
+  if(S.funds<lot.cost){ if(!byExec) toast("資金が不足しています"); return false; }
+  const h=merchHorse(); S.funds-=lot.cost; ledOut("merch", lot.cost);
+  c.merch.stock+=lot.units; if(h) c.merch.horse=h.name;
+  log(`🧸 グッズを制作しました：${h?h.name:"有名馬"} グッズ ${lot.units}個（制作費 ${fmt(lot.cost)}万円／マーチャンダイジング担当）`);
+  if(!byExec){ saveAuto(); renderAll(); }
+  return true; }
+function merchWeekly(){ const c=S.company; if(!c||!c.merch||!(c.merch.stock>0)) return;
+  const h=merchHorse(); const fameScore=h? (h.wins||0)*2+Math.min(20,(h.earnings||0)/2000) : 0;
+  const rate=clamp(0.05+0.02*execAbility("cmo")+0.03*compEff("merch")+fameScore*0.004, 0.03, 0.35);
+  const sold=Math.min(c.merch.stock, Math.max(1, Math.round(c.merch.stock*rate*rnd(0.8,1.2))));
+  const rev=Math.round(sold*merchUnitPrice());
+  c.merch.stock-=sold; c.merch.sold=(c.merch.sold||0)+sold; c.merch.revenue=(c.merch.revenue||0)+rev;
+  if(rev>0){ S.funds+=rev; ledIn("goods", rev); } }
+/* ---- 役員の意思決定（週次） ---- */
+let _propSeq=1;
+function execLogPush(execId, type, text, amt){ const c=S.company; if(!c) return; c.execLog.unshift({key:ledKey(), week:S.week, exec:execId, type, text, amt:amt||0}); if(c.execLog.length>120) c.execLog.length=120; }
+function addProposal(execId, kind, title, desc, cost, data){ const c=S.company; if(c.proposals.some(p=>p.kind===kind)) return null;
+  const p={id:(S.week+1)*1000+(_propSeq++), exec:execId, kind, title, desc, cost:cost||0, data:data||{}, week:S.week};
+  c.proposals.push(p); execLogPush(execId,"big",`株主総会へ議案を提出：${title}（${fmt(cost)}万円）`, cost);
+  log(`🏢 ${execDef(execId).title} が株主総会への議案を提出しました：${title}（${fmt(cost)}万円）`); return p; }
+function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); const name=(execHolder(e.id)||{}).name||"";
+  const overLimit=cost=>cost>(c.exec[e.id].limit||0);
+  if(e.id==="ceo"){ const gain=Math.round((80+50*ab)*rnd(0.8,1.2)); S.funds+=gain; ledIn("otherIn",gain);
+    execLogPush("ceo","small",`経費の見直しで ${fmt(gain)}万円 を捻出しました（CEO ${name}）`, gain); log(`🏢 CEO（${name}）：経費の見直しで ${fmt(gain)}万円 を捻出`); return; }
+  if(e.id==="ev"){ const cost=500;
+    if(overLimit(cost)){ addProposal("ev","miniEvent","小規模イベント（見学会）の開催","権限額を超えるため総会の判断を仰ぎます",cost,{}); return; }
+    S.funds-=cost; ledOut("event",cost);
+    const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab));
+    if(income>0){ S.funds+=income; ledIn("biz",income); }
+    try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(err){}
+    execLogPush("ev","small",`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円（チーフイベントオフィサー ${name}）`, income-cost);
+    log(`🏢 チーフイベントオフィサー（${name}）：見学会を実施（来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円）`); return; }
+  if(e.id==="cmo"){ if(compMain("merch")&&S.funds>=MERCH_LOTS[0].cost+1000){ if(produceMerch(1,true)){ execLogPush("cmo","small",`有名馬グッズの小ロット制作を決めました（CMO ${name}／マーチャンダイジング統括）`, MERCH_LOTS[0].cost); return; } }
+    c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+2);
+    execLogPush("cmo","small",`命名権・グッズの販促施策を実施（関心の後押し2週間／CMO ${name}）`, 0); log(`🏢 CMO（${name}）：販促施策を実施（命名権・グッズの関心が2週間上がります）`); return; }
+  if(e.id==="cro"){ compRefreshCandidates(true);
+    execLogPush("cro","small",`採用候補のリサーチと入れ替えを行いました（CRO ${name}）`, 0); log(`🏢 CRO（${name}）：採用候補をリサーチし、顔ぶれを入れ替えました`); return; }
+  if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.05), room);
+    if(amt>0){ c.invest=(c.invest||0)+amt; execLogPush("cfo","small",`余剰資金 ${fmt(amt)}万円 を運用に回しました（CFO ${name}／運用中 ${fmt(c.invest)}万円）`, amt); log(`🏢 CFO（${name}）：余剰資金 ${fmt(amt)}万円 を運用に回しました`); }
+    else execLogPush("cfo","small",`資金繰りを点検しました（運用枠に空きなし／CFO ${name}）`, 0); return; }
+}
+function genExecCandidate(){ const st=genStaffCandidate(); const keys=COMP_ABILITIES.map(([k])=>k); const top=keys.slice().sort((a,b)=>(st.ranks[b]||0)-(st.ranks[a]||0)).slice(0,3); top.forEach(k=>{ st.ranks[k]=clamp((st.ranks[k]||0)+2,0,5); }); st.total=COMP_ABILITIES.reduce((a,[k])=>a+(st.ranks[k]||0),0); st.salary=25+st.total*10; return st; }
+function execBigDecision(e){ const c=S.company; const m=mgmt(); const ab=execAbility(e.id);
+  if(e.id==="ceo"){ if(m.land<LAND_TIERS.length-1){ const t=LAND_TIERS[m.land+1]; addProposal("ceo","land",`土地の購入・拡張（${t.name}）`,`牧場の価値と収容上限を上げる大きな投資です（CEOの提案／判断の質 ${ab}）`, t.cost, {}); }
+    else { const t=CAMP_TIERS[2]; addProposal("ceo","campaign3",`大規模ブランド戦略（${t.name}）`,`${t.weeks}週間の大規模キャンペーンです（CEOの提案）`, t.cost, {}); } return; }
+  if(e.id==="ev"){ const sz=EVENT_SIZES[2]; addProposal("ev","eventBig","大規模ファン感謝祭の開催",`来場 ${sz.att.toLocaleString()}人規模のイベントです（チーフイベントオフィサーの提案／事業・運営を統括）`, sz.cost, {}); return; }
+  if(e.id==="cmo"){ if(compMain("merch")){ const lot=MERCH_LOTS[2]; addProposal("cmo","merchBig",`有名馬グッズの大量生産（${lot.units}個）`,`対象は ${c.merch.horse||(merchHorse()?merchHorse().name:"有名馬")}。在庫は週ごとに売れていきます（CMOの提案）`, lot.cost, {}); }
+    else { const t=CAMP_TIERS[2]; addProposal("cmo","campaign3",`大規模ブランド戦略（${t.name}）`,`${t.weeks}週間の大規模キャンペーンです（CMOの提案）`, t.cost, {}); } return; }
+  if(e.id==="cro"){ const st=genExecCandidate(); const cost=st.salary*6; addProposal("cro","headhunt",`幹部級スタッフ ${st.name} のヘッドハント`,`能力合計 ${st.total} の即戦力候補です（CROの見極め／判断の質 ${ab}）`, cost, {staff:st}); return; }
+  if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.20), room);
+    if(amt>0) addProposal("cfo","investBig","余剰資金の大口運用",`資金の約2割を運用に回す大きな判断です（CFOの提案）`, amt, {amt}); return; }
+}
+function execWeekly(){ const c=execState(); if(!c||!c.staff.length) return;
+  /* 却下された議案の再提出（役員が次の四半期に組み直す） */
+  c.deferred=c.deferred.filter(d=>{ if(S.week>=(d.due||0)){ if(!c.proposals.some(p=>p.kind===d.p.kind)){ const p=Object.assign({}, d.p, {id:(S.week+1)*1000+(_propSeq++), title:d.p.title+"（再提出）", week:S.week}); c.proposals.push(p); log(`🏢 ${execDef(d.p.exec).title} が議案を組み直して再提出しました：${p.title}`); } return false; } return true; });
+  EXEC_ROLES.forEach((e,idx)=>{ if(!execHolder(e.id)) return; const meta=c.execMeta[e.id]||(c.execMeta[e.id]={nextSmall:S.week+1+idx, nextBig:S.week+5+idx*2});
+    if(S.week>=(meta.nextSmall||0)){ meta.nextSmall=S.week+ri(2,4); try{ execSmallDecision(e); }catch(err){} }
+    if(S.week>=(meta.nextBig||0)){ meta.nextBig=S.week+ri(10,14); try{ execBigDecision(e); }catch(err){} }
+  });
+}
+/* ---- 株主総会：議案の実行・承認・却下 ---- */
+function execProposal(p){ const c=S.company; const m=mgmt();
+  if(p.kind==="land"){ const t=LAND_TIERS[(m.land||0)+1]; if(!t) return {ok:false, msg:"これ以上拡張できません"}; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("land",t.cost); m.land++; return {ok:true, msg:`土地を購入しました（${t.name}／繁殖牝馬・幼駒の収容上限 各+5頭）`}; }
+  if(p.kind==="eventBig"){ const sz=EVENT_SIZES[2]; if(S.funds<sz.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=sz.cost; ledOut("event",sz.cost);
+    const planE=compEff("plan"), opsE=compEff("ops"), prE=compEff("pr"); const att=Math.round(sz.att*(0.5+0.55*opsE)*(0.6+0.65*prE)*(1+0.2*campActive())*rnd(0.85,1.15)); const income=Math.round(att*3.5*(0.5+0.5*planE)*rnd(0.9,1.1)/10)*10;
+    if(income>0){ S.funds+=income; ledIn("biz",income); } const fg=Math.round(4*(0.5+prE)); if(fg>0) addFame(fg,"株主総会で承認された大規模イベントの反響");
+    c.clubBoostUntil=S.week+8; c.eventCdUntil=S.week+4; c.lastReport={week:S.week, type:"ファン感謝祭（総会承認）", size:sz.name, att, income, cost:sz.cost, fame:fg, notes:["株主総会の承認を受けて開催しました。クラブ募集の後押しが8週間続きます"]};
+    try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=sz.cost; }catch(e){}
+    return {ok:true, msg:`ファン感謝祭（大規模）を開催：来場 ${att.toLocaleString()}人／収入 ${fmt(income)}万円／名声 +${fg}`}; }
+  if(p.kind==="campaign3"){ const t=CAMP_TIERS[2]; if(S.funds<t.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=t.cost; ledOut("camp",t.cost); m.campUntil=S.week+t.weeks; m.campLv=3; c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+t.weeks); return {ok:true, msg:`大規模ブランド戦略を開始しました（${t.weeks}週間）`}; }
+  if(p.kind==="merchBig"){ if(S.funds<MERCH_LOTS[2].cost) return {ok:false, msg:"資金が不足しています"}; if(!produceMerch(3,true)) return {ok:false, msg:"制作できませんでした"}; return {ok:true, msg:`グッズを大ロット（${MERCH_LOTS[2].units}個）制作しました`}; }
+  if(p.kind==="headhunt"){ const st=p.data&&p.data.staff; if(!st) return {ok:false, msg:"候補の情報がありません"}; if(S.funds<p.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=p.cost; ledOut("salary",p.cost); c.staff.push(st); compState(); try{ mAct().hire++; }catch(e){} return {ok:true, msg:`${st.name} を幹部スタッフとして迎えました（月給 ${fmt(st.salary)}万円）`}; }
+  if(p.kind==="investBig"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min((p.data&&p.data.amt)||0, room); if(amt<=0) return {ok:false, msg:"運用枠（資金の30%）に空きがありません"}; c.invest=(c.invest||0)+amt; return {ok:true, msg:`余剰資金 ${fmt(amt)}万円 を運用に回しました（運用中 ${fmt(c.invest)}万円）`}; }
+  if(p.kind==="miniEvent"){ const cost=p.cost||500; if(S.funds<cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=cost; ledOut("event",cost); const ab=execAbility("ev"); const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab)); if(income>0){ S.funds+=income; ledIn("biz",income); } try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(e){} return {ok:true, msg:`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円`}; }
+  return {ok:false, msg:"不明な議案です"};
+}
+function approveProposal(id){ const c=execState(); if(!c) return; const i=c.proposals.findIndex(p=>p.id===id); if(i<0) return; const p=c.proposals[i]; const r=execProposal(p);
+  if(!r.ok){ toast(r.msg); return; }
+  c.proposals.splice(i,1); execLogPush(p.exec,"approved",`株主総会で承認・実行：${p.title} ― ${r.msg}`, p.cost);
+  log(`🏛 株主総会で議案を承認しました：${p.title} ― ${r.msg}`); toast("議案を承認し、実行しました"); saveAuto(); renderAll(); }
+function rejectProposal(id){ const c=execState(); if(!c) return; const i=c.proposals.findIndex(p=>p.id===id); if(i<0) return; const p=c.proposals[i]; c.proposals.splice(i,1);
+  execLogPush(p.exec,"rejected",`株主総会で却下：${p.title}（実行されません）`, p.cost);
+  log(`🏛 株主総会で議案を却下しました：${p.title}（実行されません）`);
+  if(Math.random()<0.4){ c.deferred.push({p, due:S.week+12}); log(`🏢 ${execDef(p.exec).title} は次の四半期に議案を組み直すようです`); }
+  toast("議案を却下しました"); saveAuto(); renderAll(); }
+function approveAllProposals(){ const c=execState(); if(!c||!c.proposals.length) return; let okN=0, failN=0;
+  c.proposals.slice().forEach(p=>{ const r=execProposal(p); if(r.ok){ const i=c.proposals.findIndex(x=>x.id===p.id); if(i>=0) c.proposals.splice(i,1); okN++; execLogPush(p.exec,"approved",`株主総会で一括承認・実行：${p.title} ― ${r.msg}`, p.cost); log(`🏛 株主総会で議案を承認しました：${p.title} ― ${r.msg}`); } else failN++; });
+  toast(failN? `一括承認：${okN}件を実行、${failN}件は実行できませんでした（資金など）` : `一括承認：${okN}件すべて実行しました`); saveAuto(); renderAll(); }
+/* ---- 役員・株主総会・グッズのUI ---- */
+function execPanelHTML(){ const c=S.company; if(!c) return ""; execState();
+  const cards=EXEC_ROLES.map(e=>{ const h=execHolder(e.id); const ab=execAbility(e.id); const lim=c.exec[e.id].limit;
+    const opts=`<option value="">（空席）</option>`+c.staff.map(s=>`<option value="${s.id}" ${h&&h.id===s.id?"selected":""}>${esc(s.name)}（管轄能力 ${Math.round(e.keys.reduce((a,k)=>a+(s.ranks[k]||0),0)/e.keys.length*10)/10}）</option>`).join("");
+    return `<div class="panel" style="margin:0">
+     <div class="flex" style="align-items:center;gap:6px"><span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#5b3a8a;color:#fff;align-items:center;justify-content:center;font-weight:700;flex:none">${esc(e.title.slice(0,1))}</span><div><b>${esc(e.title)}</b> <span class="small">${esc(e.full)}</span><div class="small">${esc(e.scope)}</div></div></div>
+     <div class="small" style="margin-top:4px">${h?`担当：<b>${esc(h.name)}</b>（意思決定の質 ${ab}／5）`:`<span style="color:#d23b2e"><b>空席</b>（任命すると意思決定が始まります）</span>`}</div>
+     <label class="small" style="display:block;margin-top:2px">任命（雇用済みスタッフから・担当枠との兼任OK） <select data-exec-holder="${e.id}" style="max-width:100%">${opts}</select></label>
+     <label class="small" style="display:block;margin-top:2px">権限額（以内は即時実行／超える大きな判断は総会の議案） <select data-exec-limit="${e.id}" style="max-width:100%">${EXEC_LIMIT_OPTS.map(v=>`<option value="${v}" ${lim===v?"selected":""}>${fmt(v)}万円まで</option>`).join("")}</select></label>
+    </div>`; }).join("");
+  return `<div class="panel" style="border:2px solid #5b3a8a"><h3 style="margin:0 0 4px">👔 役員（C○O）</h3>
+   <div class="small">会社の担当枠の上に立つ役員レイヤーです。役員は管轄分野の意思決定を自律的に行います：小さな判断（権限額以内）は即時実行され月次報告書に載り、大きな判断（大規模イベント・土地・大きなキャンペーン・幹部級の採用・多額の商品制作など）は株主総会の議案として積み上がります。既存のCFOは財務の役員としてこのレイヤーに位置づけます（財務担当枠とは別に、役員としての判断を行います）。</div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:6px">${cards}</div>
+   <div class="flex" style="margin-top:8px;align-items:center"><span class="tag">🏛 株主総会：次回 ${nextMeetingLabel()}</span><span class="tag">未決の議案 ${c.proposals.length}件</span><button class="btn sm gold" id="btn-goto-meeting">株主総会の議案を見る</button></div>
+  </div>`; }
+function meetingPanelHTML(){ const c=S.company; if(!c) return ""; execState(); const pend=c.proposals;
+  const groups=EXEC_ROLES.map(e=>({e, ps:pend.filter(p=>p.exec===e.id)})).filter(g=>g.ps.length);
+  return `<div class="panel" id="meeting-panel" style="border:2px solid #c9a227"><h3 style="margin:0 0 4px">🏛 株主総会（年4回・四半期ごと）</h3>
+   <div class="small">次回開催：${nextMeetingLabel()}。役員の大きな判断は議案として積み上がり、ここでオーナーが最終承認します（この画面でいつでも承認／却下できます）。承認された議案だけが実行されます。却下された議案は実行されず、役員が次の四半期に組み直して再提出することがあります。オートの停止条件で「株主総会」をONにすると、四半期末に議案があるときオートが止まって知らせが出ます（OFFのときは議案が次の総会まで持ち越され、自動承認はしません）。</div>
+   ${pend.length?`<div class="flex" style="margin:6px 0"><button class="btn gold sm" id="btn-meeting-approve-all">議案を一括承認する（${pend.length}件）</button></div>`:`<div class="small" style="margin-top:6px">現在、未決の議案はありません。役員の大きな判断が積み上がると、ここに役員ごとのカードで出ます。</div>`}
+   ${groups.map(g=>`<h4 style="margin:8px 0 4px">${esc(g.e.title)}（${esc(execHolder(g.e.id)?execHolder(g.e.id).name:"空席")}）の議案</h4>${g.ps.map(p=>`<div class="panel" style="margin:0 0 6px"><b>${esc(p.title)}</b> <span class="tag">${fmt(p.cost)}万円</span> <span class="small">${Math.floor((p.week||0)/48)+1}年目${Math.floor(((p.week||0)%48)/4)+1}月 提出</span><div class="small">${esc(p.desc)}</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-prop-approve="${p.id}">承認する（実行）</button><button class="btn sm" data-prop-reject="${p.id}">却下する</button></div></div>`).join("")}`).join("")}
+  </div>`; }
+function merchPanelHTML(){ const c=S.company; if(!c) return ""; execState(); const mm=c.merch; const main=compMain("merch"); const h=merchHorse(); const cmo=execHolder("cmo");
+  return `<h4 style="margin:10px 0 4px">🧸 マーチャンダイジング（グッズ制作／CMO統括）</h4>
+   <div class="small">対象の有名馬：<b>${h?esc(h.name):"（馬がいません）"}</b>／在庫 <b>${mm.stock}個</b>／累計販売 ${mm.sold||0}個・売上 ${fmt(mm.revenue||0)}万円／単価 ${merchUnitPrice()}万円。グッズは制作費をかけて作り、在庫が週ごとに売れていきます（馬の人気とマーケティングで変動）。正担当：${main?esc(main.name):"未配置"}／統括 CMO：${cmo?esc(cmo.name):"空席"}</div>
+   <div class="flex mt">${MERCH_LOTS.map(l=>`<button class="btn sm" data-merch-prod="${l.id}" ${main?"":"disabled"}>グッズを制作（${l.name} ${l.units}個・${fmt(l.cost)}万円）</button>`).join("")}</div>`; }
 /* ============ 経営機能（予算・決算／研修／広告／福利厚生・士気／土地／経営目標） ============
    すべて会社（S.company.mgmt）にぶら下げ、既存の担当枠と台帳に接続する。
    士気は compEff に小さな係数として効く。予算は報告・管理用（自動で
@@ -15567,7 +15794,7 @@ function deptPL(L){ const g=(o,k)=>(o&&o[k])||0;
    {name:"競走", inn:g(L.inn,"prize")+g(L.inn,"bet"), out:g(L.out,"jockey")+g(L.out,"train")+g(L.out,"trainer")+g(L.out,"travel")+g(L.out,"betbuy")},
    {name:"生産・販売", inn:g(L.inn,"sirefee")+g(L.inn,"sell")+g(L.inn,"leaseFee"), out:g(L.out,"breed")+g(L.out,"buy")+g(L.out,"lease")},
    {name:"イベント事業", inn:g(L.inn,"biz"), out:g(L.out,"event")},
-   {name:"ファンビジネス", inn:g(L.inn,"fanbiz"), out:g(L.out,"camp")},
+   {name:"ファンビジネス", inn:g(L.inn,"fanbiz")+g(L.inn,"goods"), out:g(L.out,"camp")+g(L.out,"merch")},
   ];
   const usedI=depts.reduce((a,d)=>a+d.inn,0), usedO=depts.reduce((a,d)=>a+d.out,0);
   depts.push({name:"管理・その他", inn:ledMonthSum(L.inn)-usedI, out:ledMonthSum(L.out)-usedO});
@@ -15686,6 +15913,9 @@ function genMonthlyReport(){
     push("保険・リスク担当", cmain("ins")?cmain("ins").name:"", [c.insOn? (A.insPayN? `故障の給付が ${A.insPayN}件・${fmt(A.insPay)}万円 ありました（掛金 ${fmt(L.out.insurance||0)}万円）` : `保険加入中。今月の給付はありません（掛金 ${fmt(L.out.insurance||0)}万円）`) : "競走馬保険は未加入です", "来月も故障リスクの備えを続けます"], c.insOn? "" : "頭数が増えたら保険加入で故障の損失を抑えられます");
     push("データ分析担当", cmain("data")?cmain("data").name:"", [`分析対象は現役馬 ${(S.horses||[]).filter(h=>!h.retired).length}頭・繁殖牝馬 ${(S.mares||[]).length}頭 です`, "次走提案の勝率見込みは随時更新しています", "来月は重賞週の分析を厚くします"], "");
     push("採用担当", cmain("hr")?cmain("hr").name:"", [A.hire? `今月の雇用は ${A.hire}件 でした` : "今月の雇用はありません", A.trainDone? `研修の完了が ${A.trainDone}件 ありました` : "", `スタッフは現在 ${c.staff.length}名（月給合計 ${fmt(compSalaryTotal())}万円／福利厚生 ${fmt(m.lastWelfare||0)}万円）`, `士気は ${Math.round(m.morale)} です`, "来月も候補の質を保ち、必要な枠の人材を揃えます"], "");
+    push("マーチャンダイジング担当", cmain("merch")?cmain("merch").name:"", [(L.inn.goods||0)>0||(L.out.merch||0)>0? `グッズ売上 ${fmt(L.inn.goods||0)}万円／制作費 ${fmt(L.out.merch||0)}万円（在庫 ${c.merch?c.merch.stock:0}個・対象 ${c.merch&&c.merch.horse?c.merch.horse:"有名馬"}）` : "グッズの動きはありませんでした", "来月も有名馬のグッズ展開を続けます（CMOが統括）"], "");
+    /* 役員レイヤー：今月の判断（小さな判断の即時実行と、総会へ回した議案）を役員ごとに報告する */
+    if(Array.isArray(c.execLog)){ EXEC_ROLES.forEach(e=>{ const es=c.execLog.filter(x=>x.key===key&&x.exec===e.id); if(!es.length) return; const holder=execHolder(e.id); const lines=es.slice(0,4).map(x=>x.text); if(es.length>4) lines.push(`ほか ${es.length-4}件の判断がありました`); if(es.some(x=>x.type==="big")) lines.push("大きな判断は株主総会の議案として提出済みです（承認されたものだけが実行されます）"); lines.push("来月も管轄分野の判断を続けます"); push(`役員：${e.title}`, holder?holder.name:"", lines, ""); }); }
   }
   if(!Array.isArray(S.reports)) S.reports=[];
   S.reports.unshift({key, label:ledLabel(key), week:S.week, totI, totO, hl, sections:secs});
@@ -15787,7 +16017,7 @@ function compRoleCardHTML(r){ const c=S.company; const cur=c.roles[r.id]; const 
    ${subs.length?`<details style="margin-top:4px"><summary class="small">副担当（${cur.subs.length}名）― カバーを広げる</summary>${subs.map(s=>`<label class="small" style="display:block"><input type="checkbox" data-comp-sub="${r.id}" value="${s.id}" ${cur.subs.includes(s.id)?"checked":""}> ${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・+${compCapSub(r,s)}頭）</label>`).join("")}</details>`:`<div class="small">副担当候補：他のスタッフを雇用すると選べます</div>`}
   </div>`; }
 function companyPanelHTML(){ const c=S.company;
-  if(!c){ const canF=(S.fame||0)>=FOUND_FAME; return reportsHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社化</h3><div class="small">経営を会社として組織化すると、事業・運営・広報・営業・採用・財務など12の担当枠に人材を配置でき、牧場イベントやファンビジネスが開けます。人件費は継続的にかかります。</div><div class="flex mt"><button class="btn gold" id="btn-found-company" ${canF&&S.funds>=FOUND_COST?"":"disabled"}>会社を設立する（${fmt(FOUND_COST)}万円）</button>${!canF?`<span class="small">名声${FOUND_FAME}以上が必要（現在 ${S.fame||0}）</span>`:S.funds<FOUND_COST?`<span class="small">資金が不足しています</span>`:""}</div></div>`; }
+  if(!c){ const canF=(S.fame||0)>=FOUND_FAME; return reportsHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社化</h3><div class="small">経営を会社として組織化すると、事業・運営・広報・営業・採用・財務など13の担当枠に人材を配置でき、牧場イベントやファンビジネスが開けます。その上に役員（CEO／チーフイベントオフィサー／CMO／CRO／CFO）と株主総会のレイヤーもあります。人件費は継続的にかかります。</div><div class="flex mt"><button class="btn gold" id="btn-found-company" ${canF&&S.funds>=FOUND_COST?"":"disabled"}>会社を設立する（${fmt(FOUND_COST)}万円）</button>${!canF?`<span class="small">名声${FOUND_FAME}以上が必要（現在 ${S.fame||0}）</span>`:S.funds<FOUND_COST?`<span class="small">資金が不足しています</span>`:""}</div></div>`; }
   compState();
   const sal=compSalaryTotal(); const W=compWorkload();
   const groupsHtml=COMP_GROUPS.map(g=>{ const rs=COMP_ROLES.filter(r=>r.group===g); return `<div class="small" style="margin:8px 0 4px"><b>${g}部門</b></div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px">${rs.map(compRoleCardHTML).join("")}</div>`; }).join("");
@@ -15795,9 +16025,9 @@ function companyPanelHTML(){ const c=S.company;
   const evBtns=EVENT_TYPES.map(t=>`<button class="btn sm ${compEvSel.type===t.id?"gold":""}" data-comp-evtype="${t.id}">${t.name}</button>`).join(" ");
   const szBtns=EVENT_SIZES.map(s=>`<button class="btn sm ${compEvSel.size===s.id?"gold":""}" data-comp-evsize="${s.id}" ${eventSizeAllowed(s.id)?"":"disabled"}>${s.name}（${fmt(s.cost)}万円）</button>`).join(" ");
   const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> <span class="tag">月給 ${fmt(st.salary)}万円</span><div class="small" style="margin:3px 0">${COMP_ABILITIES.map(([k,n])=>`<span class="tag">${n}${st.ranks[k]||0}</span>`).join(" ")}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
-  return reportsHTML()+mgmtDashboardHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
+  return reportsHTML()+mgmtDashboardHTML()+execPanelHTML()+meetingPanelHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
    <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmt(sal)}万円</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmt(c.invest||0)}万円${c._lastGain?`（先月 +${fmt(c._lastGain)}万円）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span></div>
-   <div class="flex" style="align-items:center;gap:8px;margin:8px 0 2px"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small">ワンタップで12枠すべてを最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順（対象は雇用中のスタッフのみ・兼任OK）</span></div>
+   <div class="flex" style="align-items:center;gap:8px;margin:8px 0 2px"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small">ワンタップで13枠すべてと役員レイヤーを最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順／役員は管轄能力トップを任命（対象は雇用中のスタッフのみ・兼任OK）</span></div>
    ${optSummaryHTML(lastCompOpt,"頭相当")}
    ${groupsHtml}
    <div class="flex mt"><button class="btn sm" id="btn-comp-invest">余剰資金の10%を運用に回す（CFO）</button><button class="btn sm" id="btn-comp-withdraw" ${c.invest>0?"":"disabled"}>運用を全額引き出す</button><button class="btn sm" id="btn-comp-ins">${c.insOn?"競走馬保険を解約する":"競走馬保険に加入する（保険担当）"}</button></div>
@@ -15805,6 +16035,7 @@ function companyPanelHTML(){ const c=S.company;
    <div class="small">種類と規模を選んで実施（4週に1回まで）。事業担当の企画、運営担当の実施、広報担当の反響が結果を左右します。</div>
    <div class="flex mt">${evBtns}</div><div class="flex mt">${szBtns}</div>
    <div class="flex mt"><button class="btn gold" id="btn-comp-event" ${compMain("plan")&&S.week>=(c.eventCdUntil||0)?"":"disabled"}>イベントを実施する</button>${S.week<(c.eventCdUntil||0)?`<span class="small">次回まであと ${(c.eventCdUntil||0)-S.week} 週</span>`:!compMain("plan")?`<span class="small">事業担当（正）が必要です</span>`:""}</div>
+   ${merchPanelHTML()}
    ${rep?`<div class="panel" style="margin-top:8px"><b>📋 前回のイベント結果：${esc(rep.type)}（${esc(rep.size)}）</b><div class="small">来場 ${rep.att.toLocaleString()}人／収入 ${fmt(rep.income)}万円／費用 ${fmt(rep.cost)}万円／収支 <b>${rep.income-rep.cost>=0?"+":""}${fmt(rep.income-rep.cost)}万円</b>／名声 +${rep.fame}</div><div class="small">${rep.notes.map(esc).join("／")}</div></div>`:""}
    <h4 style="margin:10px 0 4px">🧑‍💼 スタッフ</h4>
    ${c.staff.length? `<div class="flex">${c.staff.map(st=>`<span class="tag">${esc(st.name)}（月給${fmt(st.salary)}万円）<button class="btn sm" data-comp-fire="${st.id}" style="margin-left:4px">解雇</button></span>`).join("")}</div>`:`<div class="small">まだスタッフがいません。下の候補から雇用してください。</div>`}
@@ -15996,7 +16227,7 @@ function showTrainers(){
   ${[[5,"E〜D中心"],[10,"C中心"],[15,"B中心"],[20,"A中心"],[22,"上位"],[25,"最上位"]].map(([t,lb])=>{ const upO=Math.max(1,Math.round(t*t*t/40)), upN=Math.max(2,Math.round(t*t*0.22+t*0.8)); return `<tr><td>合計${t}（${lb}）</td><td>${6+t}頭</td><td>×${(0.9+(t/5)*0.04).toFixed(2)}</td><td>${fmt(upO)}万円</td><td><b>${fmt(upN)}万円</b></td><td>${(upN/(6+t)).toFixed(1)}万円</td><td>${fmt(Math.round(upN*44/10)*10)}万円</td></tr>`; }).join("")}
   </table><div class="small">主任の手塚貴久は従来どおり雇用費・維持費ゼロです。各調教師の実際の金額は下の一覧に出ています。</div></div>
   ${items.map(d=>{ const cost=trainerCost(d); const isPrimary=d.id===cur.id; const isEmp=employedTrainers().some(x=>x.id===d.id); const dis=locked||(!isEmp&&S.funds<cost.hire);
-    return `<div class="ticket"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${d.age>=66?` <span class="uchip warn xs"><span class="um">▲</span><span>引退間近</span></span>`:""} <span class="small">${d.region==="jp"?`${esc(d.kana)}／${esc(d.base)}所属・${esc(d.debut)}年デビュー`:`${esc(d.kana)}拠点`}／方針：${esc(d.policy)}</span><br>
+    return `<div class="ticket"><b>${esc(d.name)}</b>${d.age!=null?` <span class="tag">${d.age}歳</span>`:""}${d.genius?` <span class="uchip gold xs">🌟 期待の新進</span>`:""}${d.age>=66?` <span class="uchip warn xs"><span class="um">▲</span><span>引退間近</span></span>`:""} <span class="small">${d.region==="jp"?`${esc(d.kana)}／${esc(d.base)}所属・${esc(d.debut)}年デビュー`:`${esc(d.kana)}拠点`}／方針：${esc(d.policy)}</span><br>
     <span class="small">能力：${rankRow(d.ranks,[["train","調教"],["eye","相馬眼"],["idea","閃き"],["cond","体調"],["weight","体重"]])}／距離：${rankRow(d.dist,[["sprint","短"],["mile","マ"],["middle","中"],["long","長"]])}${d.ageApt?` <span class="uchips" style="margin:0"><span class="uchip xs dim">年代</span>${[["2歳",d.ageApt[0]],["3歳",d.ageApt[1]],["古馬",d.ageApt[2]],["牝馬",d.ageApt[3]]].map(([n,v])=>`<span class="uchip xs">${n} <span class="uv">${v}</span></span>`).join("")}</span>`:""}</span><br>
     <span class="small">特性：${d.traits.length? d.traits.map(t=>`<span class="trait plus">${esc(t)}</span>`).join(" ") : "なし"}</span><span class="uchips"><span class="uchip">雇用費 <span class="uv">${fmt(cost.hire)}万円</span></span><span class="uchip">維持費 <span class="uv">${fmt(cost.upkeep)}万円/週</span></span><span class="uchip">役割カバー <span class="uv">正 ${roleCapMain(roleDef("train"),d)}頭／副 +${roleCapSub(roleDef("train"),d)}頭（調教担当）</span></span>${isEmp?`<span class="uchip">現在 <span class="uv">${assignedHorses(d.id).length}頭</span>を担当</span>`:""}</span>
     ${!isEmp?`<div class="small">雇用後の資金見通し：12週 約${fmt((S.funds-cost.hire)-(fundsForecast(12).perWeek+cost.upkeep)*12)}万円／1年 約${fmt((S.funds-cost.hire)-(fundsForecast(48).perWeek+cost.upkeep)*48)}万円（収入なし試算・維持費は人数分かかります）</div>`:""}
