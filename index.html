@@ -6120,7 +6120,9 @@ function breedAdvice(h){
   reasons.push(`狙えるレベル「${aimLabel(h)}」は基準（${AIM_LEVELS[stdLv]}）を${meets?"満たす":"満たさない"}`);
   if(lineRare) reasons.push(`父系（${lineName||h.sire}）は自厩舎の繁殖ストックに他にいない`);
   if(h.age>=10) reasons.push(`${h.age}歳で繁殖に使える期間は長くない`);
-  let tn="担当調教師"; try{ tn=trainerOf(h).name; }catch(e){}
+  /* 繁殖入りの推奨は評価・判断系のコメント：話者は担当調教師ではなく、
+     相馬眼が最も高い調教師（目利きの判断として出す） */
+  let tn="調教師"; try{ tn=eyeTopTrainer().name; }catch(e){}
   return {verdict, prob, meets, reasons, head:`${tn}「${verdict}」`, text:`${tn}「${verdict}」`};
 }
 /* 引退：繁殖入りするかどうかは馬ごとに明示的に選ぶ（基準未満でも自動で
@@ -7819,9 +7821,9 @@ function showYePending(){
   ${closeBtn}`);
   box.querySelectorAll("[data-ye-retire-breed]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetireBreed, ()=>showYePending(), "breed"); }));
   box.querySelectorAll("[data-ye-retire-only]").forEach(b=>b.addEventListener("click",()=>{ retireHorse(+b.dataset.yeRetireOnly, ()=>showYePending(), "only"); }));
-  box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; undoPush(`年末処理：入厩の前（${y.name}）`); const nm=($("#ye-name-"+y.id)||{}).value; yeYoungInOp(y, nm); b.parentElement.innerHTML=`<b>${esc(y.name)}</b> 入厩しました`; yeSyncRemain(); renderAll(); }));
-  box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; undoPush(`年末処理：幼駒売却の前（${y.name}）`); const price=yeYoungSellOp(y); b.parentElement.innerHTML=`売却しました（${fmt(price)}万円）`; yeSyncRemain(); renderAll(); }));
-  box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; undoPush(`年末処理：クラブ募集の前（${y.name}）`); yeYoungClubOp(y); b.parentElement.innerHTML=`クラブ募集馬に登録しました`; yeSyncRemain(); renderAll(); }));
+  box.querySelectorAll("[data-ye-in]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeIn); if(!y)return; undoPush(`年末処理：入厩の前（${y.name}）`); const nm=($("#ye-name-"+y.id)||{}).value; yeYoungInOp(y, nm); renderAll(); showYePending(); }));
+  box.querySelectorAll("[data-ye-sell]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeSell); if(!y)return; undoPush(`年末処理：幼駒売却の前（${y.name}）`); yeYoungSellOp(y); renderAll(); showYePending(); }));
+  box.querySelectorAll("[data-ye-club]").forEach(b=>b.addEventListener("click",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+b.dataset.yeClub); if(!y||!S.club)return; undoPush(`年末処理：クラブ募集の前（${y.name}）`); yeYoungClubOp(y); renderAll(); showYePending(); }));
 }
 let YE=null, yePage=0;
 function showYearEnd(data){
@@ -8040,11 +8042,18 @@ const BIRTH_COMMENT_TIERS=[
 const BIRTH_STAT_NOTES={spd:"特に脚の速さが光ります。", sta:"特に心肺の強さが光ります。", pow:"特に馬力の強さが光ります。", bst:"特に瞬発力の切れが光ります。", gut:"特に勝負根性が光ります。"};
 function makeBirthComment(foal){
   let peak=60; try{ peak=aimScoreParts(foal).peak; }catch(e){}
-  const tier=BIRTH_COMMENT_TIERS.findIndex(t=>peak>=t.min);
+  /* 誕生コメントは評価・判断系：話者は主任ではなく相馬眼が最も高い調教師。
+     段階の判定もその調教師の目で行うため、相馬眼が低いほど見立てがぶれる
+     （Sなら誤差なし＝実力どおり。購入目利き saleMarkByEye と同じ考え方） */
+  let judge=null; try{ judge=eyeTopTrainer(); }catch(e){}
+  const eye=judge? rankVal(judge.ranks&&judge.ranks.eye) : 3;
+  const err=[8,6,4,2,1,0][eye]||0;
+  const judged=peak+(err? (Math.random()*2-1)*err : 0);
+  const tier=BIRTH_COMMENT_TIERS.findIndex(t=>judged>=t.min);
   const T=BIRTH_COMMENT_TIERS[tier<0?BIRTH_COMMENT_TIERS.length-1:tier];
   let text=pick(T.texts);
   if(foal.pot){ const topK=["spd","sta","pow","bst","gut"].reduce((b,k)=>(foal.pot[k]||0)>(foal.pot[b]||0)?k:b,"spd"); if(BIRTH_STAT_NOTES[topK]) text+=BIRTH_STAT_NOTES[topK]; }
-  return {tier: BIRTH_COMMENT_TIERS.length-1-(tier<0?BIRTH_COMMENT_TIERS.length-1:tier), label:T.label, text, trainer:TRAINER.name, year:year()};
+  return {tier: BIRTH_COMMENT_TIERS.length-1-(tier<0?BIRTH_COMMENT_TIERS.length-1:tier), label:T.label, text, trainer:(judge?judge.name:TRAINER.name), year:year()};
 }
 function birthCommentCardHTML(h){
   const bc=h&&h.birthComment; if(!bc) return "";
@@ -8274,7 +8283,13 @@ function saleEval(kind, h){
  const noise=(base,acc)=>{ const n=pick([-2,-1,0,0,1,2]); return n===0?"◎":(Math.abs(n)===2&&Math.random()<acc?"☆":(n>0?"◎":"△")); };
  if(kind==="sec"){ const est=(h.dmin+h.dmax); return trueScore>=78?"☆":trueScore>=70?"◎":trueScore>=62?"○":trueScore>=55?"△":""; }
  if(kind==="mgr"){ const est=(h.men+h.hlt)/2; return est>=80?"☆":est>=72?"◎":est>=64?"○":est>=56?"△":""; }
- const est=trueScore; return est>=80?"☆":est>=72?"◎":est>=64?"○":est>=56?"△":"";
+ /* 調教師の評価（kind="tr"）：話者は相馬眼が最も高い調教師で、見積もりの
+    精度もその相馬眼で決まる（Sなら実力どおり、低ければぶれる。
+    購入の目利き saleMarkByEye と同じ誤差表で揃える） */
+ let eye=3; try{ const jt=eyeTopTrainer(); eye=rankVal(jt.ranks&&jt.ranks.eye); }catch(e){}
+ const err=[14,10,7,4,2,0][eye]||0;
+ const est=trueScore+(err? (Math.random()*2-1)*err : 0);
+ return est>=80?"☆":est>=72?"◎":est>=64?"○":est>=56?"△":"";
 }
 function genSale(kind){
  const list=[];
@@ -9158,9 +9173,17 @@ function eligibleAt(h,r,age,weeksAhead){
   const tgtAbs=S.week+wk;
   if(h.travelRest && tgtAbs<=h.travelRest) return "帰国の移動週のため出走できません";
   if(r.overseas){
-    if(wk<1) return "出国の移動週が確保できないため登録できません（海外レースは前週が移動週です）";
-    if(h.racedWeek!=null && h.racedWeek>=tgtAbs-1) return "移動週にあたる週に出走済みのため遠征できません";
-    if(h.travelRest && (tgtAbs-1)<=h.travelRest) return "帰国の移動週と重なるため遠征できません";
+    /* 既にこのレースへ登録済みなら、出国の移動週は登録時点で確保済み。
+       開催週（wk=0）の適格判定にまで移動週の条件を持ち込むと、遠征馬の
+       エントリーが開催週の頭（sweepDueEntries／オート消化／出馬表の
+       共通経路）で自動取消しになり、海外レースに永遠に出走できない。
+       未登録のまま開催週に新規登録しようとする場合は従来どおり不可 */
+    const alreadyIn= h.entry && h.entry.name===r.name && h.entry.absWeek!=null && h.entry.absWeek===tgtAbs;
+    if(!alreadyIn){
+      if(wk<1) return "出国の移動週が確保できないため登録できません（海外レースは前週が移動週です）";
+      if(h.racedWeek!=null && h.racedWeek>=tgtAbs-1) return "移動週にあたる週に出走済みのため遠征できません";
+      if(h.travelRest && (tgtAbs-1)<=h.travelRest) return "帰国の移動週と重なるため遠征できません";
+    }
   }
   if(h.entry && h.entry.absWeek!=null){
     const sameRace= h.entry.name===r.name && h.entry.absWeek===tgtAbs;
@@ -9578,6 +9601,10 @@ function finalizeField(r, ownList){
   const fx=fixedEntryFor(r);
   const rivals=fx.rivals||[];
   const owns=(ownList||[]).filter(h=>h&&!rivals.includes(h));
+  /* 呼び出し側が一部の自厩舎馬しか渡さない経路（馬券画面・レース開始の
+     予備経路など）でも審査が漏れないよう、今週が開催週でこのレースに
+     エントリー済みの自厩舎馬は全頭を候補に含める（審査はここに集約） */
+  (S.horses||[]).forEach(h=>{ if(!h||!h.entry||h.entry.name!==r.name||h.entry.absWeek==null||h.entry.absWeek>S.week||owns.includes(h)||rivals.includes(h)) return; let ok=false; try{ ok=!eligible(h,r); }catch(e){ ok=false; } if(ok) owns.push(h); });
   const maxF=r.maxField||16;
   const cand=rivals.concat(owns);
   if(cand.length<=maxF){ if(fx.screen) delete fx.screen; return cand.slice(); }
@@ -9617,6 +9644,22 @@ function finalizeField(r, ownList){
       }
     });
   }
+  /* 除外の後処理（理由つき通知＋エントリー解除）は、審査を計算した時だけ
+     でなくキャッシュ再利用時にも必ず適用する。以前は計算時にしか走らず、
+     審査後に同じレースへ再登録された馬のエントリーが解除されないまま残り、
+     オートの消化が「除外→再登録→消化」を繰り返して同じ週で回り続ける
+     （週が進まず手数だけ増える）事故につながっていた。エントリーが
+     残っている場合にだけ発動するので、通知・解除は冪等 */
+  sc.excluded.forEach(ex=>{
+    if(!ex.own) return;
+    const h=S.horses.find(x=>x.id===ex.hid);
+    if(h&&h.entry&&h.entry.name===r.name&&h.entry.absWeek<=S.week){
+      const why= ex.lottery? `定員${maxF}頭の審査で同格抽選に落選（優先順位${ex.rank}位タイ）` : `定員${maxF}頭の審査で優先順位${ex.rank}位のため除外`;
+      log(`🚫 ${h.name} は「${r.name}」の定員審査で除外されました ― ${why}。エントリーは解除されました`);
+      pushCancelNotice(h.name, r.name, why);
+      h.entry=null; h.nextPlan="";
+    }
+  });
   return cand.filter(h=>sc.keptNames.has(h.name));
 }
 /* 次走提案用：定員審査で除外されやすいかの見通し。重賞の相手候補は
@@ -14612,6 +14655,10 @@ function autoRegisterBest(h){
     const cur=S.races.find(x=>x.id===race.id);
     const rs=cur? eligible(h,cur) : eligibleAt(h,race,ageAtRaceMonth(h,race.month,race.week),race.weeks||0);
     if(rs){ lastRs=`${race.name}：${rs}`; continue; }
+    /* 今週の定員審査で除外済みのレースには再登録しない（除外→再登録→
+       消化→除外…の繰り返しでオートが同じ週に止まるのを防ぐ） */
+    const sfx=(typeof raceState!=="undefined"&&raceState.fixedFields&&raceState.fixedFields.week===S.week)? raceState.fixedFields.map[race.id+"@"+S.week] : null;
+    if(sfx&&sfx.screen&&(sfx.screen.excluded||[]).some(ex=>ex.own&&ex.hid===h.id)){ lastRs=`${race.name}：今週の定員審査で除外されたため再登録しません`; continue; }
     if(!registerEntry(h,race,S.week+(race.weeks||0),true)){ lastRs=`${race.name}：登録時に出走条件を満たしませんでした`; continue; } /* オート登録は方針管理エントリー（managed）として登録し、出走の自動取消しの対象にする */
     log(`🤖 オート：${h.name} の次走をエントリー方針「${policyName()}」で登録 ― ${race.name}（${year()}年${race.month||month()}月第${race.week||weekInMonth()}週・あと${race.weeks||0}週）`);
     return true;
@@ -14764,6 +14811,16 @@ function autoStepBody(){
   if(S.gameover){ autoStop("ゲームオーバーになりました"); return; }
   if(typeof raceState!=="undefined"&&(raceState.phase==="run"||raceState.phase==="done")){ autoStop("レース画面のため停止しました"); return; }
   if(AUTO.steps>=400){ autoStop("安全上限（400手）に達したため停止しました"); return; }
+  /* ループ検出の安全弁：同じ週の中で手数だけが際限なく増える場合は、
+     何らかの処理が同じ対象を繰り返しているとみなし、理由（直近の処理
+     ラベル）と週を記録に残して止める。週が替われば数え直す。在籍頭数に
+     応じて上限に余裕を持たせ、通常の繁忙な週では発動しない */
+  if(!AUTO._wkMark||AUTO._wkMark.week!==S.week) AUTO._wkMark={week:S.week, steps:AUTO.steps};
+  else if(AUTO.steps-AUTO._wkMark.steps>=80+((S.horses||[]).length)*4){
+    const lbl=AUTO.label||"（不明）";
+    try{ log(`⚠ オート：${year()}年${month()}月第${weekInMonth()}週で処理が繰り返され、週が進まなくなったため停止しました ― 直近の処理：${lbl}`); }catch(e){}
+    autoStop(`同じ週で処理が繰り返されたため停止しました（直近の処理：${lbl}）。馬の状態を確認してからオートを再開してください`); return;
+  }
   const cfg=autoCfg();
   /* 資金系の停止条件は確認画面より先に判定し、止まる理由が定義済みの
      停止条件（資金繰り／資金下限）になるようにする */
@@ -15058,8 +15115,23 @@ function delegationAssignee(key){
 function mateOmakaseOn(){ return !!delegationAssignee("mateOmakase"); }
 function buyYoungOmakaseOn(){ return !!delegationAssignee("buyYoungOmakase"); }
 function buyMareOmakaseOn(){ return !!delegationAssignee("buyMareOmakase"); }
-/* 配合提案を出す調教師：種付けの担当がいればその人、いなければ主任 */
-function breedProposalTrainer(){ return delegationAssignee("mateOmakase")||trainerData(); }
+/* 相馬眼が最も高い調教師（同点は主任を優先）。評価・判断系コメントの
+   話者はこの人で統一する：馬の良し悪しを判定するコメントは、担当や
+   主任ではなく厩舎で一番の目利きが語り、判定の質もその相馬眼で決まる。
+   調教師が1人だけなら従来どおりその人が担当する */
+function eyeTopTrainer(){
+  let best=null, bestEye=-1;
+  (employedTrainers()||[]).forEach(d=>{
+    const e=rankVal(d.ranks&&d.ranks.eye);
+    const isPrim=d.id===(S.trainerId||"jp122");
+    if(!best||e>bestEye||(e===bestEye&&isPrim)){ best=d; bestEye=e; }
+  });
+  return best||trainerData();
+}
+/* 配合提案を出す調教師：種付けの代行担当がいればその人（担当はチェックを
+   入れた中で相馬眼が最も高い人）、いなければ相馬眼が最も高い調教師。
+   提案の質はこの人の相馬眼で決まる（trainerBreedProposals の選択レンジ） */
+function breedProposalTrainer(){ return delegationAssignee("mateOmakase")||eyeTopTrainer(); }
 /* 購入担当の相馬眼で上場馬を見立てる：相馬眼が高いほど実力どおりに判定し、
    低いほど見積もりがぶれて ☆・◎ の判定がずれる（目利きが担当者で変わる） */
 function saleMarkByEye(h, trainer){
