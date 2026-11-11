@@ -2635,7 +2635,13 @@ const JOCKEY_FACTS={
 };
 JOCKEYS.forEach(j=>{ if(!j.fact&&JOCKEY_FACTS[j.id]) j.fact=JOCKEY_FACTS[j.id]; });
 const FAM_MARK=["×","×","△","○","◎","◉"];
-function jockOf(h){ return JOCKEYS[(h&&h.cardJockey!=null)?h.cardJockey:(h?h.jockey||0:0)]||JOCKEYS[0]; }
+/* 騎手参照はIDで統一する：元の30人は id が配列順と一致するが、新人騎手は
+   id=1000番台で配列末尾に増えるため、JOCKEYS[ID] の直接引きは undefined に
+   なる（騎乗料計算でオート消化が落ちた原因）。騎手オブジェクトを引くときは
+   必ず jockById を通す */
+let _jockMap=null, _jockMapLen=-1;
+function jockById(id){ if(id==null) return null; if(_jockMapLen!==JOCKEYS.length){ _jockMap=new Map(); JOCKEYS.forEach(j=>_jockMap.set(j.id,j)); _jockMapLen=JOCKEYS.length; } return _jockMap.get(id)||null; }
+function jockOf(h){ return jockById(h? (h.cardJockey!=null? h.cardJockey : (h.jockey||0)) : 0)||JOCKEYS[0]; }
 /* ============ 人物ライフサイクル（騎手・調教師） ============
    年齢・能力変動・引退・新人登場を S.people に集約する。
    実在騎手は実年齢（生年）を起点。能力変動は年齢カーブの年次差分のみで
@@ -2657,15 +2663,25 @@ function applyPeople(pd){
   st.tAdded.forEach(t=>{ if(!TRAINER_ROSTER.some(x=>x.id===t.id)) TRAINER_ROSTER.push(t); });
   JOCKEYS.forEach(j=>{ if(st.ages[j.id]==null) st.ages[j.id]=seedJockeyAge(j); if(!st.params[j.id]) st.params[j.id]=seedJockeyParams(j); j.age=st.ages[j.id]; j.retired=!!st.retired[j.id]; if(st.skill[j.id]!=null) j.skill=st.skill[j.id]; });
   TRAINER_ROSTER.forEach(t=>{ if(st.tAges[t.id]==null) st.tAges[t.id]=seedTrainerAge(t); t.age=st.tAges[t.id]; t.retired=!!st.tRetired[t.id]; if(st.tRank[t.id]) t.ranks=Object.assign({}, t.ranks, st.tRank[t.id]); });
+  /* 旧セーブの騎手参照の不整合を正す：存在しないIDを指す参照は、配列順の
+     解釈で救済できるものはその騎手のIDに直し、救済できない主戦は現役騎手へ、
+     依頼・カード・実効騎手は外す（dangling 参照でレース消化が落ちるのを防ぐ） */
+  try{
+    const ids=new Set(JOCKEYS.map(j=>j.id));
+    const fixJ=(v,fallback)=>{ if(v==null) return v; if(ids.has(v)) return v; if(typeof v==="number"&&v>=0&&v<JOCKEYS.length) return JOCKEYS[v].id; return fallback; };
+    const firstActive=(activeJockeys()[0]||JOCKEYS[0]||{}).id;
+    (S.horses||[]).forEach(h=>{ if(!h) return; h.jockey=fixJ(h.jockey, firstActive); h.reqJockey=fixJ(h.reqJockey, null); h.cardJockey=fixJ(h.cardJockey, null); if(h._effJockey!=null) h._effJockey=fixJ(h._effJockey, null); });
+    (S.worldHorses||[]).forEach(w=>{ if(w) w.mainJockey=fixJ(w.mainJockey, null); });
+  }catch(e){}
   S._peopleReady=true;
 }
 function activeJockeys(){ return JOCKEYS.filter(j=>!j.retired); }
-function randActiveJockey(){ const a=activeJockeys(); return a.length? a[ri(0,a.length-1)].id : ri(0,JOCKEYS.length-1); }
+function randActiveJockey(){ const a=activeJockeys(); return a.length? a[ri(0,a.length-1)].id : JOCKEYS[ri(0,JOCKEYS.length-1)].id; }
 function retiredJockeysHTML(){ const r=JOCKEYS.filter(j=>j.retired); if(!r.length) return ""; const st=S.people||{retired:{}}; return `<div class="panel"><b>引退した騎手</b><div class="uchips">${r.map(j=>`<span class="uchip dim">${esc(j.name)}<span>${st.retired[j.id]||""}年引退</span></span>`).join("")}</div></div>`; }
 /* 同レース同一騎手の重複解消（単一経路）：自厩舎馬を優先し、重なった相手は
    能力の近い現役騎手へ差し替える。差し替えは決定的（同条件では同じ結果） */
 function riderKeyOf(h, ownSet){ if(ownSet&&ownSet.has(h)) return "J:"+(h._effJockey!=null?h._effJockey:(h.reqJockey!=null?h.reqJockey:(h.cardJockey!=null?h.cardJockey:h.jockey))); if(h.rider) return "R:"+h.rider; return "J:"+(h.jockey!=null?h.jockey:0); }
-function nearestFreeJockey(h, used, ownSet){ const cur=ownSet&&ownSet.has(h)? (h._effJockey!=null?h._effJockey:h.jockey) : h.jockey; const cs=(JOCKEYS[cur]||{}).skill||70; let best=null, bd=1e9; for(const j of JOCKEYS){ if(j.retired) continue; if(used.has("J:"+j.id)||used.has("R:"+j.name)) continue; const d=Math.abs((j.skill||70)-cs); if(d<bd){ bd=d; best=j; } } return best? best.id : null; }
+function nearestFreeJockey(h, used, ownSet){ const cur=ownSet&&ownSet.has(h)? (h._effJockey!=null?h._effJockey:h.jockey) : h.jockey; const cs=(jockById(cur)||{}).skill||70; let best=null, bd=1e9; for(const j of JOCKEYS){ if(j.retired) continue; if(used.has("J:"+j.id)||used.has("R:"+j.name)) continue; const d=Math.abs((j.skill||70)-cs); if(d<bd){ bd=d; best=j; } } return best? best.id : null; }
 function dedupeRaceJockeys(field, ownSet){
   if(!field||field.length<2) return;
   const used=new Map(), deferred=[];
@@ -2673,7 +2689,7 @@ function dedupeRaceJockeys(field, ownSet){
   order.forEach(h=>{ const k=riderKeyOf(h, ownSet); if(used.has(k)) deferred.push(h); else used.set(k,h); });
   deferred.forEach(h=>{ const nj=nearestFreeJockey(h, used, ownSet); if(nj==null) return; const isOwn=ownSet&&ownSet.has(h);
     if(isOwn){ h._effJockey=nj; h.cardJockey=nj; }
-    else { h.jockey=nj; if(h.rider) h.rider=JOCKEYS[nj].name; }
+    else { h.jockey=nj; if(h.rider) h.rider=(jockById(nj)||{}).name||h.rider; }
     h._jockeySwapped=true; used.set("J:"+nj, h); });
 }
 function jockeyRetireP(age){ if(age<42)return 0; if(age<=44)return .03; if(age<=47)return .08; if(age<=49)return .16; if(age<=51)return .28; if(age<=53)return .42; if(age<=55)return .58; if(age<=57)return .72; if(age<=59)return .85; return .95; }
@@ -2730,10 +2746,10 @@ function peopleYearEnd(prevYear, data){
   let needJ=retJ; const actN=activeJockeys().length; if(actN<28) needJ+=28-actN;
   for(let i=0;i<needJ;i++){ const nj=makeNewJockey(); if(nj) news.push(`🌱 新人騎手・${nj.name}（${st.ages[nj.id]}歳）がデビューしました`); }
   (S.horses||[]).forEach(h=>{ if(h.retired) return;
-    if(h.jockey!=null&&JOCKEYS[h.jockey]&&JOCKEYS[h.jockey].retired){ const sub=bestFriendActiveJockey(); if(sub!=null){ news.push(`🔁 ${h.name} の主戦騎手が引退のため、${JOCKEYS[sub].name}に変更されました`); h.jockey=sub; } }
-    if(h.reqJockey!=null&&JOCKEYS[h.reqJockey]&&JOCKEYS[h.reqJockey].retired) h.reqJockey=null;
-    if(h.cardJockey!=null&&JOCKEYS[h.cardJockey]&&JOCKEYS[h.cardJockey].retired) h.cardJockey=null; });
-  (S.worldHorses||[]).forEach(w=>{ if(w.mainJockey!=null&&JOCKEYS[w.mainJockey]&&JOCKEYS[w.mainJockey].retired) w.mainJockey=null; });
+    if(h.jockey!=null&&jockById(h.jockey)&&jockById(h.jockey).retired){ const sub=bestFriendActiveJockey(); if(sub!=null){ news.push(`🔁 ${h.name} の主戦騎手が引退のため、${(jockById(sub)||{}).name||""}に変更されました`); h.jockey=sub; } }
+    if(h.reqJockey!=null&&jockById(h.reqJockey)&&jockById(h.reqJockey).retired) h.reqJockey=null;
+    if(h.cardJockey!=null&&jockById(h.cardJockey)&&jockById(h.cardJockey).retired) h.cardJockey=null; });
+  (S.worldHorses||[]).forEach(w=>{ if(w.mainJockey!=null&&jockById(w.mainJockey)&&jockById(w.mainJockey).retired) w.mainJockey=null; });
   const RANKL=["E","D","C","B","A","S"];
   const retiredTr=[];
   TRAINER_ROSTER.forEach(t=>{ if(t.retired) return; const age=(st.tAges[t.id]=(st.tAges[t.id]||seedTrainerAge(t))+1); t.age=age;
@@ -2749,16 +2765,16 @@ function peopleYearEnd(prevYear, data){
   data.peopleNews=news; news.forEach(n=>log(n));
 }
 
-function retireJockeyNow(jid){ ensurePeople(); const st=S.people; const j=JOCKEYS[jid]; if(!j||j.retired) return; st.retired[jid]=year()+1; j.retired=true; if(st.retiring) delete st.retiring["j"+jid];
+function retireJockeyNow(jid){ ensurePeople(); const st=S.people; const j=jockById(jid); if(!j||j.retired) return; st.retired[jid]=year()+1; j.retired=true; if(st.retiring) delete st.retiring["j"+jid];
   (S.horses||[]).forEach(h=>{ if(h.retired) return; if(h.jockey===jid){ const sub=bestFriendActiveJockey(); if(sub!=null) h.jockey=sub; } if(h.reqJockey===jid) h.reqJockey=null; if(h.cardJockey===jid) h.cardJockey=null; });
   (S.worldHorses||[]).forEach(w=>{ if(w.mainJockey===jid) w.mainJockey=null; });
   const nj=makeNewJockey(); log(`🏇 騎手の${j.name}が引退しました${nj?`（新人騎手・${nj.name} がデビューしました）`:""}`); }
 function retireTrainerNow(tid){ ensurePeople(); const st=S.people; const t=TRAINER_ROSTER.find(x=>x.id===tid); if(!t||t.retired) return; st.tRetired[tid]=year()+1; t.retired=true; if(st.retiring) delete st.retiring["t"+tid]; const news=[]; handleTrainerRetire(t, news); news.forEach(n=>log(n)); const nt=makeNewTrainer(t.region||"jp"); log(`🏇 調教師の${t.name}が引退しました${nt?`（新規開業：${nt.name} 調教師）`:""}`); }
 function showRetirePicker(kind, pid){ ensurePeople();
-  if(kind==="jockey"){ const j=JOCKEYS[pid]; if(!j) return; const hs=(S.horses||[]).filter(h=>!h.retired&&h.jockey===pid);
+  if(kind==="jockey"){ const j=jockById(pid); if(!j) return; const hs=(S.horses||[]).filter(h=>!h.retired&&h.jockey===pid);
     const rows=hs.map(h=>`<div class="ticket"><b>${esc(h.name)}</b><div class="flex" style="gap:6px;margin-top:4px"><select id="rp-j-${h.id}" style="flex:1">${activeJockeys().filter(x=>x.id!==pid).map(x=>`<option value="${x.id}">${esc(x.name)}（${x.age||"―"}歳）</option>`).join("")}</select><button class="btn sm" data-rp-jockey="${h.id}">主戦を変更</button></div></div>`).join("");
     openSheet(`${esc(j.name)} の引退と主戦の付け替え`, `<p class="small">${esc(j.name)} は引退を表明しています。主戦の付け替えが完了すると、その時点で引退します。付け替えない場合は来年末に自動で引き継がれます。</p>${rows||`<p class="small">付け替えが必要な馬はいません。</p>`}<button class="btn gold" id="rp-final-j" ${hs.length?"disabled":""}>引退を確定する</button> <button class="btn ghost" id="rp-close">閉じる</button>`);
-    document.querySelectorAll("[data-rp-jockey]").forEach(b=>b.addEventListener("click",()=>{ const h=S.horses.find(x=>x.id===+b.dataset.rpJockey); const sel=$("#rp-j-"+b.dataset.rpJockey); if(h&&sel){ h.jockey=+sel.value; if(h.reqJockey===pid) h.reqJockey=null; log(`🔁 ${h.name} の主戦騎手を ${JOCKEYS[h.jockey].name} に変更しました`); showRetirePicker("jockey", pid); renderAll(); } }));
+    document.querySelectorAll("[data-rp-jockey]").forEach(b=>b.addEventListener("click",()=>{ const h=S.horses.find(x=>x.id===+b.dataset.rpJockey); const sel=$("#rp-j-"+b.dataset.rpJockey); if(h&&sel){ h.jockey=+sel.value; if(h.reqJockey===pid) h.reqJockey=null; log(`🔁 ${h.name} の主戦騎手を ${(jockById(h.jockey)||{}).name||""} に変更しました`); showRetirePicker("jockey", pid); renderAll(); } }));
     const fin=$("#rp-final-j"); if(fin) fin.addEventListener("click",()=>{ retireJockeyNow(pid); try{ closeSheet(); }catch(e){} renderAll(); });
     const cl=$("#rp-close"); if(cl) cl.addEventListener("click",()=>{ try{ closeSheet(); }catch(e){} });
   } else { const t=TRAINER_ROSTER.find(x=>x.id===pid); if(!t) return; const hs=assignedHorses(pid); const others=employedTrainers().filter(d=>d.id!==pid);
@@ -5188,7 +5204,7 @@ function horseCard(h,extraBtns){
     <span class="uchips" style="display:inline-flex;vertical-align:middle"><span class="uchip">父 <span class="uv">${esc(h.sire)}</span></span><span class="uchip">母 <span class="uv">${esc(h.dam)}</span></span></span></div></div></div>
     ${recordTilesHTML(h)}
     <div class="stats">${statBar("スピード",h.spd)}${statBar("スタミナ",h.sta)}${statBar("パワー",h.pow)}${statBar("瞬発力",h.bst)}${statBar("根性",h.gut)}${statBar("柔軟性",h.flx)}${statBar("精神力",h.men)}${statBar("賢さ",h.smt)}${statBar("健康",h.hlt)}<div class="stat"><span class="lb">成長型</span><span style="font-weight:800">${esc(h.growth)}</span></div></div>
-    <div class="uchips" style="margin-top:5px"><span class="uchip">芝 <span class="uv">${h.turf}</span></span><span class="uchip">ダート <span class="uv">${h.dirt}</span></span><span class="uchip">重馬場 <span class="uv">${h.heavy}</span></span><span class="uchip">距離 <span class="uv">${h.dmin}〜${h.dmax}m</span></span><span class="uchip">脚質 <span class="uv">${esc(h.style)}</span></span><span class="uchip">作戦 <span class="uv">${tacOf(h).n}</span></span><span class="uchip">主戦 <span class="uv">${(JOCKEYS[h.jockey]||{}).name||""}</span></span></div><div class="uchips"><span class="uchip dim">作戦適性</span>${["逃げ","先行","差し","追い込み"].map(s=>`<span class="uchip ${s===bestTacStyle(h)?"gold":""}">${s} <span class="uv">${ensureTacApt(h)[s]}</span>${s===bestTacStyle(h)?" ★得意":""}</span>`).join("")}</div>
+    <div class="uchips" style="margin-top:5px"><span class="uchip">芝 <span class="uv">${h.turf}</span></span><span class="uchip">ダート <span class="uv">${h.dirt}</span></span><span class="uchip">重馬場 <span class="uv">${h.heavy}</span></span><span class="uchip">距離 <span class="uv">${h.dmin}〜${h.dmax}m</span></span><span class="uchip">脚質 <span class="uv">${esc(h.style)}</span></span><span class="uchip">作戦 <span class="uv">${tacOf(h).n}</span></span><span class="uchip">主戦 <span class="uv">${(jockById(h.jockey)||{}).name||""}</span></span></div><div class="uchips"><span class="uchip dim">作戦適性</span>${["逃げ","先行","差し","追い込み"].map(s=>`<span class="uchip ${s===bestTacStyle(h)?"gold":""}">${s} <span class="uv">${ensureTacApt(h)[s]}</span>${s===bestTacStyle(h)?" ★得意":""}</span>`).join("")}</div>
     <div>${traitsHTML(h)}</div>
     <div class="small" style="margin-top:4px">成長段階：<b>${growthStage(h).n}</b> ― ${growthStage(h).d} ${planSrcChipHTML(h)}</div>
     ${(h.awards&&h.awards.length)?`<div class="uchips" style="margin-top:3px"><span class="uchip dim">🏆 受賞歴</span>${h.awards.map(a=>`<span class="uchip gold"><span>${a.year}年 ${esc(a.cat)}</span></span>`).join("")}</div>`:""}
@@ -5861,7 +5877,7 @@ function trainerFaceSVG(){
   return `<img class="faceimg lg" src="assets/portrait-trainer.webp" alt="調教師・高橋健一のイラスト" style="flex:none">`;
 }
 function horseDetailHTML(h, sugs){
- const jk=JOCKEYS[h.jockey]||JOCKEYS[0]; const fr=friendshipOf(h.jockey);
+ const jk=jockById(h.jockey)||JOCKEYS[0]; const fr=friendshipOf(h.jockey);
  const er=effRange(h);
  const nextTxt= h.entry? `🏁 ${esc(entryLabel(h.entry))}（${entryWeeksLeft(h)<=0?"今週出走！":"あと"+entryWeeksLeft(h)+"週"}）` : (h.injured>0?`故障休養中（あと${h.injured}週）`:esc(h.nextPlan||"未定"));
  const condState=condStateOf(h);
@@ -6076,7 +6092,7 @@ function renderStable(){
     if(act==="retire") retireHorse(id);
   }));
   el.querySelectorAll("[data-chip]").forEach(b=>b.addEventListener("click",()=>{S.selected=+b.dataset.chip; renderAll();}));
-  const sj=$("#sel-jockey"); if(sj) sj.addEventListener("change",()=>{ const hh=selHorse(); const nj=JOCKEYS[+sj.value];
+  const sj=$("#sel-jockey"); if(sj) sj.addEventListener("change",()=>{ const hh=selHorse(); const nj=jockById(+sj.value); if(!nj){ renderAll(); return; }
     if(+sj.value!==hh.jockey && (nj.tier==="S"||nj.tier==="A") && friendshipOf(nj.id)<60){ alert2("主戦契約できません",`${nj.name}と主戦契約を結ぶには友好度60以上が必要です（現在 ${friendshipOf(nj.id)}）。まずはレースで依頼して好走し、信頼を築いてください。`); renderAll(); return; }
     if(hh.bondLv>=5&&traitOf(hh,"bondtrait")){ hh.traits=hh.traits.filter(t=>t!=="bondtrait"); hh.bond=0; hh.bondLv=0; }
     hh.jockey=+sj.value; log(`${hh.name}の主戦を${nj.name}に変更`); renderAll();});
@@ -7179,7 +7195,7 @@ function stableTrainerName(stable){
    だけ呼ばれることで防ぐ） */
 /* 世界の馬の主戦騎手（個体ごとに固定。名前ハッシュで決定的に割り当て、
    現役実在馬は実データの主戦を優先する） */
-function worldMainJockey(w){ if(!w) return null; if(w.mainJockey!=null&&JOCKEYS[w.mainJockey]&&JOCKEYS[w.mainJockey].retired) w.mainJockey=null; if(w.mainJockey==null){ let hs=0; const s=w.name||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; const act=activeJockeys(); w.mainJockey=act.length? act[hs%act.length].id : hs%JOCKEYS.length; } return w.mainJockey; }
+function worldMainJockey(w){ if(!w) return null; if(w.mainJockey!=null&&(!jockById(w.mainJockey)||jockById(w.mainJockey).retired)) w.mainJockey=null; if(w.mainJockey==null){ let hs=0; const s=w.name||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; const act=activeJockeys(); w.mainJockey=act.length? act[hs%act.length].id : JOCKEYS[hs%JOCKEYS.length].id; } return w.mainJockey; }
 function worldStableFallback(w){ let hs=0; const s=(w&&w.name)||""; for(let i=0;i<s.length;i++) hs=(hs*31+s.charCodeAt(i))>>>0; return ["北嶺牧場","青浜ファーム","高原ステーブル","帝都レーシング"][hs%4]; }
 /* 世界の個体のレーティングは単一の物差し（能力3項目の平均＋勝利数）で
    都度計算する。以前はレース当日の ratingOf（プレイヤー側の物差し）の
@@ -7387,7 +7403,7 @@ function simulateWorldWeek(){
           if(wc>=cap) break;
           const x=ensureFullHorse(JSON.parse(JSON.stringify(w)));
           x.rival=true; x.worldRef=w.name; x.stable=w.stable||worldStableFallback(w); { const mj=worldMainJockey(w); if(mj!=null&&Math.random()<0.75) x.jockey=mj; }
-          x.silk=RIVAL_SILKS[field.length%RIVAL_SILKS.length]; if(x.jockey==null||(JOCKEYS[x.jockey]&&JOCKEYS[x.jockey].retired)) x.jockey=randActiveJockey();
+          x.silk=RIVAL_SILKS[field.length%RIVAL_SILKS.length]; if(x.jockey==null||!jockById(x.jockey)||jockById(x.jockey).retired) x.jockey=randActiveJockey();
           const ms=managedState(r.cls); x.cond=ms.cond; x.fat=ms.fat;
           ensurePublicRecord(x);
           if(field.length<(r.maxField||16)) field.push(x); else field[field.length-1]=x;
@@ -7440,7 +7456,7 @@ function recordAwardLedger(r, sorted, owns){
         const band= r.dist<=1400? "spr" : r.dist<=1800? "mil" : null;
         if(band){ const c=e[band]; c.w++; if(r.cls>=6)c.gw++; if((r.cls>=8&&!r.jump))c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
         if(r.surf==="ダート"){ const c=e.dirt; c.w++; if(r.cls>=6)c.gw++; if((r.cls>=8&&!r.jump))c.g1++; if(r.cls===7)c.g2++; if(r.cls===6)c.g3++; c.earn+=prz; }
-        const jk= own? JOCKEYS[h._effJockey!=null?h._effJockey:h.jockey] : jockOf(h);
+        const jk= own? (jockById(h._effJockey!=null?h._effJockey:h.jockey)||JOCKEYS[0]) : jockOf(h);
         if(jk) e.rider=jk.name;
         if((r.cls>=8&&!r.jump)){ if(r.overseas){ (L.g1o||(L.g1o=[])).push({m:month(), race:r.name, horse:h.name, own}); } else L.g1.push({m:month(), race:r.name, horse:h.name, own}); }
       }
@@ -7466,7 +7482,7 @@ function recordAwardLedger(r, sorted, owns){
       }
       try{ const blk= r.overseas? (e.ov||(e.ov=awMkBlock())) : (e.dom||(e.dom=awMkBlock())); awRecordBlock(blk, r, place, prz); }catch(_){}
       const jid= own? (h._effJockey!=null? h._effJockey : h.jockey) : (h.jockey!=null? h.jockey : null);
-      if(jid!=null&&JOCKEYS[jid]){ const j=L.jockeys[jid]||(L.jockeys[jid]={jid, name:JOCKEYS[jid].name, rides:0, wins:0, top2:0, earn:0, gWins:0, g1Wins:0, best:""});
+      if(jid!=null&&jockById(jid)){ const j=L.jockeys[jid]||(L.jockeys[jid]={jid, name:jockById(jid).name, rides:0, wins:0, top2:0, earn:0, gWins:0, g1Wins:0, best:""});
         j.rides++; j.earn+=prz; if(place<=2) j.top2++;
         if(place===1){ j.wins++; if(r.cls>=6){ j.gWins++; if(!j.best) j.best=`${r.name}（${h.name}）`; } if((r.cls>=8&&!r.jump)) j.g1Wins++; }
         if(!r.overseas) awDomPeople(j, place, prz, r, h, false); }
@@ -7736,7 +7752,7 @@ function renderCeremony(){
     const isJ=st.t==="jockey", p= isJ? C.jockeyWin : C.trainerWin, pe= isJ? C.jockeyEarn : C.trainerEarn;
     const img= isJ? "assets/portrait-jockey.webp" : "assets/portrait-trainer.webp";
     const rows=[["選考ポイント", p.pts!=null? `${p.pts}点` : "―"],["勝利数", `${p.wins}勝`],["勝率", p.rides? (p.wins/p.rides).toFixed(3) : "―"],["連対率", p.rides? ((p.top2||0)/p.rides).toFixed(3) : "―"],["獲得賞金", `${fmt(p.earn)}万円（今年）`],["G1勝ち数", `${p.g1Wins||0}勝`],["重賞勝ち数", `${p.gWins||0}勝`],["主な勝鞍", p.best||"―"]];
-    { const ageP= isJ? (JOCKEYS[p.jid]||{}).age : (TRAINER_ROSTER.find(t=>t.name===p.name)||{}).age; if(ageP!=null) rows.splice(1,0,["年齢", `${ageP}歳`]); }
+    { const ageP= isJ? (jockById(p.jid)||{}).age : (TRAINER_ROSTER.find(t=>t.name===p.name)||{}).age; if(ageP!=null) rows.splice(1,0,["年齢", `${ageP}歳`]); }
     if(pe&&pe.name!==p.name) rows.push([isJ?"最多賞金":"最多賞金", `${pe.name}（${fmt(pe.earn)}万円）`]);
     body=`<div class="aw-ribbon">${isJ?"騎手部門":"調教師部門"}</div><div class="aw-sub">${isJ?"最多勝利":"最多勝利"}${p.own?` ― 自厩舎の${isJ?"主戦級":"調教師"}が受賞`:""}</div>
     <div class="aw-spot"><div class="aw-left"><div class="aw-laurel">${laurelSVG()}</div><img class="aw-face" src="${img}" alt=""><div class="aw-hname">${esc(p.name)}${p.own?`<span class="aw-ownbadge">自厩舎</span>`:""}</div></div>
@@ -9271,7 +9287,7 @@ function makeRivals(r){
       let added=0;
       for(const w of pool){ if(added>=2||out.length>=n)break;
         const x=ensureFullHorse(JSON.parse(JSON.stringify(w))); x.rival=true; x.worldRef=w.name; x.stable=w.stable||worldStableFallback(w); { const mj=worldMainJockey(w); if(mj!=null&&Math.random()<0.75) x.jockey=mj; }
-        x.silk=RIVAL_SILKS[out.length%RIVAL_SILKS.length]; if(x.jockey==null||(JOCKEYS[x.jockey]&&JOCKEYS[x.jockey].retired)) x.jockey=randActiveJockey(); x._wDev=ri(-14,2);
+        x.silk=RIVAL_SILKS[out.length%RIVAL_SILKS.length]; if(x.jockey==null||!jockById(x.jockey)||jockById(x.jockey).retired) x.jockey=randActiveJockey(); x._wDev=ri(-14,2);
         ensurePublicRecord(x);
         { const ms=managedState(r.cls); x.cond=ms.cond; x.fat=ms.fat; } /* 世界の個体も重賞では管理の効いた状態で出走する（生成馬と同じ土俵） */
         out.push(x); added++;
@@ -9430,9 +9446,9 @@ function renderRace(){
     };
     if(et)et.addEventListener("change",updFit); if(et2)et2.addEventListener("change",updFit); updFit();
     const brq=$("#btn-request"); if(brq) brq.addEventListener("click",()=>{ const hid2=+($("#entry-horse").value||0); const hh=S.horses.find(x=>x.id===hid2); const jid=+($("#entry-jockey").value||0); const rr=S.races.find(x=>x.id===S.selRace); const res=$("#req-result");
-      if(jid===hh.jockey){ hh.reqJockey=null; if(res)res.textContent="主戦騎手（"+JOCKEYS[jid].name+"）が騎乗します"; renderAll(); return; }
+      if(jid===hh.jockey){ hh.reqJockey=null; if(res)res.textContent="主戦騎手（"+((jockById(jid)||{}).name||"")+"）が騎乗します"; renderAll(); return; }
       const chk=requestCheck(hh, rr, jid);
-      if(chk.ok){ hh.reqJockey=jid; if(res)res.textContent=JOCKEYS[jid].name+" が依頼を引き受けました"; log(`${hh.name}の${rr.name}に${JOCKEYS[jid].name}を依頼（成立）`); }
+      if(chk.ok){ hh.reqJockey=jid; if(res)res.textContent=((jockById(jid)||{}).name||"")+" が依頼を引き受けました"; log(`${hh.name}の${rr.name}に${((jockById(jid)||{}).name||"")}を依頼（成立）`); }
       else { hh.reqJockey=null; if(res)res.textContent=chk.why; }
       renderAll(); });
     const wm=$("#watch-mode"); if(wm) wm.addEventListener("change",()=>{ S.watchMode=wm.value; saveAuto(); });
@@ -9469,7 +9485,7 @@ function renderOwnSettings(r){
   const owns=ownHorsesInCard();
   if(!owns.length){ box.innerHTML=`<div class="panel"><p class="small" style="margin:0">このレースに出走する自厩舎の馬がいません。出馬表で出走できる馬を選ぶと、その馬の作戦・騎手・観戦方法と単勝の購入がここで設定できます。</p></div>`; return; }
   box.innerHTML= owns.map(h=>{
-    const rider=JOCKEYS[h.reqJockey!=null?h.reqJockey:h.jockey];
+    const rider=jockById(h.reqJockey!=null?h.reqJockey:h.jockey)||JOCKEYS[0];
     const specOpts=SPECIAL_TACTICS.map(st=>{ const c=specialOK(st,rider,h._gate); const usedN=(raceState.card||[]).filter(x=>x!==h&&x.special===st.id).length; const over=st.limit!=null&&usedN>=st.limit; const dis=!c.ok||over; const needMark=st.need==="front"?FAM_MARK[rider.fam.front]:st.need==="mid"?FAM_MARK[Math.max(rider.fam.front,rider.fam.mid)]:FAM_MARK[Math.max(rider.fam.mid,rider.fam.late)]; return `<option value="${st.id}" ${h.special===st.id?"selected":""} ${dis?"disabled":""}>${st.n}（騎手適性 ${needMark}）${dis?" ― "+(over?"頭数上限です":c.why):" ― "+st.desc}</option>`; }).join("");
     const jockOpts=activeJockeys().map(j=>{ let note; if(j.id===h.jockey) note="主戦"; else { const chk=requestCheck(h,r,j.id); note=chk.ok?"依頼可":"依頼不可："+chk.why; } return `<option value="${j.id}" ${j.id===(h.reqJockey!=null?h.reqJockey:h.jockey)?"selected":""}>${j.name}（${j.tier}級・友好度${friendshipOf(j.id)}・${j.fee}万円・${note}）</option>`; }).join("");
     return `<div class="ownset" data-ownset="${h.id}">
@@ -9479,7 +9495,7 @@ function renderOwnSettings(r){
       <div><label>通常作戦（脚質指示）</label><div class="tacbtns">${TACTICS.map(t=>`<button type="button" data-ostac="${t.id}" data-hid="${h.id}" class="${t.id===tacOf(h).id?"on":""}" title="${t.d}">${t.n}</button>`).join("")}</div><div data-ospos="${h.id}">${posBarHTML(h,true)}</div></div>
       <div><label>ペース指示<select data-os="tac2" data-hid="${h.id}">${TACTIC2.map(t=>`<option value="${t.id}" ${t.id===(h.tactic2||"normal")?"selected":""}>${t.n}${t.d?" ― "+t.d:""}</option>`).join("")}</select></label><div class="tacfit" data-osfit="${h.id}"></div><div class="small" data-osdet="${h.id}"></div></div>
       <div><label>特殊作戦<select data-os="spec" data-hid="${h.id}"><option value="">なし（通常の作戦）</option>${specOpts}</select></label><span class="small">条件を満たさない作戦は理由つきで選べません</span></div>
-      <div><label>騎手（確認・変更）<select data-os="jock" data-hid="${h.id}">${jockOpts}</select></label><div class="flex" style="margin-top:4px"><button class="btn sm" data-osreq="${h.id}">この騎手に依頼する</button><span class="small" data-osreqres="${h.id}">${h.reqJockey!=null&&h.reqJockey!==h.jockey?JOCKEYS[h.reqJockey].name+" に依頼済み":"主戦騎手が騎乗します"}</span></div></div>
+      <div><label>騎手（確認・変更）<select data-os="jock" data-hid="${h.id}">${jockOpts}</select></label><div class="flex" style="margin-top:4px"><button class="btn sm" data-osreq="${h.id}">この騎手に依頼する</button><span class="small" data-osreqres="${h.id}">${h.reqJockey!=null&&h.reqJockey!==h.jockey?((jockById(h.reqJockey)||{}).name||"")+" に依頼済み":"主戦騎手が騎乗します"}</span></div></div>
       <div><label>馬具<select data-os="gear" data-hid="${h.id}"><option value="" ${!h.gear?"selected":""}>なし</option><option value="blinker" ${h.gear==="blinker"?"selected":""}>ブリンカー（集中↑／落ち着いた馬には逆効果のことも）</option><option value="cheek" ${h.gear==="cheek"?"selected":""}>チークピーシーズ（気性の荒い馬の折り合い↑）</option></select></label><span class="small" data-osgearfit="${h.id}">${gearFitText(h)||"馬具は万能の強化ではありません。馬の気性に合った時だけ効きます"}</span></div>
       <div><label>識別マーク<select data-os="markshape" data-hid="${h.id}">${[["diamond","ダイヤ"],["circle","丸"],["triangle","三角"],["star","星"]].map(([v,n])=>`<option value="${v}" ${h.mark&&h.mark.shape===v?"selected":""}>${n}</option>`).join("")}</select></label><label style="margin-top:5px">マーク色 <input type="color" data-os="markcolor" data-hid="${h.id}" value="${h.mark?h.mark.color:"#ffc800"}" style="width:56px;min-height:34px;vertical-align:middle"></label></div>
       <div><label>観戦方法<select data-os="watch">${[["full","フル観戦"],["digest","ダイジェスト（スタート＋最終コーナー少し前〜ゴール）"],["result","結果だけ"]].map(([v,n])=>`<option value="${v}" ${S.watchMode===v?"selected":""}>${n}</option>`).join("")}</select></label><span class="small">馬券画面での作戦変更とも連動します</span></div>
@@ -9518,9 +9534,9 @@ function renderOwnSettings(r){
     const h=S.horses.find(x=>x.id===+b.dataset.osreq); if(!h)return;
     const sel=box.querySelector(`[data-os="jock"][data-hid="${h.id}"]`); const jid=sel?+sel.value:h.jockey;
     const res=box.querySelector(`[data-osreqres="${h.id}"]`);
-    if(jid===h.jockey){ h.reqJockey=null; if(res)res.textContent="主戦騎手（"+JOCKEYS[jid].name+"）が騎乗します"; h._cardReady=true; updFit(h); saveAuto(); return; }
+    if(jid===h.jockey){ h.reqJockey=null; if(res)res.textContent="主戦騎手（"+((jockById(jid)||{}).name||"")+"）が騎乗します"; h._cardReady=true; updFit(h); saveAuto(); return; }
     const chk=requestCheck(h,r,jid);
-    if(chk.ok){ h.reqJockey=jid; log(`${h.name}の${r.name}に${JOCKEYS[jid].name}を依頼（成立）`); }
+    if(chk.ok){ h.reqJockey=jid; log(`${h.name}の${r.name}に${((jockById(jid)||{}).name||"")}を依頼（成立）`); }
     else if(res){ res.textContent=chk.why; }
     h._cardReady=true; renderAll();
   }));
@@ -9737,7 +9753,7 @@ function drawCard(r){
   /* 特殊作戦の選択欄（枠順と騎手適性で解禁） */
   const sb=$("#special-box");
   if(sb&&mine){
-    const ejk=JOCKEYS[mine.reqJockey!=null?mine.reqJockey:mine.jockey];
+    const ejk=jockById(mine.reqJockey!=null?mine.reqJockey:mine.jockey)||JOCKEYS[0];
     const used={}; order.forEach(x=>{ if(x!==mine&&x.special) used[x.special]=(used[x.special]||0)+1; });
     sb.innerHTML=`<span class="small">特殊作戦（${esc(mine.name)}・${mine._gate}枠／騎手 ${ejk.name}）</span>
     <select id="entry-special"><option value="">なし（通常の作戦）</option>
@@ -9779,10 +9795,10 @@ function startRace(r,mine,field){
       if(er){ alert2("出走条件を満たしていません",`${esc(h.name)}は「${esc(r.name)}」に出走できません（${er}）。条件に合うレースを選んでください。`); return; }
       const effJ=h.reqJockey!=null? h.reqJockey : h.jockey;
       h._effJockey=effJ;
-      totalFee+=JOCKEYS[effJ].fee + travelFeeFor(r);
+      totalFee+=(jockById(effJ)||JOCKEYS[0]).fee + travelFeeFor(r);
     }
     dedupeRaceJockeys(all, new Set(owns));
-    totalFee=owns.reduce((a,h)=>a+(JOCKEYS[h._effJockey!=null?h._effJockey:h.jockey].fee||0)+travelFeeFor(r),0);
+    totalFee=owns.reduce((a,h)=>a+((jockById(h._effJockey!=null?h._effJockey:h.jockey)||JOCKEYS[0]).fee||0)+travelFeeFor(r),0);
     if(S.funds<totalFee){ alert2("資金不足",r.overseas?"騎乗料と遠征費が払えません。":"騎乗料が払えません。騎手を変更してください。"); owns.forEach(h=>{h._effJockey=null;}); return; }
     S.funds-=totalFee; { const tvPart=r.overseas? travelFeeFor(r)*owns.length : 0; ledOut("jockey", totalFee-tvPart); if(tvPart) ledOut("travel", tvPart); }
     if(r.overseas){ const rg2=raceRegion(r); if((rg2==="eu"&&farmBuilt("eu"))||(rg2==="us"&&farmBuilt("us"))){ owns.forEach(h=>{ h.cond=clamp((h.cond||50)+4,0,100); }); log(`🌍 現地の海外牧場の支援で、出走馬のコンディションが上向きました`); } }
@@ -9854,7 +9870,7 @@ function startRace(r,mine,field){
     // 新系統の補正（能力定義・騎手/調教師・気性・走法・性格・弱点・特性・特殊作戦・絆）
     const stName= tac.pos>=0.85?"逃げ":tac.pos>=0.6?"先行":tac.pos>=0.38?"差し":"追い込み";
     const isOwn = owns.includes(h);
-    const jkE = isOwn? JOCKEYS[h._effJockey!=null?h._effJockey:h.jockey] : jockOf(h);
+    const jkE = isOwn? (jockById(h._effJockey!=null?h._effJockey:h.jockey)||JOCKEYS[0]) : jockOf(h);
     const rm=raceMods(h,r,ab,jkE,{style:stName, heavyIdx:GROUNDS.indexOf(r.ground), field:all.length,
       gate:h._gate||9, pop:h._pop||9, heat:all.some(x=>x!==h&&x.real), rng:Math.random,
       isMain: !!(isOwn&&(h._effJockey==null||h._effJockey===h.jockey)), isSub: !!(isOwn&&h._effJockey!=null&&h._effJockey!==h.jockey),
@@ -12169,7 +12185,8 @@ function betHit(bet, top){ // top: 着順の馬番配列
 function friendshipOf(jid){ return (S.friendship&&S.friendship[jid])||0; }
 function addFriendship(jid,d){ if(!S.friendship)S.friendship={}; S.friendship[jid]=clamp(Math.round((S.friendship[jid]||0)+d),0,100); }
 function requestCheck(h, race, jid){
- const jk=JOCKEYS[jid], fr=friendshipOf(jid);
+ const jk=jockById(jid), fr=friendshipOf(jid);
+ if(!jk) return {ok:false, req:999, why:"騎手が見つかりません"};
  if(jk&&jk.retired) return {ok:false, req:999, why:`${jk.name}は引退したため依頼できません`};
  if(race&&(S.races||[]).some(x=>x.id===race.id)){ try{ const fx=fixedEntryFor(race); if(fx&&fx.rivals){ const rv=fx.rivals.find(x=>riderName(x)===jk.name||x.jockey===jid); if(rv) return {ok:false, req:999, why:`${jk.name}はこのレースで ${rv.name} に騎乗予定のため受けられません`}; } }catch(e){} }
  /* 騎乗予約の競合（1）：同じレースで別の所有馬が同じ騎手に騎乗予定なら二重騎乗は不可 */
@@ -12260,7 +12277,7 @@ function postRaceHooks(mine, r, myPlace, sorted){
    if(myPlace===1){ if(r.cls>=6) S.club.gWins=(S.club.gWins||0)+1; if(r.cls>=8&&!r.jump) S.club.g1Wins=(S.club.g1Wins||0)+1; } }
  /* 絆：主戦騎乗で好成績ほど伸びる（主戦の能力が低めで好成績だと伸びやすい） */
  if(ej===mine.jockey){
-   const jk=JOCKEYS[ej]; const gain=(myPlace===1?3:myPlace<=3?2:myPlace<=5?1:0) + (jk.skill<88&&myPlace<=3?1:0);
+   const jk=jockById(ej)||JOCKEYS[0]; const gain=(myPlace===1?3:myPlace<=3?2:myPlace<=5?1:0) + (jk.skill<88&&myPlace<=3?1:0);
    mine.bond=clamp((mine.bond||0)+gain,0,25);
    const lv=Math.min(5,Math.floor(mine.bond/5));
    if(lv>(mine.bondLv||0)){ mine.bondLv=lv; log(`🤝 ${mine.name}と${jk.name}の絆がレベル${lv}になった`); if(lv>=5&&!traitOf(mine,"bondtrait")&&mine.traits.length<TRAIT_MAX){ mine.traits.push("bondtrait"); log(`特性「絆・主戦との一体感」が付いた`); } }
@@ -12757,7 +12774,7 @@ function renderBet(){
   });
   const run=(skip)=>{
     const mine=betState.field.find(h=>!h.rival)||null;
-    if(mine){ const fee=JOCKEYS[mine.jockey].fee; /* 騎乗料はstartRace内で処理 */ }
+    if(mine){ const fee=(jockById(mine.jockey)||JOCKEYS[0]).fee; /* 騎乗料はstartRace内で処理 */ }
     startRace(r, mine, [...betState.field]);
     if(skip){ cancelAnimationFrame(raceState.raf); finishRace(); }
   };
@@ -13331,7 +13348,7 @@ function renderAcctBox(){ const box=$("#acct-screen-box"); if(!box) return;
 function renderJockey(){
  const el=$("#v-jockey");
  if(selJockey==null) selJockey=0;
- const dj=JOCKEYS[selJockey]||JOCKEYS[0];
+ const dj=jockById(selJockey)||JOCKEYS[0];
  const dfr=friendshipOf(dj.id); const dst=(S.jockStats||{})[dj.id]||{rides:0,wins:0};
  const dwr=dst.rides? Math.round(dst.wins/dst.rides*100):0;
  let html=subnavHTML("jockey",[["detail","詳細"],["list","一覧"]]);
@@ -13361,7 +13378,7 @@ function renderJockey(){
  html+=panelHTML("jockey","list",`<p class="small">現役騎手（引退・新人の登場で顔ぶれは変わります）。騎手名と「実績」はJRA公式等の公表実績に基づく実データ、総合力・適性・特性はゲーム内の換算値です。カードを押すと詳細が見られます。主戦契約は友好度60以上（S・A級）が必要です。</p><div class="hgrid">${pageSlice("jockList",jcards,6).join("")}</div>`+pagerHTML("jockList",jcards.length,6)+retiredJockeysHTML());
  el.innerHTML=html;
  el.querySelectorAll("[data-jock]").forEach(c=>c.addEventListener("click",e=>{ if(e.target.closest("button"))return; selJockey=+c.dataset.jock; UI.jockey="detail"; renderAll(); }));
- el.querySelectorAll("[data-main]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); if(!hh){alert2("馬がいません","先に馬を選んでください。");return;} if(hh.bondLv>=5&&traitOf(hh,"bondtrait")){ hh.traits=hh.traits.filter(x=>x!=="bondtrait"); hh.bond=0; hh.bondLv=0; } hh.jockey=+b.dataset.main; log(`${hh.name}の主戦を${JOCKEYS[+b.dataset.main].name}に変更`); renderAll(); }));
+ el.querySelectorAll("[data-main]").forEach(b=>b.addEventListener("click",()=>{ const hh=selHorse(); if(!hh){alert2("馬がいません","先に馬を選んでください。");return;} if(hh.bondLv>=5&&traitOf(hh,"bondtrait")){ hh.traits=hh.traits.filter(x=>x!=="bondtrait"); hh.bond=0; hh.bondLv=0; } hh.jockey=+b.dataset.main; log(`${hh.name}の主戦を${(jockById(+b.dataset.main)||{}).name||""}に変更`); renderAll(); }));
 }
 
 /* ============ 牧場画面 ============ */
@@ -14040,7 +14057,7 @@ function buildGuide(){
   /* クラブ馬の重賞勝利：確認するまで残る秘書カード（オート消化中も消えない） */
   try{ const wn=(S.club&&S.club.winNews)||[]; wn.filter(n=>!n.seen).forEach(n=>{ cards.push({key:"clubwin"+n.id, who:"秘書・佐倉 澪", face:"sec", text:`クラブ馬「${n.horse}」が${n.race}（${n.grade}）を勝ちました。賞金 ${fmt(n.prize)}万円がクラブ資金に反映されています（騎手：${n.jockey||"―"}）`, btn:"クラブで確認する", act:"clubwin", nid:n.id}); }); }catch(e){}
   /* 結婚・家庭：お見合い提案と家族イベント */
-  try{ ensurePeople(); const rt=(S.people&&S.people.retiring)||{}; Object.keys(rt).forEach(k=>{ const isJ=k.charAt(0)==="j"; const id=isJ? +k.slice(1) : k.slice(1); const nm=isJ? (JOCKEYS[id]||{}).name : (TRAINER_ROSTER.find(x=>x.id===id)||{}).name; if(nm) cards.push({key:"retire"+k, who:"秘書・佐倉 澪", face:"sec", text:`${nm} が引退を表明しました。担当の引き継ぎ（付け替え）ができます。`, btn:"付け替えをする", act:"retirepick", kind:isJ?"jockey":"trainer", pid:id}); }); }catch(e){}
+  try{ ensurePeople(); const rt=(S.people&&S.people.retiring)||{}; Object.keys(rt).forEach(k=>{ const isJ=k.charAt(0)==="j"; const id=isJ? +k.slice(1) : k.slice(1); const nm=isJ? (jockById(id)||{}).name : (TRAINER_ROSTER.find(x=>x.id===id)||{}).name; if(nm) cards.push({key:"retire"+k, who:"秘書・佐倉 澪", face:"sec", text:`${nm} が引退を表明しました。担当の引き継ぎ（付け替え）ができます。`, btn:"付け替えをする", act:"retirepick", kind:isJ?"jockey":"trainer", pid:id}); }); }catch(e){}
   try{ familyGuideCards(cards); }catch(e){}
   /* 年末処理の未処理（持ち越し）：残っている間は常設の入口として秘書が知らせる */
   try{ const pc=yePendingCount();
@@ -14598,7 +14615,7 @@ function autoDigestRace(ne){
   let totalFee=0;
   for(const oh of runOwns){
     const ej=oh.reqJockey!=null? oh.reqJockey : oh.jockey;
-    const jk=JOCKEYS[ej];
+    const jk=jockById(ej);
     if(!jk){ AUTO.digestFailReason=`${oh.name} の騎手が見つかりませんでした`; return false; }
     totalFee+=jk.fee+travelFeeFor(r);
   }
