@@ -2704,7 +2704,8 @@ function personNameTaken(nm){ if(JOCKEYS.some(j=>j.name===nm)||TRAINER_ROSTER.so
 function makeNewJockey(fixedName, fixedAge){
   const st=S.people; let nm=fixedName||null, tries=0;
   while(!nm&&tries++<40){ const c=NEWJ_SUR[ri(0,NEWJ_SUR.length-1)]+NEWJ_GIV[ri(0,NEWJ_GIV.length-1)]; if(!personNameTaken(c)) nm=c; }
-  if(!nm) nm="新人騎手"+st.nextJid;
+  if(!nm){ for(const s of NEWJ_SUR){ for(const g of NEWJ_GIV){ const c=s+g; if(!personNameTaken(c)){ nm=c; break; } } if(nm) break; } }
+  if(!nm) nm="新人騎手";
   const roll=Math.random(); const skill= fixedName? ri(68,80) : roll<0.08? ri(85,90) : roll<0.33? ri(77,84) : ri(62,76);
   const j={id:st.nextJid++, name:nm, skill, fee:clamp(Math.round(skill*0.28),6,40), tier:skill>=92?"S":skill>=85?"A":skill>=75?"B":"C", fam:{front:ri(2,5),mid:ri(2,5),late:ri(2,5)}, dist:{sprint:pick(["A","B","B","C"]),mile:pick(["A","B","B","C"]),middle:pick(["A","B","C"]),long:pick(["B","C","C"])}, traits:[], rookie:true};
   const age=fixedAge||ri(18,22);
@@ -2714,7 +2715,8 @@ function makeNewJockey(fixedName, fixedAge){
 function makeNewTrainer(region, fixedName, fixedAge){
   const st=S.people; region=region||"jp"; let nm=fixedName||null, tries=0;
   if(!nm){ if(region==="eu") nm=pick(EU_NAMES); else if(region==="us") nm=pick(US_NAMES); else while(!nm&&tries++<40){ const c=NEWT_SUR[ri(0,NEWT_SUR.length-1)]+NEWT_GIV[ri(0,NEWT_GIV.length-1)]; if(!personNameTaken(c)) nm=c; } }
-  if(!nm) nm="新規調教師"+st.nextTid;
+  if(!nm&&region==="jp"){ for(const s of NEWT_SUR){ for(const g of NEWT_GIV){ const c=s+g; if(!personNameTaken(c)){ nm=c; break; } } if(nm) break; } }
+  if(!nm) nm="新規調教師";
   const L=["E","D","C","B","A","S"]; const rk=()=>{ const r=Math.random(); return r<0.3?"D":r<0.62?"C":r<0.87?"B":r<0.97?"A":"S"; };
   const t={id:"new"+(st.nextTid++), name:nm, kana:region==="jp"?nm:"", base:region==="jp"?"美浦":region==="eu"?"欧州":"米国", debut:String(2025+year()), ranks:{train:rk(),eye:rk(),idea:rk(),cond:rk(),weight:rk()}, dist:{sprint:rk(),mile:rk(),middle:rk(),long:rk()}, traits:[], region, ageApt:"若手・中堅中心", policy:"新進", desc:"新規開業の調教師"};
   const age=fixedAge||ri(38,47);
@@ -3460,8 +3462,9 @@ const HORSE_NAMES2=["シップ","スピード","スター","ドリーム","ホ�
    固有名にする。語彙プールを広げ、複合パターン（前+後／前+ノ+後／
    前+前+後／後+前）で組み合わせを大きく確保したうえで、同一セーブ内の
    既存名（所有馬・幼駒・繁殖馬・市場・セール・種牡馬・名馬・出馬表）と
-   照合し、重複しない名前だけを採用する。どうしても埋まった場合は
-   「・2」「・3」…の枝番で一意性を保証する（定型の連番名は付けない）。 */
+   照合し、重複しない名前だけを採用する。ランダムで引けなければ組み
+   合わせを総当たりで引き直して一意にする。数字サフィックス（・2 等）
+   は一切付けない。 */
 const HORSE_NAMES_B=["アルカディア","ベルベット","グラン","プレミアム","ロワール","ミストラル","アリア","ノーブル","ヴァルキリー","オーロラ","セレナーデ","フィオーレ","ルーチェ","ヴェント","エテルノ","カプリチオ","ラルゴ","アマービレ","ソプラノ","バレッタ","ミラージュ","アンセム","カノン","フィナーレ"];
 const HORSE_NAMES2_B=["ダンサー","ランナー","ソング","メモリー","キセキ","ユメ","ヒカリ","カガヤキ","ブリーズ","グローリー","レガシー","エコー","ハーモニー","リズム","スピリット","トラベラー","ワルツ","メロディ","アルペジオ","セレナーデ","ファンファーレ","コンチェルト"];
 /* 馬名の完成形は実競馬に倣い9文字以内（NAME_MAX）。自動命名では短い
@@ -3526,10 +3529,33 @@ function genUniqueName(extra, maxLen){
   if(extra) (Array.isArray(extra)?extra:[extra]).forEach(x=>{ if(!x)return; const n=typeof x==="string"?x:x.name; if(n) extraSet.add(n); });
   const used=n=>nameTakenNow(n, extraSet);
   for(let i=0;i<300;i++){ const n=composeHorseName(maxLen); if(n&&!used(n)){ NAME_TAKEN.add(n); return n; } }
+  /* 重複回避で数字サフィックス（・2 等）は付けない。ランダムで引けなければ
+     単語プールの組み合わせを総当たりで走査し、未使用の名前を必ず見つける。
+     走査範囲は A×B の3パターン（数千通り）＋短語3語の組み合わせで、
+     実プレイの頭数では枯渇しない。走査は有限回で必ず終わる */
   const cap=Math.max(4,Math.min(NAME_MAX, maxLen||NAME_MAX));
-  let base=composeHorseName(maxLen), n=base, k=2;
-  while(used(n)){ const suf="・"+k; n=base.slice(0,Math.max(2,cap-suf.length))+suf; k++; }
-  NAME_TAKEN.add(n); return n;
+  const A=HORSE_NAMES.concat(HORSE_NAMES_B).filter(x=>x.length<=5);
+  const B=HORSE_NAMES2.concat(HORSE_NAMES2_B).filter(x=>x.length<=5);
+  const off=ri(0,997);
+  const pats=[(a,b)=>a+b,(a,b)=>a+"ノ"+b,(a,b)=>b+a];
+  for(let pi=0;pi<pats.length;pi++){
+    for(let ai=0;ai<A.length;ai++){
+      const a=A[(ai+off)%A.length];
+      for(let bi=0;bi<B.length;bi++){
+        const n=pats[pi](a,B[(bi+off)%B.length]);
+        if(n.length<=cap&&!used(n)){ NAME_TAKEN.add(n); return n; }
+      }
+    }
+  }
+  const S3=A.concat(B).filter(x=>x.length<=3);
+  for(let ai=0;ai<S3.length;ai++) for(let bi=0;bi<S3.length;bi++) for(let ci=0;ci<S3.length;ci++){
+    const n=S3[ai]+S3[bi]+S3[ci];
+    if(n.length<=cap&&!used(n)){ NAME_TAKEN.add(n); return n; }
+  }
+  /* ここまでで見つからない場合はプール総数を超える異常事態。数字は付けず、
+     最短の組み合わせを返す（重複回避より「数字なし」を優先する最終手段） */
+  const sh=arr=>arr.reduce((x,y)=>y.length<x.length?y:x,arr[0]);
+  const fb=sh(A)+sh(B); NAME_TAKEN.add(fb); return fb;
 }
 /* ===== 冠名（第19次）：設定で指定したワードを自厩舎の自動命名に付ける ===== */
 function crownWord(){ try{ return (typeof S!=="undefined"&&S&&typeof S.crownName==="string")? S.crownName.trim().slice(0,4) : ""; }catch(e){ return ""; } }
@@ -4036,6 +4062,17 @@ function ensureFullHorse(h){
   if(typeof h.age!=="number"||!isFinite(h.age)) h.age=5;
   if(!h.turf) h.turf="B";
   if(!h.dirt) h.dirt="C";
+  /* 毛色も同じ理由で補う。世界の馬（現役実在馬・レジェンド）は coat を
+     持たず、renderHorseSprite の COATS[h.coat] が undefined になって
+     描画例外→レース終了時の保存まで巻き添えになっていた。文字列の毛色は
+     COATS の名前から引いて数値化し、それ以外は決定的に割り当てる */
+  if(typeof h.coat!=="number"||!isFinite(h.coat)||h.coat<0||h.coat>=COATS.length){
+    let ci=-1;
+    if(typeof h.coat==="string"){ ci=COATS.findIndex(c=>c.n===h.coat); }
+    if(ci<0&&typeof h.coatName==="string"){ ci=COATS.findIndex(c=>c.n===h.coatName); }
+    if(ci<0){ let s=0; const nm=String(h.name||""); for(let i=0;i<nm.length;i++) s=(s*31+nm.charCodeAt(i))>>>0; ci=s%COATS.length; }
+    h.coat=ci;
+  }
   const b=Math.round(((h.spd||55)+(h.sta||55)+(h.pow||55)+(h.bst||55)+(h.gut||55))/5);
   if(h.flx==null)h.flx=clamp(b+ri(-8,8),20,99);
   if(h.men==null)h.men=clamp(b+ri(-8,8),20,99);
@@ -4929,7 +4966,7 @@ function upkeep(){ return upkeepItems().reduce((a,x)=>a+x.v,0); }
 /* ============ 月次明細（収支台帳） ============
    主な取引を項目別に月単位で記録し、設定画面から明細として見られるようにする。
    月が替わると前月分は履歴（最大12か月）へ移る */
-const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
+const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"預託料（調教師）",train:"調教費",facility:"施設維持費",jockey:"騎乗料",travel:"海外遠征費",overseas:"海外牧場維持費",board:"預かり料（繋養料）",equity:"牧場持分購入",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
 const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",sirefee:"種付け料収入",boardIn:"預かり料収入",dividend:"牧場配当金",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
 function ledKey(){ return year()+"-"+month(); }
 function ledLabel(k){ const p=String(k||"").split("-"); return (p[0]||"?")+"年目 "+(p[1]||"?")+"月"; }
@@ -5147,12 +5184,12 @@ function gallopSrc(h){ return COAT_GALLOP[clamp(h.coat||0,0,6)]; }
 function horseArt(h, big){
   const zek=h.cardNo?`<span class="zekken">${h.cardNo}</span>`:"";
   const ci=clamp(h.coat||0,0,6);
-  const lb= big? `${COATS[h.coat].n}<br>父 ${h.sire||""}` : COATS[h.coat].n;
-  return `<img class="hart" style="filter:${COAT_STAND_FILTER[ci]}" src="${standSrc(h)}" alt="${COATS[h.coat].n}の馬が牧場に立つイラスト">${zek}<span class="coatlb">${lb}</span>`;
+  const lb= big? `${COATS[ci].n}<br>父 ${h.sire||""}` : COATS[ci].n;
+  return `<img class="hart" style="filter:${COAT_STAND_FILTER[ci]}" src="${standSrc(h)}" alt="${COATS[ci].n}の馬が牧場に立つイラスト">${zek}<span class="coatlb">${lb}</span>`;
 }
 function gallopArtHTML(h, cls){
   const ci=clamp(h.coat||0,0,6);
-  return `<img class="${cls||""}" style="filter:${COAT_GALLOP_FILTER[ci]}${COAT_GALLOP_FLIP[ci]?";transform:scaleX(-1)":""}" src="${gallopSrc(h)}" alt="${COATS[h.coat].n}の競走馬が騎手を乗せて疾走するイラスト">`;
+  return `<img class="${cls||""}" style="filter:${COAT_GALLOP_FILTER[ci]}${COAT_GALLOP_FLIP[ci]?";transform:scaleX(-1)":""}" src="${gallopSrc(h)}" alt="${COATS[ci].n}の競走馬が騎手を乗せて疾走するイラスト">`;
 }
 function statBar(lb,v){
   return `<div class="stat"><span class="lb">${lb}</span><span class="bar"><i class="${v>=80?"hot":""}" style="width:${v}%"></i></span><span class="vl">${v}</span></div>`;
@@ -6449,7 +6486,7 @@ function trainerSuggest(h){
 function doTrain(tid, quiet, targetH){
   const h=targetH||selHorse(); const t=TRAINS.find(x=>x.id===tid); if(!h||!t)return null;
   if(S.funds<t.cost){ if(!quiet)alert2("資金が足りません","調教費用が不足しています。"); return null; }
-  S.funds-=t.cost; if(!quiet)h.trainsLeft--; // quiet=指示による自動実行（週送り側で回数管理）
+  S.funds-=t.cost; ledOut("train",t.cost); if(!quiet)h.trainsLeft--; // quiet=指示による自動実行（週送り側で回数管理）。調教費は月次明細にも記録する（以前は台帳に載らず、資金残高と明細の合計が調教費の分だけ食い違っていた）
   ensureFullHorse(h);
   const weakKey=weakestStatKey(h); // 弱点補正：最も低い能力は対応調教で伸びが1.6倍
   let tMul=(TRAINER.ranks? (0.9+rankVal(TRAINER.ranks.train)*0.04):1) * (h.personality==="真面目"?1.12:1);
@@ -8214,7 +8251,17 @@ function nrBuyerName(o){
   const src=words.length? words : NR_CORES.filter(w=>crown.length+w.length<=NAME_MAX);
   const build=()=>{ const c1=pick(src); return pat===3? c1+crown : crown+c1; };
   for(let i=0;i<80;i++){ const n=build(); if(n&&!used.has(n)&&!NAME_TAKEN.has(n)){ NAME_TAKEN.add(n); return n; } }
-  let n=crown+"ドリーム", k=2; const b=n; while(used.has(n)||NAME_TAKEN.has(n)){ const suf="・"+k; n=b.slice(0,Math.max(2,NAME_MAX-suf.length))+suf; k++; } NAME_TAKEN.add(n); return n;
+  /* 数字サフィックスは付けない：プールの全単語を順に試し、尽きたら
+     冠の位置を変えた組み合わせ、それも尽きたら冠＋短い単語2つの
+     組み合わせを総当たりで探す（有限回で必ず終わる） */
+  const taken=n=>used.has(n)||NAME_TAKEN.has(n);
+  for(const w of src){ const n=pat===3? w+crown : crown+w; if(!taken(n)){ NAME_TAKEN.add(n); return n; } }
+  for(const w of src){ const n=pat===3? crown+w : w+crown; if(!taken(n)){ NAME_TAKEN.add(n); return n; } }
+  const shorts=NR_CORES.filter(w=>w.length<=3);
+  for(const w1 of shorts) for(const w2 of shorts){ const n=crown+w1+w2; if(n.length<=NAME_MAX&&!taken(n)){ NAME_TAKEN.add(n); return n; } }
+  /* 冠パターンが枯渇したら、冠なしの全プールから引き直して一意にする
+     （重複した名前や数字付きの名前を返すくらいなら冠を外す） */
+  return genUniqueName();
 }
 function nrQueueOffer(foal){ if(!foal||foal.nrDone) return; const sel=nrPickBuyer(), buyer=sel.b; (S.nrQueue||(S.nrQueue=[])).push({foalId:foal.id, bid:sel.i, buyer:buyer.name, crown:buyer.crown, price:nrPriceFor(foal,buyer)}); }
 function nrMaybeShow(){
@@ -11975,7 +12022,7 @@ function preRenderRaceSprites(all,dirt){
   all.forEach(h=>{ for(let f=0;f<8;f++){ getHorseSprite(h,f,false,dirt); getHorseSprite(h,f,true,dirt); } });
 }
 function renderHorseSprite(h,frame,push,dirt){
-  const c=COATS[h.coat], silk=silkOf(h), P=GALLOP[frame];
+  const c=COATS[clamp(typeof h.coat==="number"&&isFinite(h.coat)? Math.round(h.coat):0,0,COATS.length-1)], silk=silkOf(h), P=GALLOP[frame];
   const cv=document.createElement("canvas");
   cv.width=SPR_W*SPR_SS; cv.height=SPR_H*SPR_SS;
   const ctx=cv.getContext("2d");
@@ -13580,7 +13627,7 @@ function renderFarm(){
  el.querySelectorAll("[data-sale-buy]").forEach(b=>b.addEventListener("click",()=>saleBuy(+b.dataset.saleBuy,true)));
  el.querySelectorAll("[data-sale-end]").forEach(b=>b.addEventListener("click",endSale));
  el.querySelectorAll("[data-ovfarm]").forEach(b=>b.addEventListener("click",()=>{ const rg=b.dataset.ovfarm, F=OV_FARMS[rg]; if(!F||S.funds<F.cost) return; undoPush(`海外牧場開設の前（${F.name}）`); S.funds-=F.cost; ledOut("build",F.cost); if(!S.overseasFarm) S.overseasFarm={farms:{}}; S.overseasFarm.farms=S.overseasFarm.farms||{}; S.overseasFarm.farms[rg]={built:false, weeks:F.weeks}; log(`🌍 ${F.name}の開設工事を開始しました（${fmt(F.cost)}万円・${F.weeks}週）`); renderAll(); }));
- const bc=$("#btn-clubfarm"); if(bc) bc.addEventListener("click",()=>{ S.funds-=10000; S.clubFarm=true; log("🏇 クラブ牧場を開設した"); renderAll(); });
+ const bc=$("#btn-clubfarm"); if(bc) bc.addEventListener("click",()=>{ S.funds-=10000; ledOut("build",10000); S.clubFarm=true; log("🏇 クラブ牧場を開設した"); renderAll(); });
  const bcl=$("#btn-club"); if(bcl) bcl.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); renderAll(); });
  /* 出資は週次処理（clubWeekly）で自動で進むため、手動の満口ボタンは廃止した */
 }
@@ -14609,9 +14656,11 @@ function autoDigestRace(ne){
   if(!AUTO._digestTry) AUTO._digestTry={};
   const dkey=r.name+"@"+(h.entry?h.entry.absWeek:S.week)+"@"+runOwns.map(x=>x.id).sort((a,b)=>a-b).join(",");
   if(AUTO._digestTry[dkey]){ AUTO.digestFailReason=`同じレース（${r.name}）の消化が繰り返されました。前回の消化でエントリーが消費されなかったため、これ以上は進めません`; return false; }
-  AUTO._digestTry[dkey]=1;
   /* 事前チェック：騎乗料（＋海外遠征費）が払えるか。払えない場合は startRace の
-     警告画面ではなく、理由つきの失敗としてオートを止める */
+     警告画面ではなく、理由つきの失敗としてオートを止める。
+     繰り返しガードの記録はこのチェックを通ってから付ける：以前は資金不足で
+     止まっただけでも「消化済み」になり、資金を工面して再開しても同じ
+     レースが二度と消化できず（dkey は翌週も同じ）永久に詰んでいた */
   let totalFee=0;
   for(const oh of runOwns){
     const ej=oh.reqJockey!=null? oh.reqJockey : oh.jockey;
@@ -14620,6 +14669,7 @@ function autoDigestRace(ne){
     totalFee+=jk.fee+travelFeeFor(r);
   }
   if(S.funds<totalFee){ AUTO.digestFailReason=`騎乗料${r.overseas?"と遠征費":""}が不足しています（必要 ${fmt(totalFee)}万円／現在 ${fmt(S.funds)}万円）`; return false; }
+  AUTO._digestTry[dkey]=1;
   fixGates(field);
   raceState.card=field; raceState.rivals=fixedRivalsFor(r); raceState.rivalRace=r.id;
   const prevWatch=S.watchMode;
