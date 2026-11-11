@@ -4620,8 +4620,8 @@ function upkeep(){ return upkeepItems().reduce((a,x)=>a+x.v,0); }
 /* ============ 月次明細（収支台帳） ============
    主な取引を項目別に月単位で記録し、設定画面から明細として見られるようにする。
    月が替わると前月分は履歴（最大12か月）へ移る */
-const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"調教師関係",facility:"施設維持費",jockey:"騎乗料・遠征費",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",other:"その他支出"};
-const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",otherIn:"その他収入"};
+const LED_CATS={feed:"飼料・飼養費",labor:"厩舎管理費",vet:"装蹄・獣医費",trainer:"調教師関係",facility:"施設維持費",jockey:"騎乗料・遠征費",breed:"種付料",buy:"馬の購入費",build:"施設建設費",betbuy:"馬券購入",loan:"融資返済",loanOut:"馬主への貸付金",lease:"繁殖牝馬の借入料",other:"その他支出"};
+const LED_IN={prize:"レース賞金",bet:"馬券払戻",sell:"売却・クラブ収入",finance:"融資・スポンサー",loanBack:"貸付金の返済・利息",leaseFee:"繁殖牝馬の貸出料",otherIn:"その他収入"};
 function ledKey(){ return year()+"-"+month(); }
 function ledLabel(k){ const p=String(k||"").split("-"); return (p[0]||"?")+"年目 "+(p[1]||"?")+"月"; }
 function ledger(){
@@ -5550,6 +5550,8 @@ function renderStable(){
   if(S.weekReport&&S.weekReport.length){ horsesInner+=accHTML("homeWeekTrain", `🗓 今週の調教（定常指示による自動実行・${S.weekReport.length}件）`, `<div class="wklist">${S.weekReport.slice(0,4).map(x=>`<div class="wkrow">${esc(x)}</div>`).join("")}</div>`); }
   /* 馬主からの譲渡オファー（所有権の譲渡。命名権オファーとは別物と明示する） */
   (S.transferOffers||[]).filter(o=>o.expiresWeek>=S.week).forEach(o=>{ horsesInner+=`<div class="panel" style="border:2px solid var(--gold)"><b>🤝 馬主からの譲渡オファー（所有権の譲渡）</b><div class="small" style="margin:3px 0">${esc(o.buyer)} が幼駒「${esc(o.horseName)}」を <b>${fmt(o.price)}万円</b> で譲ってほしいと申し出ています（市場評価 ${fmt(o.market)}万円／買い手の方針：${esc(stablePolicyName(o.buyer))}／期限：あと ${Math.max(0,o.expiresWeek-S.week)} 週）。受けると馬は ${esc(o.buyer)} の所属馬として世界で走ります。命名権の売却とは別の、馬そのものの譲渡です。</div><div class="flex"><button class="btn gold sm" data-to-accept="${o.id}">譲渡する（${fmt(o.price)}万円）</button><button class="btn ghost sm" data-to-decline="${o.id}">見送る</button></div></div>`; });
+  /* 馬主イベント（貸付／売却打診／繁殖牝馬の貸し借り）の提案カード */
+  (S.ownerEvents||[]).filter(o=>o.expiresWeek>=S.week).forEach(o=>{ horsesInner+=ownerEventPanelHTML(o); });
   /* 多頭管理：検索・並び替え・絞り込み（頭数が増えても目的の馬にすぐ届く）。
      一覧の絞り込み計算は1回の描画で1回だけ行う（従来は表示頭数の表示と
      本体で2回計算していた。多頭時に無駄な再計算をしないための軽量化） */
@@ -5587,6 +5589,8 @@ function renderStable(){
   wireEntryButtons(el);
   el.querySelectorAll("[data-to-accept]").forEach(b=>b.addEventListener("click",()=>acceptTransferOffer(b.dataset.toAccept)));
   el.querySelectorAll("[data-to-decline]").forEach(b=>b.addEventListener("click",()=>declineTransferOffer(b.dataset.toDecline)));
+  el.querySelectorAll("[data-oe-accept]").forEach(b=>b.addEventListener("click",()=>acceptOwnerEvent(b.dataset.oeAccept)));
+  el.querySelectorAll("[data-oe-decline]").forEach(b=>b.addEventListener("click",()=>declineOwnerEvent(b.dataset.oeDecline)));
   el.querySelectorAll("[data-policy]").forEach(b=>b.addEventListener("click",()=>{ entryPolicy().id=b.dataset.policy; saveAuto(true); renderAll(); }));
   const oq=$("#own-q"); if(oq){ oq.addEventListener("input",()=>{ ownFilter.q=oq.value; /* 1打鍵ごとの全体再描画（フォーカス中の要素の作り直し）は iPad で危険なため、入力が落ち着いてから1回だけ再描画する */
     clearTimeout(oq._dt); oq._dt=setTimeout(()=>{ if(!document.contains(oq)||document.activeElement!==oq)return; const pos=oq.selectionStart; renderAll(); const nq=$("#own-q"); if(nq){ nq.focus(); try{nq.setSelectionRange(pos,pos);}catch(e){} } },300); }); }
@@ -6329,7 +6333,7 @@ function renderBreed(){
   <div class="mt"><b>血統支配率（系統の広がり）</b><br>${lineDominance().map(d=>`<span class="small">${d.line} ${d.pct}%（${lineStatus(d.line)}）</span>`).join(" ／ ")||'<span class="small">まだデータがありません</span>'}<br><span class="small">支配率が上がると子系統→親系統→世界系統へ昇格し、理論が成立しやすくなります（世界系統では芝質適性の幅も広がります）。</span></div></div>${panelClose()}`;
   html+=(()=>{ const s4=ownSt[breedSel.s||0], m4=mares[breedSel.m||0]; if(!s4||!m4) return ""; return `<div class="actionbar"><span class="ab-name">🌱 ${esc(s4.name)} × ${esc(m4.name)}</span><span class="ab-cost">種付料など ${fmt((s4.fee||0)+150)}万円／種付けは5〜6月</span><span style="flex:1"></span><button class="btn gold sm" id="btn-breed2">この配合で種付けを登録</button></div>`; })();
   const mareCards=mares.map(m=>{ const rs=mareSellReasons(m); const pr=mareProduce(m);
-    return horseMini(m)+`<div class="flex" style="align-items:center;gap:8px;margin:2px 0 12px"><span class="small">産駒 ${pr.n}頭（${pr.wins}勝）／G1級の子が出る確率 <b>${g1ProbTxt(mareG1Prob(m))}</b>（相手は能力平均約60の標準的な種牡馬プール）／売却見積 ${fmt(mareSellPrice(m))}万円${m.pregnant?"／受胎中":""}${rs.length?`／牧場メモ：${esc(rs[0])}`:""}</span><span style="flex:1"></span><button class="btn ghost sm" data-mare-sell="${m.id}">売却する</button></div>`; });
+    return horseMini(m)+`<div class="flex" style="align-items:center;gap:8px;margin:2px 0 12px"><span class="small">産駒 ${pr.n}頭（${pr.wins}勝）／G1級の子が出る確率 <b>${g1ProbTxt(mareG1Prob(m))}</b>（相手は能力平均約60の標準的な種牡馬プール）／売却見積 ${fmt(mareSellPrice(m))}万円${m.pregnant?"／受胎中":""}${m.leaseFrom?`／${esc(m.leaseFrom)}から借入中（今季限り・売却不可）`:""}${rs.length?`／牧場メモ：${esc(rs[0])}`:""}</span><span style="flex:1"></span><button class="btn ghost sm" data-mare-sell="${m.id}">売却する</button></div>`; });
   html+=panelHTML("breed","mares",`<h2 class="sec" id="breed-mares">繁殖牝馬 <span class="tag">${mares.length}頭</span></h2>${mares.length?pageSlice("breedMares",mareCards,2).join(""):`<p class="small">まだいません。牝馬を引退させると繁殖入りします。</p>`}`+pagerHTML("breedMares",mareCards.length,2));
   el.innerHTML=html;
   const bs=$("#br-s"), bm=$("#br-m");
@@ -7481,6 +7485,11 @@ function nrBuyerName(o){
 function nrQueueOffer(foal){ if(!foal||foal.nrDone) return; const sel=nrPickBuyer(), buyer=sel.b; (S.nrQueue||(S.nrQueue=[])).push({foalId:foal.id, bid:sel.i, buyer:buyer.name, crown:buyer.crown, price:nrPriceFor(foal,buyer)}); }
 function nrMaybeShow(){
   const q=S.nrQueue||[]; if(!q.length) return;
+  /* オート実行中は命名権のモーダルを出さない：停止設定ONならオート側が
+     止めてから（停止後の renderAll 経由で改めて出す）、OFFならオート側が
+     見送り処理をする。ここで先に出すと「確認画面で停止」の汎用理由に
+     なって種類別設定が効かないため、表示はオート停止後に回す */
+  if(typeof AUTO!=="undefined"&&AUTO.running) return;
   const ov=document.querySelector("#overlay"); if(ov&&ov.style.display==="flex") return;
   const o=q[0]; const foal=(S.youngStock||[]).find(y=>y.id===o.foalId);
   if(!foal){ q.shift(); nrMaybeShow(); return; }
@@ -7515,6 +7524,7 @@ function nrDecline(){
   const q=S.nrQueue||[]; const o=q.shift();
   const foal=o&&(S.youngStock||[]).find(y=>y.id===o.foalId);
   if(foal) foal.nrDone=true;
+  if(o) log(`💼 ${o.buyer} からの命名権オファー（${foal?foal.name:"幼駒"}／${fmt(o.price)}万円）を見送りました。通常の命名に進みます`);
   const ov=document.querySelector("#overlay"); if(ov) ov.style.display="none";
   renderAll();
   setTimeout(()=>{ try{ nrMaybeShow(); }catch(e){} },80);
@@ -7696,6 +7706,8 @@ function nextWeekBody(){
   /* クラブ募集への出資：週が進むたびに判定し、出資口数とクラブ資金を進める */
   try{ clubWeekly(); }catch(e){ try{ log("⚠ クラブ出資の処理でエラーが発生しました："+((e&&e.message)||e)); }catch(e2){} }
   try{ transferOfferTick(); }catch(e){}
+  try{ ownerEventTick(); }catch(e){}
+  try{ ownerLoanTick(); }catch(e){}
   if(S.week%48===0){ // 年明け加齢＆成長・衰え
     S.horses.forEach(h=>{
       h.age++;
@@ -7810,6 +7822,7 @@ function transferOfferTick(){
   const yr=year();
   if(!S.transferOfferYear||S.transferOfferYear.year!==yr) S.transferOfferYear={year:yr, count:0};
   if(S.transferOfferYear.count>=3) return; /* 年に最大3件 */
+  if(ownerDealsThisYear()>=5) return; /* 馬主イベント全体（譲渡＋貸付・売却打診・貸し借り）の年間上限 */
   const cands=[];
   (S.youngStock||[]).forEach(y=>{ if((y.age||0)<=1) cands.push({h:y, from:"young"}); });
   (S.horses||[]).forEach(h=>{ if(h.age===2&&(h.races||0)===0&&h.bredOwn) cands.push({h, from:"horses"}); });
@@ -7820,7 +7833,7 @@ function transferOfferTick(){
   if(Math.random()>0.30) return;
   const sts=rivalStables().filter(st=>(st.funds||0)>3000);
   if(!sts.length) return;
-  const weighted=sts.map(st=>({st, w:(((st.style||"").includes("名門")||(st.style||"").includes("クラブ"))?3:1)*clamp((st.funds||0)/10000,0.4,2.5)})).sort((a,b)=>b.w-a.w);
+  const weighted=sts.map(st=>({st, w:(((st.style||"").includes("名門")||(st.style||"").includes("クラブ"))?3:1)*clamp((st.funds||0)/10000,0.4,2.5)*(0.7+ownerRelOf(st.name)/100)})).sort((a,b)=>b.w-a.w); /* 関係値の高い馬主ほど買い手に選ばれやすい */
   const buyer=(Math.random()<0.7? weighted[0] : weighted[ri(0,weighted.length-1)]).st;
   const market=foalMarketPrice(top.h);
   const heat=clamp(1.15+(top.pot-66)*0.02,1.15,1.8)*(((buyer.style||"").includes("名門")||(buyer.style||"").includes("クラブ"))?1.1:1);
@@ -7858,6 +7871,7 @@ function acceptTransferOffer(id){
   else { S.horses=S.horses.filter(x=>x!==h); if(S.selected===h.id) S.selected=S.horses[0]?S.horses[0].id:null; }
   S.funds+=o.price; ledIn("sell",o.price);
   const buyer=transferHorseToOwner(h, o.price, o.buyer);
+  addOwnerRel(o.buyer, 6); /* 譲渡の成立で買い手との関係が深まる */
   log(`🤝 幼駒 ${h.name} を ${o.buyer} へ ${fmt(o.price)}万円 で譲渡しました。今後は${buyer||o.buyer}の所属馬として世界で走ります`);
   renderAll();
 }
@@ -7869,6 +7883,285 @@ function declineTransferOffer(id){
   S.transferOffers=S.transferOffers.filter(x=>x!==o);
   log(`🤝 ${o.buyer} からの譲渡オファー（${o.horseName}）を見送りました`);
   renderAll();
+}
+/* ============ 馬主イベント拡充：貸付／売却打診／繁殖牝馬の貸し借り（2026-11-11） ============
+   相手は実在のライバル馬主・牧場（資金と方針を持つ主体として世界の制度に組み込む）。
+   共通の仕組み：
+   ・馬主ごとの「関係値」（S.ownerRel、0〜100、初期値40）。取引の成立で上がり、
+     相手の貸し倒れで大きく下がる。関係値が高い馬主ほど申し出を持ってきやすく、
+     譲渡オファーの買い手にも選ばれやすく、売却打診の値引きも大きくなる。
+   ・出し方は譲渡オファーと同じ提案カード＋期限（4週間）。発生頻度は譲渡
+     オファーと合算して年に最大5件（各種にも上限あり）、同時に届くのは1件だけ。
+   ・オート中は種類別の停止チェックで判定する（貸付＝stopOfferLoan／
+     売却打診＝stopOfferBuy／貸し借り＝stopOfferLease）。ONの種類だけが
+     止まり、OFFの種類は見送り処理（辞退と同じ結果・記録に「見送り」）
+     をしてオートが続く。貸付・売買・貸し借りがプレイヤーの知らない
+     ところで勝手に成立することは絶対にない */
+function ownerRelOf(name){ const v=(S.ownerRel||{})[name]; return (typeof v==="number")? v : 40; }
+function addOwnerRel(name, d){ if(!S.ownerRel) S.ownerRel={}; S.ownerRel[name]=clamp(Math.round(ownerRelOf(name)+d),0,100); }
+function ownerDealsThisYear(){ const yr=year(); let n=0; if(S.transferOfferYear&&S.transferOfferYear.year===yr) n+=S.transferOfferYear.count||0; if(S.ownerEventYear&&S.ownerEventYear.year===yr) n+=S.ownerEventYear.count||0; return n; }
+function worldHorseValue(w){ let v=wRating(w)*14+(w.wins||0)*80; v*=lineHeatOf(w.sire||""); if((w.age||0)>=8) v*=0.55; return Math.max(200, Math.round(v)); }
+function loanPrincipalUsed(){ return (S.ownerLoans||[]).reduce((a,L)=>a+(L.principal||0),0); }
+/* 貸付総額の上限：手元資金＋貸付中元本の50%まで（無制限の金策にしない） */
+function ownerLoanCap(){ return Math.max(2000, Math.floor(0.5*((S.funds||0)+loanPrincipalUsed()))); }
+function ownerEventKindName(o){ return o.kind==="loan"? "貸付の申し出" : o.kind==="buy"? "売却の打診" : o.kind==="leaseOut"? "繁殖牝馬の貸出の打診" : o.kind==="leaseIn"? "繁殖牝馬の借入の打診" : "馬主からの申し出"; }
+/* 世界の個体を自厩舎の所属に移す（売却打診の受諾・貸し倒れ時の担保回収で共用） */
+function worldHorseToPlayer(w, asMare){
+  const c=JSON.parse(JSON.stringify(w));
+  if(c.id==null) c.id=HID++; /* 実在馬ロスター由来の世界の個体は id を持たないことがあるため、自厩舎の所属にする時に採番する */
+  delete c.stable; delete c.worldBred; delete c.worldRef; delete c.yr; delete c.legend; delete c.exPlayer;
+  if(asMare){ c.sex="牝"; c.pregnant=false; c.foalsBred=c.foalsBred||0; c.earnings=c.earnings||c.earn||0; delete c.earn; S.mares.push(c); }
+  else { c.owner=true; c.rival=false; c.bredOwn=false; c.entry=null; ensureFullHorse(c); try{ assignTrainerAuto(c); }catch(e){} S.horses.push(c); if(!S.selected) S.selected=c.id; }
+  return c;
+}
+function ownerEventTick(){
+  if(!Array.isArray(S.ownerEvents)) S.ownerEvents=[];
+  const expired=S.ownerEvents.filter(o=>o.expiresWeek<S.week);
+  if(expired.length){ S.ownerEvents=S.ownerEvents.filter(o=>o.expiresWeek>=S.week); expired.forEach(o=>log(`🤝 ${o.stable||""} からの${ownerEventKindName(o)}は期限切れで見送られました`)); }
+  if(S.ownerEvents.length) return; /* 同時には1件だけ */
+  if((S.transferOffers||[]).length) return; /* 譲渡オファーと同時には出さない */
+  const yr=year();
+  if(!S.ownerEventYear||S.ownerEventYear.year!==yr) S.ownerEventYear={year:yr, count:0};
+  if(S.ownerEventYear.count>=3) return; /* 新規イベントは年に最大3件 */
+  if(ownerDealsThisYear()>=5) return; /* 譲渡オファーと合算した年間上限 */
+  if(Math.random()>0.05) return;
+  const sts=rivalStables();
+  const pickStable=(list)=>{ if(!list.length) return null; const ws=list.map(st=>({st, w:(0.7+ownerRelOf(st.name)/100)})); const tot=ws.reduce((a,x)=>a+x.w,0); let r=Math.random()*tot; for(const x of ws){ r-=x.w; if(r<=0) return x.st; } return ws[ws.length-1].st; };
+  const makers=[];
+  /* (1) 貸付の申し出：相手の資金・近況で金利と上限が変わる */
+  makers.push({kind:"loan", w:3, make:()=>{
+    if((S.funds||0)<2000) return null;
+    const cands=sts.filter(st=>!(S.ownerLoans||[]).some(L=>L.owner===st.name));
+    if(!cands.length) return null;
+    const needW=st=> st.funds<3000?3 : st.funds<8000?2 : 1;
+    const pool=[...cands].sort((a,b)=>needW(b)*(0.7+ownerRelOf(b.name)/100)-needW(a)*(0.7+ownerRelOf(a.name)/100));
+    const st=(Math.random()<0.7? pool[0] : pickStable(cands)); if(!st) return null;
+    const capacity=clamp(Math.round(((st.lastEarn||2500)*0.5+(st.funds||0)*0.35)/100)*100, 800, 9000);
+    const principal=Math.min(capacity, ownerLoanCap()-loanPrincipalUsed());
+    if(principal<800) return null;
+    const rel=ownerRelOf(st.name);
+    let rate= (st.funds||0)>=15000?7 : (st.funds||0)>=9000?10 : (st.funds||0)>=5000?14 : (st.funds||0)>=2500?19 : 25;
+    rate=clamp(rate-Math.floor(rel/25), 5, 30); /* 関係が深い相手には条件が良くなる */
+    const weekly=Math.ceil(principal*(1+rate/100)/48/10)*10;
+    const reason= (st.funds||0)<3000? "資金繰りが苦しく、立て直しのための資金を必要としています" : ((st.style||"").includes("名門")||(st.style||"").includes("クラブ"))? "戦力補強の買い付け資金として借りたいとのことです" : ((st.style||"").includes("生産"))? "生産拡大のための資金を必要としています" : "当面の運転資金として借りたいとのことです";
+    return {kind:"loan", stable:st.name, principal, rate, weekly, reason};
+  }});
+  /* (2) 相手からの売却打診：困窮した馬主・頭数を整理する馬主が持ちかける */
+  makers.push({kind:"buy", w:3, make:()=>{
+    const world=S.worldHorses||[];
+    const distressed=sts.filter(st=>(st.funds||0)<2800 && world.some(w=>w.stable===st.name&&!w.legend));
+    const trimmers=sts.filter(st=>world.filter(w=>w.stable===st.name&&!w.legend).length>=12);
+    const st= (distressed.length&&Math.random()<0.7)? pickStable(distressed) : (trimmers.length? pickStable(trimmers) : (distressed.length? pickStable(distressed) : null));
+    if(!st) return null;
+    const isDistress=(st.funds||0)<2800;
+    const mine=world.filter(w=>w.stable===st.name&&!w.legend);
+    const mareC=mine.filter(w=>w.sex==="牝"&&(w.age||0)>=5&&(w.age||0)<=10);
+    const foalC=mine.filter(w=>(w.age||0)===2&&(w.races||0)===0);
+    const actC=mine.filter(w=>(w.age||0)>=3&&(w.age||0)<=6).sort((a,b)=>wRating(a)-wRating(b));
+    let cand=null, subKind="";
+    if(isDistress&&mareC.length&&Math.random()<0.4){ cand=mareC[ri(0,mareC.length-1)]; subKind="mare"; }
+    else if(foalC.length&&Math.random()<0.4){ cand=foalC[ri(0,foalC.length-1)]; subKind="foal"; }
+    else if(actC.length>=2){ cand=actC[ri(0,actC.length-2)]; subKind="active"; } /* 看板馬（最上位）は手放さない */
+    else if(actC.length===1){ cand=actC[0]; subKind="active"; }
+    if(!cand) return null;
+    const market=worldHorseValue(cand);
+    const factor=(isDistress?0.8:0.92)*(1-Math.min(0.08, ownerRelOf(st.name)*0.0008)); /* 困っている相手ほど割安、関係が深いほど値引き */
+    const price=Math.max(100, Math.round(market*factor/10)*10);
+    const reason= isDistress? "資金繰りに困っており、手放す決断をしました" : "頭数を整理するため、放出を考えています";
+    return {kind:"buy", stable:st.name, horseId:(cand.id!=null?cand.id:null), horseName:cand.name, subKind, price, market, reason, age:cand.age||0, sex:cand.sex||"", sire:cand.sire||"", rating:wRating(cand)};
+  }});
+  /* (3a) 繁殖牝馬の貸出打診：あなたの牝馬を1シーズン借りたい */
+  makers.push({kind:"leaseOut", w:2, make:()=>{
+    if(month()>4) return null; /* 種付け期（5〜6月）の前にだけ届く */
+    const mares=(S.mares||[]).filter(m=>m&&!m.pregnant&&!m.leaseFrom&&(m.age||0)>=4&&(m.age||0)<=11);
+    if(mares.length<2) return null; /* 手元に1頭は残す */
+    const st=pickStable(sts.filter(x=>x.funds>=2000)); if(!st) return null;
+    const sorted=[...mares].sort((a,b)=>mareSellPrice(a)-mareSellPrice(b));
+    const m=sorted[Math.floor(sorted.length/2)];
+    const theirSires=(S.worldHorses||[]).filter(w=>w.stable===st.name&&w.sex!=="牝"&&(w.age||0)>=4&&(w.age||0)<=12).sort((a,b)=>wRating(b)-wRating(a));
+    const extSire=(S.stallions||[]).find(s=>s.ext);
+    const sireName= theirSires.length? theirSires[0].name : (extSire? extSire.name : "自牧場の種牡馬");
+    const fee=Math.max(100, Math.round(mareSellPrice(m)*0.22/10)*10);
+    return {kind:"leaseOut", stable:st.name, mareId:m.id, mareName:m.name, fee, sireName};
+  }});
+  /* (3b) 繁殖牝馬の借入打診：相手の牝馬を1シーズン貸し出す */
+  makers.push({kind:"leaseIn", w:2, make:()=>{
+    if(month()>4) return null;
+    if(S.mareLeaseIn) return null;
+    if((S.mares||[]).length>=mareCap()+2) return null;
+    const st=pickStable(sts.filter(x=>x.funds>=3000)); if(!st) return null;
+    const mare=newHorse({base:triBase(56,74), age:ri(5,8), sex:"牝"});
+    const fee=Math.max(100, Math.round(mareSellPrice(mare)*0.18/10)*10);
+    return {kind:"leaseIn", stable:st.name, fee, mare};
+  }});
+  const order=[...makers].sort(()=>Math.random()-0.5); /* 種類はランダムな順に試し、成立した1件だけを出す */
+  for(const mk of order){
+    const o=mk.make(); if(!o) continue;
+    o.id="oe"+S.week+"_"+o.kind; o.expiresWeek=S.week+4; o.createdWeek=S.week;
+    S.ownerEvents.push(o); S.ownerEventYear.count++;
+    log(`🤝 ${o.stable} から${ownerEventKindName(o)}が届きました。厩舎ホームで受けるか見送るか決めてください（期限4週間）`);
+    return;
+  }
+}
+function acceptOwnerEvent(id){
+  const o=(S.ownerEvents||[]).find(x=>x.id===id); if(!o) return;
+  const st=rivalStables().find(s=>s.name===o.stable);
+  if(o.kind==="loan"){
+    if((S.funds||0)<o.principal){ log(`💰 資金が不足していて ${o.stable} への貸付はできません`); return; }
+    if(loanPrincipalUsed()+o.principal>ownerLoanCap()){ log(`💰 貸付総額の上限（資金に対する割合）に達しているため、これ以上の貸付はできません`); return; }
+    undoPush(`貸付の前（${o.stable}）`);
+    S.funds-=o.principal; ledOut("loanOut", o.principal);
+    if(st) st.funds=clamp((st.funds||0)+o.principal, 0, 60000);
+    if(!Array.isArray(S.ownerLoans)) S.ownerLoans=[];
+    S.ownerLoans.push({id:"ln"+S.week+"_"+o.stable, owner:o.stable, principal:o.principal, balance:Math.round(o.principal*(1+o.rate/100)), rate:o.rate, weekly:o.weekly, weeksLeft:48, missed:0, startedWeek:S.week});
+    addOwnerRel(o.stable, 2);
+    S.ownerEvents=S.ownerEvents.filter(x=>x!==o);
+    log(`💰 ${o.stable} へ ${fmt(o.principal)}万円 を貸し付けました（年利 ${o.rate}%／48週返済・週 ${fmt(o.weekly)}万円）。返済は相手の賞金収入から週次で行われます`);
+  }
+  else if(o.kind==="buy"){
+    /* 世界の個体は id を持たないことがあるため、馬名＋所属＋年齢・性別・父で同定する */
+    const poolW=(S.worldHorses||[]).filter(x=>x.name===o.horseName&&x.stable===o.stable&&!x.legend);
+    const w= (o.horseId!=null? poolW.find(x=>x.id===o.horseId) : null) || poolW.find(x=>(x.age||0)===(o.age||0)&&(x.sex||"")===(o.sex||"")&&(x.sire||"")===(o.sire||"")) || poolW[0];
+    if(!w){ S.ownerEvents=S.ownerEvents.filter(x=>x!==o); log(`🤝 ${o.horseName} は既に相手の手を離れており、打診は無効になりました`); renderAll(); return; }
+    if((S.funds||0)<o.price){ log(`💰 資金が不足していて ${o.horseName} を購入できません`); return; }
+    undoPush(`購入の前（${o.horseName}）`);
+    S.worldHorses=S.worldHorses.filter(x=>x!==w);
+    S.funds-=o.price; ledOut("buy", o.price);
+    if(st) st.funds=clamp((st.funds||0)+o.price, 0, 60000);
+    worldHorseToPlayer(w, o.subKind==="mare");
+    addOwnerRel(o.stable, 5);
+    S.ownerEvents=S.ownerEvents.filter(x=>x!==o);
+    log(`🤝 ${o.stable} から ${o.horseName} を ${fmt(o.price)}万円 で購入しました（市場評価 ${fmt(o.market)}万円）`);
+    pushNews(`${o.stable}が${o.horseName}を放出、あなたの厩舎へ`, `${o.reason}という${o.stable}の事情で、${o.horseName}が ${fmt(o.price)}万円 であなたの厩舎に移った。`);
+  }
+  else if(o.kind==="leaseOut"){
+    const m=(S.mares||[]).find(x=>x.id===o.mareId);
+    if(!m||m.pregnant){ S.ownerEvents=S.ownerEvents.filter(x=>x!==o); log(`🌸 ${o.mareName} は貸し出せる状態ではなくなったため、打診は無効になりました`); renderAll(); return; }
+    undoPush(`繁殖牝馬の貸出の前（${m.name}）`);
+    S.mares=S.mares.filter(x=>x!==m);
+    S.funds+=o.fee; ledIn("leaseFee", o.fee);
+    if(st) st.funds=Math.max(0,(st.funds||0)-o.fee);
+    if(!Array.isArray(S.mareLeaseOut)) S.mareLeaseOut=[];
+    const yi=Math.floor(S.week/48);
+    S.mareLeaseOut.push({mare:m, to:o.stable, sireName:o.sireName, returnWeek:(yi+1)*48+12, foalDueYear:year()+3});
+    addOwnerRel(o.stable, 3);
+    S.ownerEvents=S.ownerEvents.filter(x=>x!==o);
+    log(`🌸 繁殖牝馬 ${m.name} を ${o.stable} へ1シーズン貸し出しました（貸出料 ${fmt(o.fee)}万円）。${o.sireName} と種付けされ、産駒は ${o.stable} の生産になります。牝馬は来年4月の出産後に戻ります`);
+  }
+  else if(o.kind==="leaseIn"){
+    if((S.funds||0)<o.fee){ log(`💰 資金が不足していて繁殖牝馬を借りられません`); return; }
+    undoPush(`繁殖牝馬の借入の前（${o.mare.name}）`);
+    S.funds-=o.fee; ledOut("lease", o.fee);
+    if(st) st.funds=clamp((st.funds||0)+o.fee, 0, 60000);
+    const mare=o.mare; mare.leaseFrom=o.stable; mare.pregnant=false;
+    S.mares.push(mare);
+    S.mareLeaseIn={mareId:mare.id, from:o.stable};
+    addOwnerRel(o.stable, 3);
+    S.ownerEvents=S.ownerEvents.filter(x=>x!==o);
+    log(`🌸 ${o.stable} から繁殖牝馬 ${mare.name} を1シーズン借りました（借入料 ${fmt(o.fee)}万円）。今季の種付けに使え、生まれた産駒はあなたの生産になります。牝馬は出産後（未受胎なら7月）に ${o.stable} へ戻ります`);
+  }
+  saveAuto(true); renderAll();
+}
+function declineOwnerEvent(id){
+  const o=(S.ownerEvents||[]).find(x=>x.id===id); if(!o) return;
+  S.ownerEvents=S.ownerEvents.filter(x=>x!==o);
+  addOwnerRel(o.stable, -1);
+  log(`🤝 ${o.stable} からの${ownerEventKindName(o)}を見送りました`);
+  renderAll();
+}
+/* 貸付の週次返済・延滞・貸し倒れ、繁殖牝馬の貸し借りの帰厩・産駒の世界加入 */
+function ownerLoanTick(){
+  const sts=rivalStables();
+  (S.ownerLoans||[]).slice().forEach(L=>{
+    const st=sts.find(s=>s.name===L.owner);
+    if(!st){ S.ownerLoans=S.ownerLoans.filter(x=>x!==L); return; }
+    const due=Math.min(L.weekly, L.balance);
+    const pay= (st.funds||0)>300? Math.min(due, (st.funds||0)-300) : 0; /* 相手の当面の運転資金は残す */
+    if(pay>0){ st.funds-=pay; S.funds+=pay; ledIn("loanBack", pay); L.balance-=pay; }
+    if(pay>=due){ L.missed=0; } /* きちんと払えた週は延滞カウントをリセット（連続延滞3回で貸し倒れ） */
+    else if(pay<due*0.6){ L.missed=(L.missed||0)+1; if(pay<=0) log(`⚠ ${L.owner} からの返済が滞っています（残高 ${fmt(L.balance)}万円／延滞 ${L.missed} 回）`); }
+    L.weeksLeft=(L.weeksLeft||0)-1;
+    if(L.balance<=0){
+      S.ownerLoans=S.ownerLoans.filter(x=>x!==L);
+      addOwnerRel(L.owner, 10);
+      log(`💰 ${L.owner} への貸付 ${fmt(L.principal)}万円 は完済されました（利息込み）。関係が深まりました`);
+      pushNews(`${L.owner}、借入を完済`, `${L.owner}があなたからの借入 ${fmt(L.principal)}万円 を利息込みで完済した。馬主同士の信頼がまた一つ積み上がった。`);
+      return;
+    }
+    if((L.missed||0)>=3){
+      /* 貸し倒れ：担保馬の移籍で一部回収し、残りは相手の手元資金から可能な範囲で回収 */
+      let recovered=0, collName="";
+      const colls=(S.worldHorses||[]).filter(w=>w.stable===L.owner&&!w.legend&&(w.age||0)<=8).sort((a,b)=>worldHorseValue(b)-worldHorseValue(a));
+      if(colls.length&&worldHorseValue(colls[0])>=L.balance*0.4){
+        const cw=colls[0]; const val=worldHorseValue(cw);
+        S.worldHorses=S.worldHorses.filter(x=>x!==cw);
+        worldHorseToPlayer(cw, cw.sex==="牝"&&(cw.age||0)>=4);
+        recovered+=Math.min(L.balance, val); collName=cw.name;
+      }
+      const cash=Math.min(L.balance-recovered, Math.max(0,(st.funds||0)-600));
+      if(cash>0){ st.funds-=cash; S.funds+=cash; ledIn("loanBack", cash); recovered+=cash; }
+      const loss=L.balance-recovered;
+      S.ownerLoans=S.ownerLoans.filter(x=>x!==L);
+      addOwnerRel(L.owner, -15);
+      log(`⚠ ${L.owner} への貸付は貸し倒れとなりました（残高 ${fmt(L.balance)}万円 のうち ${fmt(recovered)}万円 を回収${collName?`：担保馬 ${collName} の移籍を含む`:""}／損失 ${fmt(loss)}万円）`);
+      pushNews(`${L.owner}の経営が悪化、貸付が貸し倒れに`, `${L.owner}への貸付が貸し倒れとなり、${collName?`担保の${collName}があなたの厩舎へ移籍した。`:""}回収できたのは ${fmt(recovered)}万円 にとどまった。`);
+    }
+  });
+  /* 貸し出した繁殖牝馬の帰厩（翌年4月・出産後）と、相手側の産駒の世界加入予約 */
+  (S.mareLeaseOut||[]).slice().forEach(lo=>{
+    if(S.week>=lo.returnWeek){
+      S.mareLeaseOut=S.mareLeaseOut.filter(x=>x!==lo);
+      S.mares.push(lo.mare);
+      if(!Array.isArray(S.leaseFoalDue)) S.leaseFoalDue=[];
+      const ab=(lo.mare.spd+lo.mare.sta+lo.mare.pow+lo.mare.bst+lo.mare.gut)/5;
+      S.leaseFoalDue.push({stable:lo.to, sire:lo.sireName, dam:lo.mare.name, dueYear:lo.foalDueYear, base:clamp(Math.round(ab*0.92)+ri(-3,5),45,92)});
+      addOwnerRel(lo.to, 4);
+      log(`🌸 貸し出していた繁殖牝馬 ${lo.mare.name} が ${lo.to} から戻りました（産駒は ${lo.to} の生産として世界で育ちます）`);
+    }
+  });
+  (S.leaseFoalDue||[]).slice().forEach(fd=>{
+    if(year()>=fd.dueYear){
+      S.leaseFoalDue=S.leaseFoalDue.filter(x=>x!==fd);
+      const f=newHorse({base:fd.base, age:2, sire:fd.sire, dam:fd.dam});
+      f.stable=fd.stable; f.worldBred=true; f.mainJockey=ri(0,JOCKEYS.length-1); ensureFullHorse(f); f.rating=wRating(f);
+      (S.worldHorses||(S.worldHorses=[])).push(f);
+      log(`🐴 ${fd.stable} で、貸し出した繁殖牝馬 ${fd.dam} の産駒 ${f.name} が育っています`);
+    }
+  });
+  /* 借りた繁殖牝馬の返却：未受胎なら7月、受胎すれば出産（翌年4月）の後に戻る。
+     出産処理（farmWeekly）はこの tick より先に走るため、同週の出産直後に返せる */
+  if(S.mareLeaseIn){
+    const mare=(S.mares||[]).find(m=>m.id===S.mareLeaseIn.mareId);
+    if(!mare){ S.mareLeaseIn=null; }
+    else if(!mare.pregnant && (month()>=7 || (mare.lastFoalYear===year() && month()>=4))){
+      const from=S.mareLeaseIn.from;
+      S.mares=S.mares.filter(x=>x!==mare);
+      S.pregnant=(S.pregnant||[]).filter(p=>p.mareId!==mare.id);
+      S.mareLeaseIn=null;
+      addOwnerRel(from, 5);
+      log(`🌸 借りていた繁殖牝馬 ${mare.name} を ${from} へ返しました`);
+    }
+  }
+}
+function ownerEventPanelHTML(o){
+  const left=Math.max(0,o.expiresWeek-S.week), rel=ownerRelOf(o.stable);
+  let body="", btn="";
+  if(o.kind==="loan"){ body=`${esc(o.stable)} が「<b>${fmt(o.principal)}万円</b> を1年（48週）貸してほしい」と申し出ています（${esc(o.reason)}／金利：年 ${o.rate}%・週 ${fmt(o.weekly)}万円 返済／相手との関係値 ${rel}／期限：あと ${left} 週）。受けると資金から拠出し、返済は相手の賞金収入から週次で行われます。相手の経営が悪化すると延滞・貸し倒れ（担保馬の移籍で一部回収）も起こり得ます。貸付総額には上限（資金に対する割合）があります。`; btn=`貸し付ける（${fmt(o.principal)}万円）`; }
+  else if(o.kind==="buy"){ const kindLbl= o.subKind==="mare"? "繁殖牝馬" : o.subKind==="foal"? "2歳・未出走" : `現役 ${o.age}歳`; body=`${esc(o.stable)} が所属馬「${esc(o.horseName)}」（${kindLbl}／レーティング ${o.rating}）を <b>${fmt(o.price)}万円</b> で買ってくれないかと持ちかけています（市場評価 ${fmt(o.market)}万円／理由：${esc(o.reason)}／相手との関係値 ${rel}／期限：あと ${left} 週）。買うと${o.subKind==="mare"?"繁殖牝馬として":"所有馬として"}自厩舎に入ります。`; btn=`購入する（${fmt(o.price)}万円）`; }
+  else if(o.kind==="leaseOut"){ body=`${esc(o.stable)} があなたの繁殖牝馬「${esc(o.horseName)}」を今シーズンだけ借りたいと申し出ています（貸出料 <b>${fmt(o.fee)}万円</b>／相手の種牡馬 ${esc(o.sireName)} と種付けされ、産駒は ${esc(o.stable)} の生産になります／相手との関係値 ${rel}／期限：あと ${left} 週）。牝馬は来年4月の出産後に戻ります。`; btn=`貸し出す（${fmt(o.fee)}万円）`; }
+  else if(o.kind==="leaseIn"){ body=`${esc(o.stable)} が繁殖牝馬「${esc(o.mare?o.mare.name:"")}」（${o.mare?o.mare.age:""}歳）を今シーズン貸し出すと申し出ています（借入料 <b>${fmt(o.fee)}万円</b>／今季の種付けに使え、生まれた産駒はあなたの生産になります／相手との関係値 ${rel}／期限：あと ${left} 週）。牝馬は出産後（未受胎なら7月）に相手へ戻ります。`; btn=`借りる（${fmt(o.fee)}万円）`; }
+  return `<div class="panel" style="border:2px solid var(--gold)"><b>🤝 ${ownerEventKindName(o)}（${esc(o.stable)}）</b><div class="small" style="margin:3px 0">${body}</div><div class="flex"><button class="btn gold sm" data-oe-accept="${o.id}">${btn}</button><button class="btn ghost sm" data-oe-decline="${o.id}">見送る</button></div></div>`;
+}
+/* 資金繰り画面に出す、馬主との取引状況（貸付残高・返済状況・貸し借り・関係値） */
+function ownerFinanceHTML(){
+  const loans=S.ownerLoans||[], lo=S.mareLeaseOut||[], li=S.mareLeaseIn;
+  if(!loans.length&&!lo.length&&!li) return "";
+  let h=`<div class="panel"><h2 class="sec" style="margin-top:0">🤝 馬主との取引 <span class="tag">貸付・繁殖牝馬の貸し借り</span></h2>`;
+  loans.forEach(L=>{ h+=`<div class="small" style="margin:2px 0">💰 ${esc(L.owner)} への貸付：残高 <b>${fmt(L.balance)}万円</b>（元本 ${fmt(L.principal)}万円／年利 ${L.rate}%／週 ${fmt(L.weekly)}万円 返済／残り ${Math.max(0,L.weeksLeft)} 週${L.missed?`／⚠ 延滞 ${L.missed} 回`:""}）</div>`; });
+  lo.forEach(x=>{ h+=`<div class="small" style="margin:2px 0">🌸 繁殖牝馬 ${esc(x.mare.name)} を ${esc(x.to)} へ貸出中（来年4月に出産後、帰厩します）</div>`; });
+  if(li){ const m=(S.mares||[]).find(x=>x.id===li.mareId); if(m) h+=`<div class="small" style="margin:2px 0">🌸 繁殖牝馬 ${esc(m.name)} を ${esc(li.from)} から借入中（出産後に返却します）</div>`; }
+  h+=`<div class="small" style="margin-top:4px">関係値：${rivalStables().map(st=>`${esc(st.name)} ${ownerRelOf(st.name)}`).join("／")}（取引の成立で上がり、良い条件の申し出につながります）</div></div>`;
+  return h;
 }
 function sellHorseNormal(id){
   const h=S.horses.find(x=>x.id===id); if(!h)return;
@@ -7934,6 +8227,7 @@ function surplusMare(){
 }
 function sellMare(id){
   const m=(S.mares||[]).find(x=>x.id===id); if(!m) return;
+  if(m.leaseFrom){ try{ alert2("借入中の繁殖牝馬です", `${esc(m.name)} は ${esc(m.leaseFrom)} から借りている繁殖牝馬のため、売却できません（出産後に自動で返却されます）`); }catch(e){} return; } /* 借りた牝馬は売れない */
   const price=mareSellPrice(m);
   const rs=mareSellReasons(m);
   confirm2(`${esc(m.name)} を売却しますか？`, `${fmt(price)}万円で売却します（年齢・繁殖成績・血統から算定）。${rs.length?`牧場メモ：${esc(rs[0])}。`:""}売却した牝馬は、ライバル牧場が買い取れば世界に残ります。`,
@@ -11638,7 +11932,7 @@ function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S
  friendship:S.friendship||{}, jockStats:S.jockStats||{}, watchMode:S.watchMode||"full", betPct:S.betPct||0, betCapAuto:S.betCapAuto||0, facilities:S.facilities||{}, building:S.building||{}, mgrPost:S.mgrPost||null, fame:S.fame||0,
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[],
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
- news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null}; d.ck=saveChecksum(d); return d; }
+ news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
   const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
   if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
@@ -12356,6 +12650,7 @@ function worldPanelsHTML(){
   let h="";
   /* 収支・資金繰りの入口（UX中-5：設定画面の中だけに置かない） */
   h+=`<div class="panel"><h2 class="sec" style="margin-top:0">💰 収支・資金繰り</h2><div class="flex"><button class="btn sm" data-money="fin">💰 資金繰り（融資・スポンサー支援）</button><button class="btn sm" data-money="led">📒 月次明細（収支の内訳）</button></div><p class="small" style="margin-top:4px">現在の資金 ${fmt(S.funds)}万円${S.loan?`／借入残高 ${fmt(loanOutstanding())}万円`:""}。設定画面からも開けます。</p></div>`;
+  h+=ownerFinanceHTML();
   const news=S.news||[];
   if(news.length){
     h+=`<div class="panel"><h2 class="sec" style="margin-top:0">📰 競馬新聞 <span class="tag">世界の動き</span></h2>${news.slice(0,6).map(n=>`<div class="ticket"><b>${esc(n.title)}</b> <span class="small">${n.y}年${n.m}月</span><br><span class="small">${esc(n.body)}</span></div>`).join("")}</div>`;
@@ -12608,6 +12903,7 @@ function applySave(d){
   S.stablePolicies=(d.stablePolicies&&typeof d.stablePolicies==="object")?d.stablePolicies:{}; /* 牧場一覧に無い馬主の方針（旧セーブは空で、初回参照時に決定的に割り当てる） */
   S.retiredHorses=Array.isArray(d.retiredHorses)?d.retiredHorses:[]; /* 繁殖入りしなかった引退馬の記録（旧セーブは空） */
   S.transferOffers=Array.isArray(d.transferOffers)?d.transferOffers:[]; S.transferOfferYear=(d.transferOfferYear&&typeof d.transferOfferYear==="object")?d.transferOfferYear:null; /* 馬主からの譲渡オファー（旧セーブは空） */
+  S.ownerEvents=Array.isArray(d.ownerEvents)?d.ownerEvents:[]; S.ownerLoans=Array.isArray(d.ownerLoans)?d.ownerLoans:[]; S.ownerRel=(d.ownerRel&&typeof d.ownerRel==="object")?d.ownerRel:{}; S.ownerEventYear=(d.ownerEventYear&&typeof d.ownerEventYear==="object")?d.ownerEventYear:null; S.mareLeaseOut=Array.isArray(d.mareLeaseOut)?d.mareLeaseOut:[]; S.mareLeaseIn=(d.mareLeaseIn&&typeof d.mareLeaseIn==="object")?d.mareLeaseIn:null; S.leaseFoalDue=Array.isArray(d.leaseFoalDue)?d.leaseFoalDue:[]; /* 馬主イベント拡充（旧セーブは空） */
   S.soldToRival=Array.isArray(d.soldToRival)?d.soldToRival:[]; S.rivalry=Array.isArray(d.rivalry)?d.rivalry:[]; S.saleHist=Array.isArray(d.saleHist)?d.saleHist:[];
   if(d.worldHorses&&d.worldHorses.length&&!d.worldHorses.some(w=>FICTIONAL_WORLD.includes(w.name))){ S.worldHorses=d.worldHorses;
     /* ロスター拡張分（実在馬の追加）は旧セーブにも行き渡らせる */
@@ -13126,9 +13422,23 @@ function autoCfg(){
      指示チェックで決める。旧セーブには無いため未チェック（購入しない）が既定 */
   if(typeof S.autoCfg.buyYoungOmakase!=="boolean") S.autoCfg.buyYoungOmakase=false;
   if(typeof S.autoCfg.buyMareOmakase!=="boolean") S.autoCfg.buyMareOmakase=false;
-  /* 馬主からの譲渡オファーで止まる（stopTransferOffer）：判断が要るイベント
-     なので既定は「止まる」。OFFなら期限切れで自動的に見送る（勝手に売らない） */
-  if(typeof S.autoCfg.stopTransferOffer!=="boolean") S.autoCfg.stopTransferOffer=true;
+  /* オファー類の種類別停止設定（stopOfferNaming／stopOfferTransfer／
+     stopOfferLoan／stopOfferBuy／stopOfferLease）：オファーが届いたら
+     オートを止めて判断を待つかどうかを種類ごとに選ぶ。既定は全種ON
+     （止まる）。OFFの種類は見送り扱い（辞退・期限切れと同じ結果）で
+     オートは止まらずに続く。OFFでも勝手に受諾することは絶対にしない
+     （命名権なら通常の命名に進む）。
+     旧セーブ移行：従来の共通トグル stopTransferOffer があれば、その値を
+     譲渡オファーのチェックに引き継ぎ、他の種類は ON で補完する */
+  const offerLegacy = typeof S.autoCfg.stopTransferOffer==="boolean" ? S.autoCfg.stopTransferOffer : true;
+  if(typeof S.autoCfg.stopOfferNaming!=="boolean") S.autoCfg.stopOfferNaming=true;
+  if(typeof S.autoCfg.stopOfferTransfer!=="boolean") S.autoCfg.stopOfferTransfer=offerLegacy;
+  if(typeof S.autoCfg.stopOfferLoan!=="boolean") S.autoCfg.stopOfferLoan=true;
+  if(typeof S.autoCfg.stopOfferBuy!=="boolean") S.autoCfg.stopOfferBuy=true;
+  if(typeof S.autoCfg.stopOfferLease!=="boolean") S.autoCfg.stopOfferLease=true;
+  /* 旧フィールド stopTransferOffer は「馬主系オファーのいずれかで止まる」の
+     集約として同期しておく（旧コード経路との互換用） */
+  S.autoCfg.stopTransferOffer = !!(S.autoCfg.stopOfferTransfer||S.autoCfg.stopOfferLoan||S.autoCfg.stopOfferBuy||S.autoCfg.stopOfferLease);
   for(const k in d) if(S.autoCfg[k]===undefined) S.autoCfg[k]=d[k];
   if(![1,2,4,8,12,24,36,48].includes(S.autoCfg.weeks)) S.autoCfg.weeks=4;
   if(![-1,0,500,1000,2000].includes(S.autoCfg.fundsMin)) S.autoCfg.fundsMin=-1;
@@ -13151,6 +13461,56 @@ function autoStopSaleFor(kind,cfg){
   const def=saleStopDef(kind); if(!def) return true;
   const c=cfg||autoCfg();
   return c[def.key]!==false;
+}
+/* オファー類の種類定義：キー（autoCfg）・表示名の対応。
+   lease は貸出（leaseOut）と借入（leaseIn）を1つのチェックで扱う */
+const OFFER_STOP_DEFS=[
+  {key:"stopOfferNaming", name:"命名権オファー"},
+  {key:"stopOfferTransfer", name:"幼駒の譲渡オファー"},
+  {key:"stopOfferLoan", name:"貸付の申し出"},
+  {key:"stopOfferBuy", name:"相手からの売却打診"},
+  {key:"stopOfferLease", name:"繁殖牝馬の貸し借り"}
+];
+/* 馬主イベント（ownerEvents）の kind から、種類別チェックのキーを引く */
+function offerStopKeyForOwnerEvent(o){
+  if(!o) return null;
+  if(o.kind==="loan") return "stopOfferLoan";
+  if(o.kind==="buy") return "stopOfferBuy";
+  if(o.kind==="leaseOut"||o.kind==="leaseIn") return "stopOfferLease";
+  return null;
+}
+/* その種類のオファーでオートが止まる設定かどうか（未設定なら安全側＝止まる） */
+function autoStopOfferFor(key,cfg){
+  if(!key) return true;
+  const c=cfg||autoCfg();
+  return c[key]!==false;
+}
+/* オート用：命名権オファーを見送る（辞退と同じ結果）。名前は買い手に
+   付けさせず、年末処理での通常の命名に進む。資金も入らない */
+function autoSkipNamingOffers(){
+  const q=S.nrQueue||[];
+  if(!q.length) return 0;
+  let n=0;
+  while(q.length){
+    const o=q.shift(); n++;
+    const foal=(S.youngStock||[]).find(y=>y.id===o.foalId);
+    if(foal) foal.nrDone=true; /* nrDecline と同じ：この馬は通常命名へ */
+    log(`💼 ${o.buyer} からの命名権オファー（${foal?foal.name:"幼駒"}／${fmt(o.price)}万円）を見送りました ― オートの停止条件（命名権オファー）がOFFのため、通常の命名に進みます`);
+  }
+  return n;
+}
+/* オート用：OFF設定の種類のオファーを見送る（辞退と同じ処理・記録に
+   「見送り」と残す）。受諾側の処理は絶対に呼ばない */
+function autoSkipOfferKind(key,cfg){
+  let n=0;
+  if(key==="stopOfferNaming"){ n+=autoSkipNamingOffers(); }
+  if(key==="stopOfferTransfer"){
+    (S.transferOffers||[]).slice().forEach(o=>{ if(o.expiresWeek>=S.week){ declineTransferOffer(o.id); n++; } });
+  }
+  if(key==="stopOfferLoan"||key==="stopOfferBuy"||key==="stopOfferLease"){
+    (S.ownerEvents||[]).slice().forEach(o=>{ if(o.expiresWeek>=S.week&&offerStopKeyForOwnerEvent(o)===key){ declineOwnerEvent(o.id); n++; } });
+  }
+  return n;
 }
 /* エントリー中のレースが、オートの停止対象かどうか（クラスで判定） */
 function autoRaceStopFor(ne){
@@ -13472,10 +13832,28 @@ function autoStepBody(){
      停止条件（資金繰り／資金下限）になるようにする */
   if(S.funds<0){ autoStop("資金がマイナスになったため停止しました（立て直し案を確認してください）"); return; }
   if(cfg.fundsMin>=0&&S.funds<cfg.fundsMin){ autoStop(`資金が下限（${fmt(cfg.fundsMin)}万円）を下回ったため停止しました`); return; }
+  /* オファー類は種類別チェックで判定する（従来の共通トグルは廃止）：
+     ONの種類だけが止まり、OFFの種類は見送り処理をして進行を続ける。
+     確認画面チェックより先に判定し、止まる理由が種類名になるようにする */
+  try{
+    if((S.nrQueue||[]).length){
+      if(autoStopOfferFor("stopOfferNaming",cfg)){ autoStop(`命名権オファーが届いています。画面のオファーで売るか断るか決めてください（停止条件：命名権オファー）`); return; }
+      autoSkipOfferKind("stopOfferNaming",cfg);
+    }
+    const ao=(S.transferOffers||[]).find(o=>o.expiresWeek>=S.week);
+    if(ao){
+      if(autoStopOfferFor("stopOfferTransfer",cfg)){ autoStop(`馬主からの譲渡オファーが届いています（${ao.horseName}／${ao.buyer}／${fmt(ao.price)}万円）。厩舎ホームで受けるか見送るか決めてください`); return; }
+      autoSkipOfferKind("stopOfferTransfer",cfg);
+    }
+    const oe=(S.ownerEvents||[]).find(o=>o.expiresWeek>=S.week);
+    if(oe){
+      const ok=offerStopKeyForOwnerEvent(oe);
+      if(autoStopOfferFor(ok,cfg)){ autoStop(`馬主からの申し出が届いています（${ownerEventKindName(oe)}／${oe.stable||""}）。厩舎ホームで受けるか見送るか決めてください`); return; }
+      autoSkipOfferKind(ok,cfg);
+    }
+  }catch(e){}
   const ov=$("#overlay");
   if(ov&&ov.style.display&&ov.style.display!=="none"){ autoStop("確認画面が出たため停止しました（画面の内容を確認してください）"); return; }
-  /* 馬主からの譲渡オファーが届いていて停止設定がONなら、判断してもらうため止まる */
-  try{ const ao=(S.transferOffers||[]).find(o=>o.expiresWeek>=S.week); if(ao&&cfg.stopTransferOffer!==false){ autoStop(`馬主からの譲渡オファーが届いています（${ao.horseName}／${ao.buyer}／${fmt(ao.price)}万円）。厩舎ホームで受けるか見送るか決めてください`); return; } }catch(e){}
   const injNow=autoInjuredKey();
   if(injNow!==AUTO.injured){
     const grew=injNow.split(",").some(x=>x!==""&&!AUTO.injured.split(",").includes(x));
@@ -13594,6 +13972,7 @@ function renderAutoBar(){
 }
 function showAutoSettings(){
   const cfg=autoCfg();
+  const offerStopNames=OFFER_STOP_DEFS.filter(d=>cfg[d.key]!==false).map(d=>d.name);
   const tog=(key,label)=>`<div class="ticket"><b>${label}</b><div class="mt"><button class="btn sm ${cfg[key]?"gold":"ghost"}" data-autog="${key}">${cfg[key]?"ON（止まる）":"OFF（止まらない）"}</button></div></div>`;
   /* おまかせ状況サマリー：有効中の自動処理と停止条件をチップで一覧し、
      各チップから該当設定へ1タップで移動できるようにする（自動化の見える化） */
@@ -13601,7 +13980,7 @@ function showAutoSettings(){
   const chip=(on,label,jump)=>`<button class="planchip ${on?"fixed":""}" data-omkjump="${jump||""}" style="margin:2px 2px 2px 0">${on?"●":"○"} ${label}</button>`;
   const summary=`<div class="ticket" style="border-color:var(--gold)"><b>🤝 おまかせ状況（いま任せていること）</b>
   <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(!!cfg.mateOmakase,"おまかせ種づけ（調教師への指示）","trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmt(cfg.mateBudgetSeason||0)}万円／シーズン（使用済み ${fmt(mateSeasonSpent())}万円）`,"mate")} ${chip(!!cfg.buyYoungOmakase,"幼駒のおまかせ購入（調教師への指示）","trainer")} ${chip(!!cfg.buyMareOmakase,"繁殖牝馬のおまかせ購入（調教師への指示）","trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
-  <div class="small" style="margin-top:4px">止まる条件：${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", cfg.stopTransferOffer?"譲渡オファー":"", cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", cfg.mateOmakase===false?"種付け":"", "年末（表彰式・年末処理）・資金マイナス・確認画面"].filter(Boolean).join("／")}</div></div>`;
+  <div class="small" style="margin-top:4px">止まる条件：${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", offerStopNames.length? ("オファー："+offerStopNames.join("／")) : "オファーは全て見送り", cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", cfg.mateOmakase===false?"種付け":"", "年末（表彰式・年末処理）・資金マイナス・確認画面"].filter(Boolean).join("／")}</div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   ${summary}<div class="ticket"><b>💤 スリープ防止</b><br><span class="small">オート実行中は画面スリープを防止します（Wake Lock API${"wakeLock" in navigator?"に対応しています":"未対応の環境では無音動画で防止を試みます"}）。オートを止めると解放されます。</span></div>
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
@@ -13617,7 +13996,12 @@ function showAutoSettings(){
   ${tog("stopSaleYoung","8月第1週・幼駒セールで止まる")}
   ${tog("stopSaleMare","10月第1週・繁殖牝馬セールで止まる")}
   ${tog("stopSaleOverseas","12月第3週・海外トレーニングセールで止まる")}
-  ${tog("stopTransferOffer","馬主からの譲渡オファーで止まる（OFFなら期限切れで自動的に見送り・勝手に売りません）")}
+  <p class="small mt"><b>オファーで止まるか（種類ごとに選べます）</b><br>ONにした種類は、オファーが来たらオートを止めて判断を待ちます。OFFにした種類は見送り扱い（辞退・期限切れと同じ結果）で、記録に「見送り」と残してオートを続けます。OFFでも勝手に受諾することはありません。</p>
+  ${tog("stopOfferNaming","命名権オファーで止まる（OFFなら見送って通常の命名に進みます）")}
+  ${tog("stopOfferTransfer","幼駒の譲渡オファーで止まる（OFFなら見送ります。勝手に譲渡しません）")}
+  ${tog("stopOfferLoan","貸付の申し出で止まる（OFFなら見送ります。勝手に貸しません）")}
+  ${tog("stopOfferBuy","相手からの売却打診で止まる（OFFなら見送ります。勝手に買いません）")}
+  ${tog("stopOfferLease","繁殖牝馬の貸し借りで止まる（OFFなら見送ります。勝手に貸したり借りたりしません）")}
   <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${cfg.buyYoungOmakase?"ON":"OFF"}</b>／繁殖牝馬 <b>${cfg.buyMareOmakase?"ON":"OFF"}</b>）は調教師への指示で決めます。ONのセール種別は、止まらず通過する時に調教師評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
   <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${cfg.mateOmakase?"おまかせ種づけする（代行する）":"代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
   <label class="small" style="display:block;margin-top:10px">代行種付けのシーズン予算上限（5〜6月の合計金額。手動の種付けには適用されません）<br><select id="auto-mate-budget" style="width:100%">${[[0,"上限なし"],[1000,"1,000万円まで"],[2000,"2,000万円まで"],[3000,"3,000万円まで"],[5000,"5,000万円まで"],[10000,"1億円まで"]].map(([v,l])=>`<option value="${v}" ${cfg.mateBudgetSeason===v?"selected":""}>${l}</option>`).join("")}</select></label><p class="small" style="margin-top:4px">今シーズンの代行種付けの使用済み：${fmt(mateSeasonSpent())}万円</p></div>
