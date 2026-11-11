@@ -1363,6 +1363,8 @@ html,body{ height:100%; overflow:hidden; }
 .view{ display:none; height:100%; }
 .view.on{ display:flex; flex-direction:column; gap:8px; overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; }
 .subnav{ display:flex; gap:6px; flex:none; }
+#v-farm .subnav{ flex-wrap:wrap; }
+#v-farm .subnav button{ flex:1 1 16%; }
 .subnav button{ flex:1 1 0; min-width:0; min-height:42px; border-radius:10px; border:2px solid #cbbd7a; background:#fffdf4; font-weight:800; font-size:13px; color:var(--ink); padding:4px 2px; white-space:normal; line-height:1.25; }
 .subnav button.on{ background:linear-gradient(180deg,#ffe066,#f5b90d); border-color:#b8860b; color:#3a2400; }
 .subpanel{ display:none; flex:1 1 auto; min-height:0; }
@@ -5907,7 +5909,9 @@ function bizPanelHTML(){ const eq=farmEquityPct(), val=farmValue(), unit5=Math.r
   <div class="mt"><b>預かり料（支払い）</b><div class="uchips" style="margin-top:4px"><span class="uchip">牧場にいる馬 <span class="uv">${fh}頭</span></span><span class="uchip">単価 <span class="uv">${BOARD_PER_HEAD_M}万円/月・頭</span></span><span class="uchip">実質負担 <span class="uv">${fmt(feeM)}万円/月</span></span><span class="uchip dim">在厩の現役馬は対象外（預託料の側）</span></div></div>
   <div class="mt"><b>配当</b><div class="uchips" style="margin-top:4px"><span class="uchip">今年の事業収益見込み <span class="uv">${fmt(rev)}万円</span></span><span class="uchip">配当見込み <span class="uv">${fmt(divEst)}万円</span></span>${ld?`<span class="uchip gold">前回配当 <span class="uv">${fmt(ld.amount)}万円</span></span>`:`<span class="uchip dim">配当実績なし</span>`}</div><div class="small">配当は年末に、事業収益の6割を持分比率で受け取ります。</div></div>
   <div class="mt"><b>預かり事業（他馬主の馬）</b><div class="uchips" style="margin-top:4px"><span class="uchip">預かり可能 <span class="uv">${cap}頭</span></span><span class="uchip">預かり中 <span class="uv">${bn}頭</span></span>${eq>=100?`<span class="uchip gold">収入 <span class="uv">${fmt(bn*BOARD_PER_HEAD_M)}万円/月</span></span>`:`<span class="uchip dim">買収後に収入が入ります（現在は配当の原資）</span>`}</div></div>
-  <div class="mt"><b>会社・牧場イベント</b><div class="small">会社の設立、12の担当枠、牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）の実施と結果レポートは「会社・イベント」タブにあります。</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-goto-company="1">会社・イベントを開く</button></div></div></div>`; }
+  <div class="mt"><b>会社・牧場イベント</b><div class="small">会社の設立、12の担当枠、牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）の実施と結果レポートは「会社・イベント」タブにあります。</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-goto-company="1">会社・イベントを開く</button></div></div>
+  <div class="mt"><b>海外牧場</b><div class="small">欧州牧場（開設費 30億円／月維持費 900万円）と米国牧場（開設費 35億円／月維持費 1,100万円）。開設条件は名声50以上・G1 3勝以上・開設費分の資金で、開くとその地域への遠征費が半額になるなどの恩恵があります。条件の充足状況と開設ボタンは専用パネルにあります。</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-goto-overseas="1">海外牧場の開設・状況を見る</button></div></div>
+  <div class="mt"><b>月次報告書</b><div class="small">毎月末に正担当全員から届く報告書（今月の実績・収支・来月の予定）は「報告書」タブで読めます${(S.reportUnread||0)>0?`（新着 ${S.reportUnread}件）`:""}。</div><div class="flex" style="margin-top:4px"><button class="btn gold sm" data-goto-reports="1">報告書を開く</button></div></div></div>`; }
 function clubDebut(o){
   if(!S.club||!o||o.debuted) return; o.debuted=true;
   try{ const base=clamp(Math.round(((o.potAvg||o.avg||55)+(o.avg||55))/2),45,92);
@@ -13657,6 +13661,38 @@ function clubPanelHTML(){
   <div class="mt"><b>馬主リーディング（クラブ別・累計賞金）</b><div class="small">${(()=>{ const rows=[[`${c.name}（自分のクラブ）`, c.prize||0, c.gWins||0, c.g1Wins||0]]; try{ rivalStables().forEach(st=>rows.push([st.name, st.clubPrize||0, st.clubGWins||0, st.clubG1Wins||0])); }catch(e){} return rows.sort((a,b)=>b[1]-a[1]).map((x,i)=>`${i+1}位 ${esc(x[0])} ${fmt(x[1])}万円（重賞 ${x[2]}勝・G1 ${x[3]}勝）`).join("<br>"); })()}</div><div class="small">ライバルクラブの成績は、世界の馬が実際に走った全レースの台帳から集計しています。</div></div>
   </div>`;
 }
+/* ============ 海外牧場（専用パネル：開設カード） ============
+   以前は「記録」パネルの折りたたみ「分場」の奥にしか開設ボタンがなく、
+   条件もその場所でしか分からなかった。馬主タブのサブナビに専用の
+   「海外牧場」を置き、地域ごとの開設カード（費用・維持費・工期・恩恵・
+   条件の充足状況・開設ボタン）をここに集約する。開設条件は両地域共通で
+   名声50以上・G1 3勝以上・開設費分の資金（records側の判定と同一）。 */
+function overseasCardHTML(rg){
+  const F=OV_FARMS[rg]; ensureOverseasFarm();
+  const st=S.overseasFarm&&S.overseasFarm.farms? S.overseasFarm.farms[rg] : null;
+  const fameOk=(S.fame||0)>=50, g1Ok=(S.g1Wins||0)>=3, fundsOk=S.funds>=F.cost;
+  const can=fameOk&&g1Ok&&fundsOk;
+  const benefits= rg==="eu"
+    ? ["欧州への遠征費が半額","遠征時コンディション +4","欧州の種牡馬は種付け料2割引","欧州生まれ産駒はスタミナ底上げ","欧州の調教師を雇用できる"]
+    : ["米国への遠征費が半額","遠征時コンディション +4","米国の種牡馬は種付け料2割引","米国生まれ産駒はパワー底上げ","米国の調教師を雇用できる"];
+  const benChips=`<div class="uchips" style="margin-top:4px">${benefits.map(b=>`<span class="uchip">${b}</span>`).join("")}</div>`;
+  const head=`<div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>🌍 ${F.name}</b>${st&&st.built?`<span class="uchip gold">開設済み</span>`:st?`<span class="uchip">建設中</span>`:`<span class="uchip">未開設</span>`}</div>
+  <div class="uchips" style="margin-top:4px"><span class="uchip">開設費 <span class="uv">${fmt(F.cost)}万円（${rg==="eu"?"30億円":"35億円"}）</span></span><span class="uchip">月維持費 <span class="uv">${fmt(F.upkeep)}万円</span></span><span class="uchip">工期 <span class="uv">${F.weeks}週</span></span></div>${benChips}`;
+  if(st&&st.built) return `<div class="panel" style="margin:0;outline:2px solid #c9a227">${head}<div class="small" style="margin-top:4px">開設済みです。上の恩恵はすべて有効で、月維持費 ${fmt(F.upkeep)}万円 が毎月かかります。</div></div>`;
+  if(st) return `<div class="panel" style="margin:0">${head}<div class="small" style="margin-top:4px">建設中です（完成まであと ${st.weeks}週）。完成すると恩恵が有効になります。</div></div>`;
+  const missing=[!fameOk?`名声があと ${50-(S.fame||0)}`:null, !g1Ok?`G1勝利があと ${3-(S.g1Wins||0)}勝`:null, !fundsOk?`資金があと ${fmt(F.cost-S.funds)}万円`:null].filter(Boolean);
+  return `<div class="panel" style="margin:0">${head}
+  <div class="small" style="margin-top:6px"><b>開設条件</b>（すべて満たすと開設できます）</div>
+  <div class="uchips" style="margin-top:3px"><span class="uchip ${fameOk?"gold":""}">名声 50以上（現在 ${S.fame||0}）${fameOk?" ✓":" ×"}</span><span class="uchip ${g1Ok?"gold":""}">G1 3勝以上（現在 ${S.g1Wins||0}勝）${g1Ok?" ✓":" ×"}</span><span class="uchip ${fundsOk?"gold":""}">資金 ${fmt(F.cost)}万円以上（現在 ${fmt(S.funds)}万円）${fundsOk?" ✓":" ×"}</span></div>
+  <div class="flex" style="margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap"><button class="btn gold" data-ovfarm="${rg}" ${can?"":"disabled"}>${F.name}を開設する（${fmt(F.cost)}万円）</button>${can?`<span class="small">押すと工事が始まります（${F.weeks}週）</span>`:`<span class="small" style="color:var(--red);font-weight:700">不足：${missing.join("／")}</span>`}</div></div>`;
+}
+function overseasPanelHTML(){
+  ensureOverseasFarm();
+  let h=`<div class="panel"><b>海外牧場の開設</b><div class="small" style="margin-top:3px">欧州と米国の2か所に分場を開設できます。開設条件は両地域共通で、名声50以上・G1 3勝以上・開設費分の資金です。工事は24週かかり、完成後は月維持費がかかりますが、その地域への遠征費が半額になるなどの恩恵がずっと効きます。現在の資金 ${fmt(S.funds)}万円／名声 ${S.fame||0}／G1 ${S.g1Wins||0}勝。</div></div>`;
+  h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">${overseasCardHTML("eu")}${overseasCardHTML("us")}</div>`;
+  h+=`<div class="panel"><b>クラブ牧場</b><div class="small" style="margin-top:3px">${S.clubFarm?`開設済みです。`:`クラブ設立＋名声20以上＋資金1億円以上で開設できます（現在 名声 ${S.fame||0}／資金 ${fmt(S.funds)}万円${S.club?"":"／クラブ未設立"}）。`}</div>${S.clubFarm?"":`<div class="flex" style="margin-top:6px"><button class="btn sm" id="btn-clubfarm" ${(S.club&&(S.fame||0)>=20&&S.funds>=10000)?"":"disabled"}>クラブ牧場を開設する（1億円）</button></div>`}</div>`;
+  return h;
+}
 function renderFarm(){
  const el=$("#v-farm");
  const sp=farmSpaces(); const cats=facCatTotals();
@@ -13667,7 +13703,8 @@ function renderFarm(){
  const preview={}; FAC_CATS.forEach(c=>preview[c]=0);
  if(sf){ const lv0=facLv(sf.id); if(facBuilding(sf.id)===0 && lv0<(sf.maxLv||2)){ const mul=S.mgrPost===sf.id?1.5:1; const inc=(lv0+1)*mul - lv0*(S.mgrPost===sf.id?1.5:1); if(lv0===0||true){ const curEff=facEffect(sf.id); const nextEff=(lv0+1)*mul; const d=Math.max(0,nextEff-curEff); preview[sf.cat]=(preview[sf.cat]||0)+d; if(sf.id==="merit"){preview["名声"]+=d*0.6;} if(sf.id==="tourism"){preview["名声"]+=d*0.3;} } } }
  const upkeepM=FACILITIES.reduce((a,f)=>a+facMaintM(f,facLv(f.id)),0)+overseasUpkeepM();
- let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["company","会社・イベント"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
+ const repUn=S.reportUnread||0;
+ let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["overseas","海外牧場"],["company","会社・イベント"],["reports",repUn>0?`報告書（${repUn}）`:"報告書"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
  /* 牧場マップ：イラストの上に施設オブジェクトを置き、タップで選択する */
  { const pos=[[12,13],[37,13],[62,13],[87,13],[12,25],[37,25],[62,25],[87,25],[12,37],[37,37],[62,37],[87,37],[12,49],[37,49],[62,49],[87,49],[12,61],[37,61],[62,61],[87,61],[12,73],[37,73],[62,73],[87,73],[12,85],[37,85],[62,85],[87,85],[12,97],[37,97],[62,97]];
    html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<small>${bd>0?"工事中":lv>0?"Lv"+lv+"/"+facMaxLv(f):"未建設"}</small></button>`; }).join("")}</div>`;
@@ -13679,7 +13716,7 @@ function renderFarm(){
      return `<div class="panel" style="margin:0;${isCur?"outline:2px solid #c9a227":""}"><div class="flex" style="gap:8px;align-items:flex-start">${spouseFaceSVG(m.name, m.sex)}<div style="flex:1;min-width:0"><b>${esc(m.name)}</b> <span class="uchip">${esc(m.source)}</span>${isCur?` <span class="uchip gold">現在の牧場長</span>`:""}<div class="small">${esc(m.desc||"")}</div><div style="margin-top:3px">${rankTilesHTML(m.ranks, MGR_ABIL)}</div><div class="small">育成方針：${esc(m.policy||"―")}${m.facility?`／得意施設：${esc(m.facility)}`:""}${hire?`／月給 ${fmt(m.salary||0)}万円`:""}</div></div></div>${isCur?`<div class="small mt">牧場長として勤務中です</div>`: hire? `<button class="btn gold sm mt" data-mgr-hire="${m.idNum}" ${S.funds>=(m.salary||0)*2?"":"disabled"}>雇用して牧場長に任命（契約金 ${fmt((m.salary||0)*2)}万円）</button>` : `<button class="btn sm mt" data-mgr-appoint="${esc(m.id)}">この人を牧場長に任命する</button>`}</div>`; };
    const affCards=mgrAffiliatedIds().map(id=>mgrResolve(id)).filter(Boolean).map(m=>mgrCard(m,false)).join("");
    const candCards=(S.mgrCandidates||[]).map(c=>mgrCard({id:"cand:"+c.id, idNum:c.id, name:c.name, sex:c.sex, ranks:c.ranks, source:"新規雇用", policy:c.policy, facility:c.facility, desc:c.desc, salary:c.salary}, true)).join("");
-   html+=`<div class="panel"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>牧場長：${esc(mgr.name)}</b><span class="uchip gold">${esc(mgr.source)}</span></div> <span class="small">${esc(mgr.desc||"")}／育成方針：${esc(mgr.policy||"―")}${mgr.facility?`／得意施設：${esc(mgr.facility)}`:""}</span><br>
+   html+=`<div class="panel"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>牧場長：${esc(mgr.name)}</b><span class="uchip gold">${esc(mgr.source)}</span><button class="btn sm gold" id="btn-mgr-open">牧場長を変更する</button></div> <span class="small">${esc(mgr.desc||"")}／育成方針：${esc(mgr.policy||"―")}${mgr.facility?`／得意施設：${esc(mgr.facility)}`:""}</span><br>
  <span class="small">能力：</span>${rankTilesHTML(mgr.ranks, MGR_ABIL)}
  <div class="small" style="margin-top:3px">牧場長の能力は、受胎率（種付け）・幼駒の判明と成長（馴致）・故障の回復（健康管理）・配合の爆発力（血統知識）・セール評価の精度（相馬眼）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力も加わります。</div>
  <br><label class="small">配置先 <select id="mgr-post"><option value="">配置しない</option>${FACILITIES.filter(f=>facLv(f.id)>0).map(f=>`<option value="${f.id}" ${S.mgrPost===f.id?"selected":""}>${f.n}</option>`).join("")}</select></label> <span class="small">${mgr.facility?`得意施設（${esc(mgr.facility)}）に配置すると効果がさらに上がります。`:""}現在：${postName}</span>
@@ -13693,7 +13730,19 @@ function renderFarm(){
  }
  /* 会社・牧場イベントへの入口カード（タブに埋もれないよう牧場トップにも出す） */
  { const c=S.company; const rep=c&&c.lastReport; const planMain=c? compMain("plan") : null; const ready=!!(c&&planMain&&S.week>=(c.eventCdUntil||0));
-   html+=`<div class="panel" style="border:2px solid #c9a227"><b>🎪 会社・牧場イベント</b><div class="small" style="margin:3px 0">${!c?`牧場イベントは会社化すると開けます（条件：名声${FOUND_FAME}以上・設立費 ${fmt(FOUND_COST)}万円／現在 名声 ${S.fame||0}・資金 ${fmt(S.funds)}万円）。会社の設立も「会社・イベント」タブで行えます。`: ready?`イベントを実施できます（事業担当：${esc(planMain.name)}）。見学会／ファン感謝祭／マルシェ／チャリティオークションから種類と規模を選んで実施すると、結果レポートが残ります。`: planMain?`前回のイベントから間隔が必要です（次回まであと ${(c.eventCdUntil||0)-S.week} 週）。担当枠の確認は「会社・イベント」タブでできます。`:`イベントには事業担当（正）の配置が必要です。「会社・イベント」タブでスタッフを雇って配置してください。`}${rep?`<br>前回の結果：${esc(rep.type)}（${esc(rep.size)}）― 来場 ${rep.att.toLocaleString()}人／収支 ${rep.income-rep.cost>=0?"+":""}${fmt(rep.income-rep.cost)}万円`:""}</div><button class="btn gold sm" data-goto-company="1">${c?"会社・イベントを開く":"会社化の案内を見る"}</button></div>`;
+   html+=`<div class="panel" style="border:2px solid #c9a227"><b>🎪 会社・牧場イベント</b><div class="small" style="margin:3px 0">${!c?`牧場イベントは会社化すると開けます（条件：名声${FOUND_FAME}以上・設立費 ${fmt(FOUND_COST)}万円／現在 名声 ${S.fame||0}・資金 ${fmt(S.funds)}万円）。会社の設立も「会社・イベント」タブで行えます。`: ready?`イベントを実施できます（事業担当：${esc(planMain.name)}）。見学会／ファン感謝祭／マルシェ／チャリティオークションから種類と規模を選んで実施すると、結果レポートが残ります。`: planMain?`前回のイベントから間隔が必要です（次回まであと ${(c.eventCdUntil||0)-S.week} 週）。担当枠の確認は「会社・イベント」タブでできます。`:`イベントには事業担当（正）の配置が必要です。「会社・イベント」タブでスタッフを雇って配置してください。`}${rep?`<br>前回の結果：${esc(rep.type)}（${esc(rep.size)}）― 来場 ${rep.att.toLocaleString()}人／収支 ${rep.income-rep.cost>=0?"+":""}${fmt(rep.income-rep.cost)}万円`:""}</div><div class="flex" style="gap:6px;flex-wrap:wrap"><button class="btn gold sm" data-goto-company="1">${c?"会社・イベントを開く":"会社化の案内を見る"}</button>${c?`<button class="btn sm" data-goto-meeting="1">🏛 株主総会を開く${(c.proposals||[]).length?`（議案 ${(c.proposals||[]).length}件）`:""}</button><span class="small">担当枠の「✨ 適正配置」もこのタブにあります</span>`:""}</div></div>`;
+ }
+ /* 月次報告書への入口カード（サブナビ「報告書」と同じ専用パネルへ。
+    以前は会社パネルの先頭にしか無く、未読があっても辿り着けなかった） */
+ { const reps=Array.isArray(S.reports)? S.reports : []; const un=S.reportUnread||0; const latest=reps[0];
+   html+=`<div class="panel" ${un?`style="border:2px solid #c9a227"`:""}><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>📬 月次報告書</b>${un?`<span class="uchip gold">新着 ${un}件</span>`:`<span class="uchip">新着なし</span>`}</div><div class="small" style="margin:3px 0">${latest?`最新は ${esc(latest.label)}分（収入 ${fmt(latest.totI)}万円／支出 ${fmt(latest.totO)}万円／差引 ${fmt(latest.totI-latest.totO)}万円）。正担当全員の報告（今月の実績・収支・来月の予定）が読めます。`:`まだ報告書はありません。月の終わり（月末の週処理）に、正担当全員からその月の実績・収支・来月の予定をまとめた報告書が届き、ここから読めます。`}</div><button class="btn gold sm" data-goto-reports="1">報告書を開く</button></div>`;
+ }
+ /* 海外牧場への入口カード（専用パネル「海外牧場」へ。以前は記録パネルの
+    折りたたみの奥にしか開設ボタンがなかった） */
+ { ensureOverseasFarm(); const stOf=rg=> S.overseasFarm&&S.overseasFarm.farms? S.overseasFarm.farms[rg] : null;
+   const line=rg=>{ const F=OV_FARMS[rg], st=stOf(rg); return st&&st.built? `${F.name}：開設済み（月 ${fmt(F.upkeep)}万円）` : st? `${F.name}：建設中（あと ${st.weeks}週）` : `${F.name}：未開設（開設費 ${fmt(F.cost)}万円）`; };
+   const allBuilt=["eu","us"].every(rg=>{ const st=stOf(rg); return st&&st.built; });
+   html+=`<div class="panel"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><b>🌍 海外牧場</b><span class="uchip">${allBuilt?"欧州・米国とも開設済み":"開設条件：名声50以上・G1 3勝以上"}</span></div><div class="small" style="margin:3px 0">${line("eu")}<br>${line("us")}<br>現在 名声 ${S.fame||0}／G1 ${S.g1Wins||0}勝／資金 ${fmt(S.funds)}万円。開設カード（費用・維持費・恩恵・条件の充足状況と開設ボタン）は専用パネルにあります。</div><button class="btn gold sm" data-goto-overseas="1">海外牧場の開設・状況を見る</button></div>`;
  }
  html+=`<div class="panel"><b>牧場状況と施設効果</b>
  <div class="small" style="margin:3px 0">スペース ${sp.used}/${sp.base}（空き ${sp.free}／名声ボーナス +${sp.fameBonus}）／月維持費 ${fmt(upkeepM)}万円／繋養上限：繁殖牝馬 ${mareCap()}頭・種牡馬 ${sireCap()}頭／名声 ${S.fame||0}</div>
@@ -13792,12 +13841,13 @@ function renderFarm(){
     （以前はパネルの外に常時表示され、スクロール領域を圧迫していた） */
  html+=`<details class="fold"><summary>分場（海外牧場・クラブ牧場）</summary><div class="foldbody"><div class="panel">`;
  ensureOverseasFarm();
- html+=["eu","us"].map(rg=>{ const F=OV_FARMS[rg], st=S.overseasFarm&&S.overseasFarm.farms? S.overseasFarm.farms[rg] : null; const can=(S.fame||0)>=50&&(S.g1Wins||0)>=3&&S.funds>=F.cost;
-    if(st&&st.built) return `<p>🌍 ${F.name}を開設済み（月維持費 ${fmt(F.upkeep)}万円）。その地域への遠征費は半額、遠征時のコンディション優遇、現地の種牡馬は種付け料2割引、現地生まれの産駒に適性の底上げがあります。</p>`;
+ html+=["eu","us"].map(rg=>{ const F=OV_FARMS[rg], st=S.overseasFarm&&S.overseasFarm.farms? S.overseasFarm.farms[rg] : null;
+    if(st&&st.built) return `<p>🌍 ${F.name}を開設済み（月維持費 ${fmt(F.upkeep)}万円）。</p>`;
     if(st) return `<p>🌍 ${F.name}は建設中です（完成まであと ${st.weeks}週）。</p>`;
-    return `<p class="small">${F.name}：開設費 ${fmt(F.cost)}万円／月維持費 ${fmt(F.upkeep)}万円／工期 ${F.weeks}週。条件：名声50以上・G1 3勝以上（現在 名声${S.fame||0}／G1 ${S.g1Wins||0}勝）。</p><button class="btn sm" data-ovfarm="${rg}" ${can?"":"disabled"}>${F.name}を開設する（${fmt(F.cost)}万円）</button>${can?"":`<span class="small"> 条件を満たしていません</span>`}`; }).join("");
+    return `<p class="small">${F.name}：未開設（開設費 ${fmt(F.cost)}万円／月維持費 ${fmt(F.upkeep)}万円）。条件：名声50以上・G1 3勝以上・開設費分の資金（現在 名声${S.fame||0}／G1 ${S.g1Wins||0}勝／資金 ${fmt(S.funds)}万円）。</p>`; }).join("");
+ html+=`<div class="flex" style="margin-top:6px"><button class="btn gold sm" data-goto-overseas="1">海外牧場の開設・詳細を見る（馬主タブ→海外牧場）</button></div>`;
  if(S.clubFarm) html+=`<p>🏇 クラブ牧場を開設済み。</p>`;
- else html+=`<p class="small">クラブ牧場：クラブ設立＋名声20以上＋資金1億円以上で開設できます。</p><button class="btn sm" id="btn-clubfarm" ${(S.club&&(S.fame||0)>=20&&S.funds>=10000)?"":"disabled"}>開設する（1億円）</button>`;
+ else html+=`<p class="small">クラブ牧場：クラブ設立＋名声20以上＋資金1億円以上で開設できます（開設は「海外牧場」パネルからもできます）。</p>`;
  html+=`</div></div></details>`;
  /* クラブ（記録パネル内は入口だけ：本体は牧場タブ「クラブ」に集約） */
  html+=`<details class="fold"><summary>クラブ</summary><div class="foldbody"><div class="panel">`;
@@ -13812,6 +13862,8 @@ function renderFarm(){
   html+=panelOpen("farm","family")+`<h2 class="sec">家庭 <span class="tag">結婚・配偶者・子供</span></h2>`+familyPanelHTML()+panelClose();
   html+=panelOpen("farm","biz")+`<h2 class="sec">経営 <span class="tag">牧場の持分・配当・預かり事業</span></h2>`+bizPanelHTML()+panelClose();
   html+=panelOpen("farm","company")+`<h2 class="sec">会社 <span class="tag">経営組織・13担当枠・役員・株主総会・牧場イベント</span></h2>`+companyPanelHTML()+panelClose();
+  html+=panelOpen("farm","overseas")+`<h2 class="sec">海外牧場 <span class="tag">欧州・米国の分場／開設条件と開設ボタンはここ</span></h2>`+overseasPanelHTML()+panelClose();
+  html+=panelOpen("farm","reports")+`<h2 class="sec">月次報告書 <span class="tag">毎月末に正担当全員が提出・過去24か月分</span></h2>`+reportsHTML()+panelClose();
  html+=`</div>`;
  el.innerHTML=html;
  el.querySelectorAll("[data-fmark]").forEach(b=>b.addEventListener("click",()=>{ selFac=b.dataset.fmark; UI.farm="fac"; renderAll(); }));
@@ -13821,6 +13873,10 @@ function renderFarm(){
  /* 会社・イベントへの入口と会社パネルの操作（以前は配線が調教画面側にあり、
     牧場画面ではタブ自体も無くボタンも反応しなかったため、ここへ集約した） */
  el.querySelectorAll("[data-goto-company]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="company"; renderAll(); window.scrollTo(0,0); }));
+ el.querySelectorAll("[data-goto-reports]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="reports"; renderAll(); window.scrollTo(0,0); }));
+ el.querySelectorAll("[data-goto-overseas]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="overseas"; renderAll(); window.scrollTo(0,0); }));
+ el.querySelectorAll("[data-goto-meeting]").forEach(b=>b.addEventListener("click",()=>{ UI.farm="company"; renderAll(); window.scrollTo(0,0); setTimeout(()=>{ const t=document.getElementById("meeting-panel"); if(t) t.scrollIntoView({block:"start"}); },60); }));
+ const bmo2=el.querySelector("#btn-mgr-open"); if(bmo2) bmo2.addEventListener("click",()=>{ const ds=el.querySelectorAll("details"); for(const d of ds){ const sm=d.querySelector("summary"); if(sm&&sm.textContent.includes("牧場長を変更する")){ d.open=true; d.scrollIntoView({block:"start"}); break; } } });
  const bf0=el.querySelector("#btn-found-company"); if(bf0) bf0.addEventListener("click",()=>foundCompany());
  const bopt=el.querySelector("#btn-comp-opt"); if(bopt) bopt.addEventListener("click",()=>optimizeCompRoles());
  el.querySelectorAll("[data-comp-main]").forEach(sel=>sel.addEventListener("change",()=>setCompMain(sel.dataset.compMain, sel.value)));
@@ -13835,7 +13891,7 @@ function renderFarm(){
  const bins=el.querySelector("#btn-comp-ins"); if(bins) bins.addEventListener("click",()=>{ const c=compState(); if(!c) return; c.insOn=!c.insOn; log(c.insOn?"🛡 競走馬保険に加入しました（掛金は毎月、故障時に給付金）":"競走馬保険を解約しました"); saveAuto(); renderAll(); });
  const brf=el.querySelector("#btn-comp-refresh"); if(brf) brf.addEventListener("click",()=>{ const c=compState(); if(!c) return; if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); compRefreshCandidates(); log("🏢 雇用候補を入れ替えました"); saveAuto(); renderAll(); });
  /* 経営機能と月次報告書の配線（会社パネル内で完結） */
- const brr=el.querySelector("#btn-reports-read"); if(brr) brr.addEventListener("click",()=>{ S.reportUnread=0; saveAuto(); renderAll(); });
+ el.querySelectorAll("[data-reports-read]").forEach(brr=>brr.addEventListener("click",()=>{ S.reportUnread=0; saveAuto(); renderAll(); }));
  el.querySelectorAll("[data-budget-cap]").forEach(sel=>sel.addEventListener("change",()=>{ const m=mgmt(); if(!m) return; m.budget.caps[sel.dataset.budgetCap]=+sel.value||0; log(`📋 年間予算を設定しました：${(BUDGET_CATS.find(([k])=>k===sel.dataset.budgetCap)||[])[1]||""} ${+sel.value? fmt(+sel.value)+"万円まで" : "上限なし"}（CFO）`); saveAuto(); renderAll(); }));
  const gtSel=el.querySelector("#goal-type"); if(gtSel) gtSel.addEventListener("change",()=>{ goalSel.type=gtSel.value; goalSel.target=goalTypeDef(gtSel.value).opts[1]||goalTypeDef(gtSel.value).opts[0]; renderAll(); });
  const gtaSel=el.querySelector("#goal-target"); if(gtaSel) gtaSel.addEventListener("change",()=>{ goalSel.target=+gtaSel.value||0; });
@@ -13869,7 +13925,7 @@ function renderFarm(){
  el.querySelectorAll("[data-youngpol]").forEach(s=>s.addEventListener("change",()=>{ const y=(S.youngStock||[]).find(x=>x.id===+s.dataset.youngpol); if(y){ y.policy=s.value; log(`🐴 ${y.name} の育成方針を「${s.options[s.selectedIndex].text}」に設定`); saveAuto(); } }));
  el.querySelectorAll("[data-sale-buy]").forEach(b=>b.addEventListener("click",()=>saleBuy(+b.dataset.saleBuy,true)));
  el.querySelectorAll("[data-sale-end]").forEach(b=>b.addEventListener("click",endSale));
- el.querySelectorAll("[data-ovfarm]").forEach(b=>b.addEventListener("click",()=>{ const rg=b.dataset.ovfarm, F=OV_FARMS[rg]; if(!F||S.funds<F.cost) return; undoPush(`海外牧場開設の前（${F.name}）`); S.funds-=F.cost; ledOut("build",F.cost); if(!S.overseasFarm) S.overseasFarm={farms:{}}; S.overseasFarm.farms=S.overseasFarm.farms||{}; S.overseasFarm.farms[rg]={built:false, weeks:F.weeks}; log(`🌍 ${F.name}の開設工事を開始しました（${fmt(F.cost)}万円・${F.weeks}週）`); renderAll(); }));
+ el.querySelectorAll("[data-ovfarm]").forEach(b=>b.addEventListener("click",()=>{ const rg=b.dataset.ovfarm, F=OV_FARMS[rg]; if(!F) return; ensureOverseasFarm(); if(S.overseasFarm&&S.overseasFarm.farms&&S.overseasFarm.farms[rg]){ toast("すでに開設済み／建設中です"); return; } if((S.fame||0)<50){ toast(`名声が不足しています（50以上が必要／現在 ${S.fame||0}）`); return; } if((S.g1Wins||0)<3){ toast(`G1勝利が不足しています（3勝以上が必要／現在 ${S.g1Wins||0}勝）`); return; } if(S.funds<F.cost){ toast("資金が不足しています"); return; } undoPush(`海外牧場開設の前（${F.name}）`); S.funds-=F.cost; ledOut("build",F.cost); if(!S.overseasFarm) S.overseasFarm={farms:{}}; S.overseasFarm.farms=S.overseasFarm.farms||{}; S.overseasFarm.farms[rg]={built:false, weeks:F.weeks}; log(`🌍 ${F.name}の開設工事を開始しました（${fmt(F.cost)}万円・${F.weeks}週）`); renderAll(); }));
  const bc=$("#btn-clubfarm"); if(bc) bc.addEventListener("click",()=>{ S.funds-=10000; ledOut("build",10000); S.clubFarm=true; log("🏇 クラブ牧場を開設した"); renderAll(); });
  const bcl=$("#btn-club"); if(bcl) bcl.addEventListener("click",()=>{ S.club=buildClub(); log("🏇 クラブを設立した"); renderAll(); });
  /* 出資は週次処理（clubWeekly）で自動で進むため、手動の満口ボタンは廃止した */
@@ -14022,7 +14078,7 @@ function showSettings(){
   showOverlay(`<h2>設定</h2><div class="ov-body"><div style="text-align:left"><button class="btn" id="set-finance" style="width:100%;margin-bottom:10px">💰 資金繰り（融資・スポンサー支援）</button><button class="btn" id="set-ledger" style="width:100%;margin-bottom:10px">📒 月次明細（収支の内訳）</button><button class="btn ghost" id="set-help" style="width:100%;margin-bottom:10px">❓ ヘルプ／用語（定常指示・方針・基準などの意味）</button><div id="acct-box" style="margin-bottom:10px"></div><details class="fold"><summary>厩舎の決まりごと（ルール集）</summary><div class="foldbody"><div class="rulegrid">
 <div class="rulecard"><b>初期条件</b><p>資金 8,000万円／初期馬 アオイソラ 1頭／初期調教師は手塚貴久（雇用費・維持費 0）。他の調教師は能力合計の3乗で費用が跳ね上がります（合計22で維持費 約266万円/週・雇用費 約9,600万円、平凡な調教師は週数万円）。</p></div>
 <div class="rulecard"><b>時間</b><p>1年＝48週（1か月＝4週）。年末処理は手動で行います（オートは年末を跨ぎません）。</p></div>
-<div class="rulecard"><b>名声</b><p>舞台で決まります。勝利：G1 +5／G2 +3／G3 +2。重賞以外の勝利は +1 ずつでも年間+4までで頭打ち。重賞で2〜5着に入着すると G1 +2／G2・G3 +1、G1に出走して掲示板外でも +1（挑戦由来は年間+8まで）。上限120・減衰なし。条件戦の勝利を重ねるだけでは頭打ちになり、大きな舞台で勝ち・挑むほど伸びます。牧場スペースが名声5ごとに+1、海外牧場は名声30以上、クラブ牧場は名声20以上で開設可。</p></div>
+<div class="rulecard"><b>名声</b><p>舞台で決まります。勝利：G1 +5／G2 +3／G3 +2。重賞以外の勝利は +1 ずつでも年間+4までで頭打ち。重賞で2〜5着に入着すると G1 +2／G2・G3 +1、G1に出走して掲示板外でも +1（挑戦由来は年間+8まで）。上限120・減衰なし。条件戦の勝利を重ねるだけでは頭打ちになり、大きな舞台で勝ち・挑むほど伸びます。牧場スペースが名声5ごとに+1、海外牧場は名声50以上・G1 3勝以上（開設は馬主タブ→「海外牧場」）、クラブ牧場は名声20以上で開設可。</p></div>
 <div class="rulecard"><b>維持費の単価（週）</b><p>競走馬 18万円（エサ代8＋厩舎管理6＋装蹄・獣医4）／繁殖牝馬 5万円／自家種牡馬 8万円／幼駒 3万円。施設の月維持費は月初週に別途かかります。</p></div>
 <div class="rulecard"><b>種付料</b><p>自前の種牡馬は無料。外部の種牡馬は質と系統の人気で決まり、無名で数百万円、人気馬で数千万円、トップクラスで2〜3億円。手数料として一律150万円が加わります。逆に、自分の種牡馬が世界の生産者に使われると種付け料収入が入ります（需要に応じて年最大3件まで）。</p></div>
 <div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
@@ -14030,7 +14086,7 @@ function showSettings(){
 <div class="rulecard"><b>経営機能（予算・決算／研修／広告／福利厚生／土地／経営目標）</b><p>会社パネルの「経営ダッシュボード」に集約します。<br>・<b>年度予算と決算</b>：購入／建設／イベント／種付の年間予算枠を設定でき、部門別（競走／生産・販売／イベント事業／ファンビジネス／管理・その他）の収支が今月・今年で見られます。予算は管理・報告用で、超過しても支出は自動で止まりません。差異は月次報告書でCFOが報告します。<br>・<b>人材育成（研修）</b>：スタッフ（4週間）と調教師（8週間）に費用をかけて研修を受けさせると、担当に合った能力が1段階上がります（能力上限5・研修回数の上限あり）。採用担当の管轄です。<br>・<b>広告キャンペーン</b>：広報担当の管轄で、費用と期間（3段階）に応じてイベント集客・名声の伸び・スポンサー金額・命名権の関心が上がります。<br>・<b>福利厚生と士気</b>：福利厚生の水準（月額／人）を上げると継続支出が増える代わりに士気が上がり、全担当枠の効果に小さく（最大±6%程度）効きます。下げると士気は下がります。<br>・<b>土地の購入・拡張</b>：3期まで買い増しでき（6億／15億／35億）、牧場の価値（持分の価格に連動）と繁殖牝馬・幼駒の収容上限（各期+5頭）が上がります。施設管理とCFOに接続する終盤向けの資金の使い道です。<br>・<b>経営目標</b>：年度の目標（賞金収入／名声の伸び／G1勝利数／イベント収入から選択）を設定し、年末に判定します。達成で名声+3・士気+10、未達で士気-5。いずれも任意で、設定しなくても序盤が詰まることはありません。</p></div>
 <div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
 <div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
-<div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「会社・イベント」の先頭で読め、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
+<div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「報告書」で読め（サブナビに未読件数が出ます。会社・イベントの先頭にも同じものがあります）、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
@@ -14040,6 +14096,7 @@ function showSettings(){
 <div class="rulecard"><b>馬券の上限</b><p>1レース合計で資金の20%・最大2,000万円まで。オッズは能力ではなく戦績・馬場・負担重量などの公開情報から計算します（実競馬の知識が活きる設計）。</p></div>
 <div class="rulecard"><b>出走取消</b><p>エントリーはレース週を含めいつでも取り消せます。</p></div>
 <div class="rulecard"><b>海外遠征</b><p>遠征費はレースごとに 600〜900万円（騎乗料と同時にレース開始時に支払い）。海外レースは前1週（出国）と後1週（帰国）が移動週になり、レース週と合わせて3週のブロックとして扱います。移動週は他のレースに出走できず、おまかせの仕上げは2週前に済ませ、移動週は移動として扱います。出走条件は段階制：中堅の海外レースは重賞勝利またはG1で3着以内、最上位はG1勝利（または重賞2勝＋G1で3着以内）です。</p></div>
+<div class="rulecard"><b>海外牧場の開設</b><p>開設は馬主タブ→「海外牧場」から行います。欧州牧場は開設費30億円・月維持費900万円、米国牧場は開設費35億円・月維持費1,100万円で、工期はどちらも24週です。開設条件は両地域共通で名声50以上・G1 3勝以上・開設費分の資金で、開設カードの場所で条件ごとの充足状況（現在値と不足分）が分かります。完成すると、その地域への遠征費が半額、遠征時のコンディション優遇、現地の種牡馬の種付け料2割引、現地生まれ産駒の適性底上げ（欧州＝スタミナ／米国＝パワー）、現地の調教師の雇用解放が有効になります。経営タブと牧場トップにも入口カードがあります。</p></div>
 <div class="rulecard"><b>特性の上限</b><p>特性は合計8つまで（上位特性への進化は枠を追加消費しません）。調教で覚える特性は、その8つの枠のうち2つまでです。</p></div>
 <div class="rulecard"><b>怪我</b><p>調教中の故障は数週間（概ね3〜6週、獣医施設で短縮）の休養になります。放牧で回復が早まります。</p></div>
 <div class="rulecard"><b>レーティング</b><p>能力の素地（上限 約59）＋通算勝率（最大22、出走4未満は割引）＋G1勝利（1勝5.5・最大17）＋その他の重賞勝利（1勝2.2・最大10）＋G1複勝率（最大6、G1出走2回以上）＋賞金（最大7）。出走数・勝利数の多さだけでは上がりません。</p></div>
@@ -14374,8 +14431,8 @@ function buildGuide(){
   /* 会社・牧場イベントの入口（タブに埋もれないよう秘書提案からも直接行ける） */
   try{ const c=S.company; if(c){ if(S.week>=(c.eventCdUntil||0)&&compMain("plan")) cards.push({key:"compevent"+Math.floor(S.week/4), who:"秘書・佐倉 澪", face:"sec", text:"牧場イベントを実施できます。会社の事業担当が企画を用意しています（見学会／ファン感謝祭／マルシェ／チャリティオークション）。", btn:"イベントを開く", act:"company"}); } else if((S.fame||0)>=FOUND_FAME&&S.funds>=FOUND_COST){ cards.push({key:"compfound", who:"秘書・佐倉 澪", face:"sec", text:`会社化の条件が整いました（名声 ${S.fame||0}）。会社を作ると牧場イベントや事業・広報などの担当枠が開けます。`, btn:"会社・イベントを見る", act:"company"}); } }catch(e){}
   /* 月次報告書の知らせ（オート中も止めず、未読件数だけ知らせる） */
-  try{ if((S.reportUnread||0)>0&&(S.reports||[]).length) cards.push({key:"reports"+(S.reports[0].key||""), who:"秘書・佐倉 澪", face:"sec", text:`月次報告書が ${S.reportUnread}件 届いています（${S.reports[0].label}分まで）。各担当の正担当からの報告です。`, btn:"報告書を読む", act:"company"}); }catch(e){}
-  try{ const cc=S.company; if(cc&&Array.isArray(cc.proposals)&&cc.proposals.length) cards.push({key:"meeting"+cc.proposals.map(p=>p.id).join(","), who:"秘書・佐倉 澪", face:"sec", text:`株主総会の議案が ${cc.proposals.length}件 積み上がっています（次回総会：${nextMeetingLabel()}）。承認した議案だけが実行されます。`, btn:"株主総会を開く", act:"company"}); }catch(e){}
+  try{ if((S.reportUnread||0)>0&&(S.reports||[]).length) cards.push({key:"reports"+(S.reports[0].key||""), who:"秘書・佐倉 澪", face:"sec", text:`月次報告書が ${S.reportUnread}件 届いています（${S.reports[0].label}分まで）。各担当の正担当からの報告です。`, btn:"報告書を読む", act:"reports"}); }catch(e){}
+  try{ const cc=S.company; if(cc&&Array.isArray(cc.proposals)&&cc.proposals.length) cards.push({key:"meeting"+cc.proposals.map(p=>p.id).join(","), who:"秘書・佐倉 澪", face:"sec", text:`株主総会の議案が ${cc.proposals.length}件 積み上がっています（次回総会：${nextMeetingLabel()}）。承認した議案だけが実行されます。`, btn:"株主総会を開く", act:"meeting"}); }catch(e){}
   /* 役割のカバーが不足している枠があると、その役割の効果が届かないので
      枠ごとに具体的に知らせる（例：コンディション担当のカバーが○頭不足） */
   try{ const shorts=ROLES.map(r=>({ r, n: roleUncovered(r.id).length })).filter(x=>x.n>0);
@@ -14565,6 +14622,9 @@ function gotoGuideCard(c){
   else if(c.act==="retirepick"){ showRetirePicker(c.kind, c.pid); }
   else if(c.act==="eqbuy"){ UI.farm="biz"; switchView("farm"); }
   else if(c.act==="company"){ UI.farm="company"; switchView("farm"); }
+  else if(c.act==="reports"){ UI.farm="reports"; switchView("farm"); }
+  else if(c.act==="overseas"){ UI.farm="overseas"; switchView("farm"); }
+  else if(c.act==="meeting"){ UI.farm="company"; pendingAnchor={view:"farm", id:"meeting-panel"}; switchView("farm"); }
   else if(c.act==="family"){ if(S.family) (S.family.events||[]).forEach(e=>e.seen=true); UI.farm="family"; switchView("farm"); }
   else if(c.act==="propose"){ showPropose(c.pid); }
   else if(c.act==="finance"){ showFinance(); }
@@ -15926,8 +15986,8 @@ function genMonthlyReport(){
   if(!(typeof AUTO!=="undefined"&&AUTO.running)) toast("月次報告書が届きました");
 }
 function reportsHTML(){ const reps=Array.isArray(S.reports)? S.reports : []; const un=S.reportUnread||0;
-  if(!reps.length) return `<div class="panel"><h3 style="margin:0 0 4px">📬 月次報告書</h3><div class="small">まだ報告書はありません。月の終わりに、調教師3枠と会社の12枠の正担当から、その月の実績・収支・来月の予定をまとめた報告書が届きます。</div></div>`;
-  return `<div class="panel"><div class="flex" style="justify-content:space-between;align-items:center"><h3 style="margin:0">📬 月次報告書</h3>${un?`<button class="btn sm gold" id="btn-reports-read">新着 ${un}件を読む</button>`:`<span class="tag">新着なし</span>`}</div>
+  if(!reps.length) return `<div class="panel"><h3 style="margin:0 0 4px">📬 月次報告書</h3><div class="small">まだ報告書はありません。月の終わり（月末の週処理）に、調教師3枠と会社の各枠の正担当から、その月の実績・収支・来月の予定をまとめた報告書が届き、この「報告書」タブ（馬主タブのサブナビ）に最新24か月分が並びます。会社未設立でも、調教師3枠の報告は届きます。</div></div>`;
+  return `<div class="panel"><div class="flex" style="justify-content:space-between;align-items:center"><h3 style="margin:0">📬 月次報告書</h3>${un?`<button class="btn sm gold" data-reports-read="1">新着 ${un}件を読む（既読にする）</button>`:`<span class="tag">新着なし</span>`}</div>
   ${reps.map(r=>`<details style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px"><summary style="cursor:pointer;min-height:32px"><b>${esc(r.label)}の報告書</b> <span class="small">収入 ${fmt(r.totI)}万円／支出 ${fmt(r.totO)}万円／差引 ${fmt(r.totI-r.totO)}万円</span></summary>
    ${(r.hl||[]).length?`<div class="small" style="margin:4px 0">今月のハイライト：${r.hl.map(esc).join("／")}</div>`:""}
    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px;margin-top:6px">${(r.sections||[]).map(s=>`<div class="panel" style="margin:0"><div class="flex" style="align-items:center;gap:6px"><span style="display:inline-flex;width:26px;height:26px;border-radius:50%;background:#2e5d3a;color:#fff;align-items:center;justify-content:center;font-weight:700;flex:none">${esc((s.name||"？").slice(0,1))}</span><div><b>${esc(s.name)}</b><div class="small">${esc(s.role)}</div></div></div><div class="small" style="margin-top:4px">${(s.lines||[]).map(esc).join("<br>")}</div>${s.sug?`<div class="small" style="margin-top:3px">💡 提案：${esc(s.sug)}</div>`:""}</div>`).join("")}</div></details>`).join("")}
