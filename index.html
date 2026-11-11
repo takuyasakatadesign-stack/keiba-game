@@ -2170,7 +2170,7 @@ html,body{ height:auto; overflow:visible; }
     <button data-v="bet">馬券</button>
     <button data-v="breed">生産</button>
     <button data-v="jockey">騎手</button>
-    <button data-v="farm">牧場</button>
+    <button data-v="farm">馬主</button>
     <button data-v="rank">名馬</button>
   </nav>
 </div>
@@ -8235,7 +8235,7 @@ function farmWeekly(){
  /* 誕生：翌年4月第1週 */
  if(mo===4&&wk===1){ (S.pregnant||[]).filter(p=>p.ok&&p.dueYear===year()).forEach(p=>{
    const mare=(S.mares||[]).find(m=>m.id===p.mareId); if(mare){ mare.pregnant=false; mare.foalsBred=(mare.foalsBred||0)+1; mare.lastFoalYear=year(); } /* 繁殖成績（産駒数・最終出産年）は売却価格と売却提案の算定に使う */
-   const foal=makeFoalFromTheory(p); if(foal){ try{ foal.birthComment=makeBirthComment(foal); }catch(e){} try{ overseasFoalBonus(foal); }catch(e){} try{ familyOnFoalBorn(foal); }catch(e){} S.youngStock.push(foal); S.foals=(S.foals||0)+1; try{ nrQueueOffer(foal); }catch(e){} log(`🎉 幼駒が誕生しました：${foal.name}（父 ${p.sireName} × 母 ${mare?mare.name:""}）。牧場タブで育成中`); if(foal.birthComment){ log(`💬 調教師・${foal.birthComment.trainer} の誕生コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); if(Array.isArray(S.weekReport)) S.weekReport.push(`🎉 ${foal.name} が誕生 ― 調教師コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); } }
+   const foal=makeFoalFromTheory(p); if(foal){ try{ foal.birthComment=makeBirthComment(foal); }catch(e){} try{ overseasFoalBonus(foal); }catch(e){} try{ familyOnFoalBorn(foal); }catch(e){} S.youngStock.push(foal); S.foals=(S.foals||0)+1; try{ nrQueueOffer(foal); }catch(e){} log(`🎉 幼駒が誕生しました：${foal.name}（父 ${p.sireName} × 母 ${mare?mare.name:""}）。馬主タブで育成中`); if(foal.birthComment){ log(`💬 調教師・${foal.birthComment.trainer} の誕生コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); if(Array.isArray(S.weekReport)) S.weekReport.push(`🎉 ${foal.name} が誕生 ― 調教師コメント（${foal.birthComment.label}）：${foal.birthComment.text}`); } }
    S.pregnant=S.pregnant.filter(x=>x!==p);
  }); }
  /* 幼駒の自動育成（1歳1月から牧場長が育成。能力は少しずつ判明） */
@@ -8256,7 +8256,7 @@ function farmWeekly(){
  /* セール開催週の上場生成 */
  const saleKey=year()+"-"+mo+"-"+wk;
  const saleDef = (mo===8&&wk===1)?"young" : (mo===10&&wk===1)?"mare" : (mo===12&&wk===3)?"overseas" : null;
- if(saleDef && S.saleWeekKey!==saleKey){ S.saleWeekKey=saleKey; S.sale=genSale(saleDef); log(`🔨 セール開催：${{young:"幼駒セール（当歳）",mare:"繁殖牝馬セール",overseas:"海外トレーニングセール"}[saleDef]}（牧場タブから参加）`); }
+ if(saleDef && S.saleWeekKey!==saleKey){ S.saleWeekKey=saleKey; S.sale=genSale(saleDef); log(`🔨 セール開催：${{young:"幼駒セール（当歳）",mare:"繁殖牝馬セール",overseas:"海外トレーニングセール"}[saleDef]}（馬主タブから参加）`); }
  if(!saleDef) S.sale=null;
 }
 function saleEval(kind, h){
@@ -9336,7 +9336,13 @@ function renderRace(){
     const g1s=GRADED.filter(g=>g.course===c&&g.cls===8).map(g=>g.name);
     const gAll=GRADED.filter(g=>g.course===c);
     const cx=150,cy=64,rx=118,ry=44;
-    const svg=`<svg viewBox="0 0 300 128" style="width:100%;max-width:340px;display:block;margin:6px auto" role="img" aria-label="${c}競馬場のコース図（${info.dir}・直線${st}m）"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#7fb069" stroke="#3d6b35" stroke-width="7"/><line x1="${cx-rx+8}" y1="${cy+ry}" x2="${cx+rx-8}" y2="${cy+ry}" stroke="#f2c41c" stroke-width="5"/><circle cx="${cx+rx-14}" cy="${cy+ry}" r="5" fill="#fff" stroke="#b3362b" stroke-width="2.4"/><text x="${cx}" y="${cy-2}" font-size="13" font-weight="900" text-anchor="middle" fill="#173c1e">${c}競馬場</text><text x="${cx}" y="${cy+15}" font-size="10" text-anchor="middle" fill="#173c1e">${info.dir}・最終直線 ${st}m（黄色）・ゴールは右端</text><text x="${cx}" y="${cy+ry+16}" font-size="9.5" text-anchor="middle" fill="var(--ink2)">${info.dir==="左回り"?"◀ 左回り":"右回り ▶"}／${small?"小回り":"大回り"}／${steep?"直線に急坂":"平坦"}</text></svg>`;
+    /* コース図は実際の回り方向に合わせる：左回りは最終直線を右向きに走って
+       ゴールは右端、右回りは左向きに走ってゴールは左端（レース中の
+       アニメーション・コースマップと同じ向きに統一する） */
+    const leftTurn=info.dir==="左回り";
+    const goalX=leftTurn? cx+rx-14 : cx-rx+14;
+    const arrowPts=leftTurn? `${cx+4},${cy+ry-9} ${cx+30},${cy+ry} ${cx+4},${cy+ry+9}` : `${cx-4},${cy+ry-9} ${cx-30},${cy+ry} ${cx-4},${cy+ry+9}`;
+    const svg=`<svg viewBox="0 0 300 128" style="width:100%;max-width:340px;display:block;margin:6px auto" role="img" aria-label="${c}競馬場のコース図（${info.dir}・直線${st}m）"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#7fb069" stroke="#3d6b35" stroke-width="7"/><line x1="${cx-rx+8}" y1="${cy+ry}" x2="${cx+rx-8}" y2="${cy+ry}" stroke="#f2c41c" stroke-width="5"/><polygon points="${arrowPts}" fill="#b3362b"/><circle cx="${goalX}" cy="${cy+ry}" r="5" fill="#fff" stroke="#b3362b" stroke-width="2.4"/><text x="${cx}" y="${cy-2}" font-size="13" font-weight="900" text-anchor="middle" fill="#173c1e">${c}競馬場</text><text x="${cx}" y="${cy+15}" font-size="10" text-anchor="middle" fill="#173c1e">${info.dir}・最終直線 ${st}m（黄色）・ゴールは${leftTurn?"右端":"左端"}</text><text x="${cx}" y="${cy+ry+16}" font-size="9.5" text-anchor="middle" fill="var(--ink2)">${leftTurn?"左回り ▶":"◀ 右回り"}／${small?"小回り":"大回り"}／${steep?"直線に急坂":"平坦"}</text></svg>`;
     return svg+`<dl class="kv"><dt>形態</dt><dd>${info.dir}・${small?"小回りコース":"大回りコース"}</dd><dt>直線の長さ</dt><dd>${st}m</dd><dt>坂</dt><dd>${steep?"直線に急坂あり（パワーが要る）":"平坦（スピードが活きる）"}</dd><dt>特徴</dt><dd>${info.note}</dd><dt>大レース</dt><dd>${g1s.length? winsChipsHTML(g1s, 8, true) : "G1の開催なし"}（重賞 ${gAll.length}鞍）</dd><dt>大レースの傾向</dt><dd>${st>=450?"直線が長く、差し・追い込みが届きやすい。切れ味勝負型になりやすい":st<=300?"直線が短く、先行・内枠が有利になりやすい。持続力・消耗戦型に注意":"標準的な直線で、脚質の偏りは小さい"}</dd></dl>`; })()}
   </div>`;
   let calInner=`<div class="panel"><h3 style="margin:2px 0 6px">📅 年間重賞カレンダー（全重賞）</h3><div class="calgrid">${[1,2,3,4,5,6,7,8,9,10,11,12].map(mo=>{ const gs=GRADED.filter(g=>g.month===mo); const ex=EXCHANGE_RACES.filter(g=>g.month===mo); const all=[...gs].sort((a,b)=>(a.week-b.week)||(b.cls-a.cls)); return `<div class="calcell"><b>${mo}月</b> 重賞${gs.length}鞍${ex.length?`＋交流${ex.length}鞍`:""}<br><span style="font-size:10.5px;line-height:1.45">${all.map(g=> `<span class="uchip xs ${g.cls===8?"gold":""}">${esc(g.name)}${g.jump?"（障害）":""}</span>`).join(" ")}${ex.length? `<br><span style="color:var(--ink2)">交流</span> ${ex.map(g=>`<span class="uchip xs">${esc(g.name)}</span>`).join(" ")}`:""}</span></div>`; }).join("")}</div>
@@ -9767,7 +9773,12 @@ function startRace(r,mine,field){
   try{ if(auInit()){ auSetMode("race"); auSetCrowd(0.12,0.8); AU.hoofM=-99; raceState._gateSnd=false;
     const wmode = mine? (S.watchMode||"full") : "full";
     if(wmode!=="result") raceState._fanSec=auFanfareFor(r.cls); } }catch(e){ raceState._fanSec=0; }
-  switchView("race"); renderRaceScreen($("#v-race"));
+  /* オート消化中は画面を切り替えない：見ているタブ・スクロールはそのままに
+     裏で精算し、結果は記録とオートバーの表示で知らせる（消化のたびに
+     レース画面→厩舎画面へ飛ばされる不具合の修正）。手動のレース開始は
+     従来どおりレース画面へ進む */
+  if(!(typeof AUTO!=="undefined"&&AUTO.running)) switchView("race");
+  renderRaceScreen($("#v-race"));
   raceState.elapsed=0; raceState.subtitle=""; raceState.subName="";
   raceState.t0=performance.now() + Math.max(r.graded?1700:0, Math.round((raceState._fanSec||0)*1000)); // タイトルカード表示（演奏がある格は演奏時間ぶん）→発馬
   buildCameraPath(); // 中継カメラ経路を再生前に平滑化して確定（シミュレーション時刻基準）
@@ -9776,27 +9787,37 @@ function startRace(r,mine,field){
   raceState.watch = mine? (S.watchMode||"full") : "full";
   if(raceState.watch==="result"){ cancelAnimationFrame(raceState.raf); raceState.simT=raceEndT(); finishRace(); }
 }
-/* レースのやり直し：精算前スナップショットを復元し、同じ編成（出走馬・
-   枠順・騎手・人気）で再実行する。結果だけが新しい乱数で決まり直し、
-   元の結果の効果は復元によって完全に消える。複数回のやり直し可 */
+/* レースのやり直し：精算前スナップショットを復元して結果の影響をすべて
+   巻き戻し、同じ出馬表（出走馬・枠順・馬場・オッズは固定）のまま
+   「作戦・単勝」画面へ戻る。即再実行はしない：作戦（脚質・ペース・
+   特殊作戦）と騎手を変更し、馬券も買い直してから、通常どおり
+   レース開始に進む（週は進まない）。再実行後の結果画面からも、
+   同じ手順で何度でもやり直せる（開始のたびに新しい控えが作られる） */
 function redoRace(){
   const snap=raceState._redoSnap, spec=raceState._redoField;
   if(!snap||!spec||raceState.phase!=="done") return;
-  confirm2("レースをやり直しますか？", "現在の結果は破棄され、新しいシミュレーションの結果だけが残ります（賞金・馬券・記録も新しい結果で精算し直されます）。", ()=>{
+  confirm2("レースをやり直しますか？", "現在の結果はすべて巻き戻され（賞金・馬券・記録もレース前の状態に戻ります）、同じ出馬表のまま作戦画面に戻ります。作戦・騎手・馬券を直してから、改めてレース開始できます。", ()=>{
     try{
       applySave(JSON.parse(snap.json)); booted=true;
       const r=JSON.parse(JSON.stringify(spec.race));
       const rivals=spec.rivals.map(x=>JSON.parse(JSON.stringify(x)));
       const owns=spec.owns.map(o=>{ const h=(S.horses||[]).find(x=>x.id===o.id); if(h){ h._gate=o.gate; } return h; }).filter(Boolean);
       if(!owns.length){ alert2("やり直せませんでした","出走馬の復元に失敗しました。"); return; }
-      const field=[...rivals, ...owns];
       raceState.fixedFields={week:S.week, map:{[r.id+"@"+S.week]:{rivals, pop:spec.fx?spec.fx.pop:null, popFrozen:spec.fx?spec.fx.popFrozen:false}}};
       raceState.rivals=rivals; raceState.rivalRace=r.id;
-      const mine=owns.find(h=>h.id===spec.mineId)||owns[0];
-      raceState._isRedo=true;
-      startRace(r, mine, field);
-      raceState._isRedo=false;
-    }catch(e){ raceState._isRedo=false; alert2("やり直せませんでした", "復元中にエラーが発生しました："+((e&&e.message)||e)); }
+      /* 結果画面の状態を畳む。控え（_redoSnap/_redoField）はここで手放す：
+         作戦画面からレース開始する時に startRace が新しい控えを作るため、
+         再実行後の結果画面でも再び「やり直す」が使える */
+      try{ auStopCrowd(); auSetMode("home"); }catch(e){}
+      raceState.phase="idle"; raceState.done=false; raceState.sim=null; raceState.vis=null; raceState.result=null;
+      raceState._redoSnap=null; raceState._redoField=null;
+      S.selRace=r.id; S.selected=spec.mineId||owns[0].id;
+      /* cardFocus を立てると renderRace が出馬表パネルへ寄せてしまうため、
+         作戦・単勝パネルに着地させるには立てない */
+      cardFocus=false; pendingCardFlash=true; UI.race="settings";
+      switchView("race");
+      toast("結果を巻き戻しました。作戦を直してレース開始できます");
+    }catch(e){ alert2("やり直せませんでした", "復元中にエラーが発生しました："+((e&&e.message)||e)); }
   });
 }
 /* レース終了時刻：全馬が入線し（tMax）、勝ち馬のウイニングランが数秒見えてから遷移する */
@@ -9933,13 +9954,18 @@ function syncSpeedBtns(){
 function setRaceRate(rate){
   raceState.rate=rate; S.raceSpeed=rate; saveAuto(); syncSpeedBtns();
 }
-/* ---- コース：細長いスタジアム型（長い直線＋両端の小さな半円コーナー）・左回り ----
+/* ---- コース：細長いスタジアム型（長い直線＋両端の小さな半円コーナー） ----
    中心線を歩いてサンプル化する。s=0 はホームストレッチ入口（第4コーナー出口）。
-   ゴールは直線の終わり寄り（直線の82%地点）に置き、4コーナー→ゴールを長く取る。 */
+   ゴールは直線の終わり寄り（直線の82%地点）に置き、4コーナー→ゴールを長く取る。
+   回り方向は競馬場の実際（COURSE_INFO の左回り／右回り）に合わせる：
+   基準形は左回り（画面上で反時計回り）で組み、右回りの競馬場では
+   左右を鏡像反転して時計回りにする。3D経路・コースマップ・コース図と
+   進行方向が一致するよう、方向は呼び出し側が渡す */
 const LAP_M=1600;
 let courseCache={key:"",pts:null,total:0,finS:0,cx:0,cy:0,a:0,R:0,trackW:40,straightPx:0,cornerPx:0};
-function coursePoints(W,H){
-  const key=W+"x"+H;
+function coursePoints(W,H,dirSign){
+  const dsgn=(dirSign===-1)? -1 : 1;
+  const key=W+"x"+H+"x"+dsgn;
   if(courseCache.key===key)return courseCache;
   const cx=W/2, cy=H*0.52;
   const R=clamp(Math.min(H*0.30,(W/2-40)*0.32),44,115); // コーナー半径は小さめに（狭幅でも直線主体を保つ）
@@ -9953,6 +9979,7 @@ function coursePoints(W,H){
   for(let x=a;x>=-a;x-=step) push(cx+x, cy-R, 0, -1);                                       // 向正面（右→左）
   for(let ph=-Math.PI/2; ph>=-Math.PI*1.5; ph-=0.03) push(cx-a+R*Math.cos(ph), cy+R*Math.sin(ph), Math.cos(ph), Math.sin(ph)); // 第3・4コーナー
   push(cx-a, cy+R, 0, 1);
+  if(dsgn===-1){ pts.forEach(p=>{ p.x=2*cx-p.x; p.nx=-p.nx; }); } // 右回り：鏡像反転（s の累積距離は不変）
   const total=s, straightPx=2*a, cornerPx=Math.PI*R;
   const finS=straightPx*0.82;
   courseCache={key,pts,total,cx,cy,a,R,trackW,finS,straightPx,cornerPx};
@@ -10459,12 +10486,17 @@ function drawMark(ctx,x,y,sz,mk){
    の区間列に分解し、各地点の位置・進行方向・曲率を解析的に返す。
    コーナー半径は競馬場の直線長から決める（小回り場はきつく、大回り場は緩く）。
    短距離戦（直線＋最終コーナーだけで距離が埋まる場合）は最終コーナーのみ。
-   回り方向は COURSE_INFO の左回り／右回りに合わせる */
+   回り方向は COURSE_INFO の左回り／右回りに合わせる。
+   符号の注意：経路の法線 (px,pz)=(-dz,dx) は three.js の右手系では
+   進行方向の「右側」を指す。コーナー中心を sign で法線側に置くため、
+   左回り（中心が馬の左側＝左へ曲がる）には sign=-1 が必要で、以前の
+   +1 では左回りの競馬場でも馬が右へ曲がっていた（2D表示・コース図と
+   逆向きになる不具合）。実物の回り方向に合わせて符号を反転した */
 let racePath=null;
 function buildRacePath(r){
   const home=(r&&r.straight)||(typeof COURSE_STRAIGHT!=="undefined"&&r?COURSE_STRAIGHT[r.course]:0)||350;
   let R= home<=300? 88 : home>=470? 135 : 110;
-  const sign= (typeof COURSE_INFO!=="undefined"&&r&&COURSE_INFO[r.course]&&COURSE_INFO[r.course].dir==="左回り")? 1 : -1;
+  const sign= (typeof COURSE_INFO!=="undefined"&&r&&COURSE_INFO[r.course]&&COURSE_INFO[r.course].dir==="左回り")? -1 : 1;
   let arc=Math.PI*R;
   const dist=r.dist, post=140;
   /* 区間長の合計がちょうどレース距離になるよう配分する：
@@ -10797,7 +10829,6 @@ function rebuildGLCourse(r){
   while(g.children.length) g.remove(g.children[0]);
   const P=buildRacePath(r);
   const postMat=new THREE.MeshStandardMaterial({color:0xe8e8e2, roughness:0.5});
-  const redMat=new THREE.MeshStandardMaterial({color:0xc22f24, roughness:0.5});
   /* 周囲の地面はコースの中心に固定する。カメラと一緒に動かすと景色が
      流れず「背景と連動していない」見え方になるため、世界に固定する */
   { let cx=0, cz=0, cn=0; for(let s=0;s<=P.total;s+=40){ const A=pathAt(s); cx+=A.x; cz+=A.z; cn++; }
@@ -10809,8 +10840,8 @@ function rebuildGLCourse(r){
     for(let i=0;i<n;i++){
       const s=Math.min(i*step,P.total), A=pathAt(s);
       const o=i*6;
-      posArr[o]=A.x+A.px*-5.4; posArr[o+1]=0.02; posArr[o+2]=A.z+A.pz*-5.4;
-      posArr[o+3]=A.x+A.px*6.6; posArr[o+4]=0.02; posArr[o+5]=A.z+A.pz*6.6;
+      posArr[o]=A.x+A.px*5.4; posArr[o+1]=0.02; posArr[o+2]=A.z+A.pz*5.4;
+      posArr[o+3]=A.x+A.px*-6.6; posArr[o+4]=0.02; posArr[o+5]=A.z+A.pz*-6.6;
       const u=i*4; uvArr[u]=0; uvArr[u+1]=s/24; uvArr[u+2]=1; uvArr[u+3]=s/24;
       if(i<n-1){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); }
     }
@@ -10829,7 +10860,7 @@ function rebuildGLCourse(r){
   {
     const railMat2=new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x9a9a92, emissiveIntensity:0.38, roughness:0.4, side:THREE.DoubleSide});
     const step=5, n=Math.max(2,Math.ceil(P.total/step)+1);
-    [-5.4,6.6].forEach(off=>{
+    [5.4,-6.6].forEach(off=>{
       [1.14,0.66].forEach(hy=>{
         const posArr=new Float32Array(n*2*3), idx=[];
         for(let i=0;i<n;i++){
@@ -10851,7 +10882,7 @@ function rebuildGLCourse(r){
     let pi=0;
     for(let i=0;i<cnt;i++){
       const A=pathAt(Math.min(i*8,P.total));
-      [-5.4,6.6].forEach(off=>{ m4.makeTranslation(A.x+A.px*off, 0.67, A.z+A.pz*off); posts.setMatrixAt(pi++, m4); });
+      [5.4,-6.6].forEach(off=>{ m4.makeTranslation(A.x+A.px*off, 0.67, A.z+A.pz*off); posts.setMatrixAt(pi++, m4); });
     }
     posts.count=pi; posts.instanceMatrix.needsUpdate=true; g.add(posts);
   }
@@ -10899,11 +10930,13 @@ function rebuildGLCourse(r){
       g.add(bushI);
     }
   }
-  /* --- ゴール柱・着順板・距離標：すべて経路上の実位置に置く --- */
+  /* --- ゴール（決勝柱）・距離標：すべて経路上の実位置に置く ---
+     内側のオフセットは回り方向で決まる内馬場側（P.sign 側） */
   const facePhi=A=>Math.atan2(A.px, A.pz);
+  const inOff=(P.sign>0? 6.3 : -7.5); // 内ラチ（+5.4／-6.6）の内側
   const mkPost=(s,label,off)=>{
     const A=pathAt(s);
-    const grp=new THREE.Group(); grp.position.set(A.x+A.px*(off==null?-5.4:off),0,A.z+A.pz*(off==null?-5.4:off));
+    const grp=new THREE.Group(); grp.position.set(A.x+A.px*(off==null?inOff:off),0,A.z+A.pz*(off==null?inOff:off));
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,3.4,8), postMat); pole.position.y=1.7; pole.castShadow=true; grp.add(pole);
     if(label){ const cv2=document.createElement("canvas"); cv2.width=cv2.height=128; const c2=cv2.getContext("2d");
       c2.fillStyle="#c22f24"; c2.beginPath(); c2.arc(64,64,58,0,7); c2.fill(); c2.fillStyle="#fff"; c2.font="bold 62px sans-serif"; c2.textAlign="center"; c2.fillText(label,64,84);
@@ -10911,11 +10944,19 @@ function rebuildGLCourse(r){
       disc.position.set(0,3.1,0); disc.rotation.y=facePhi(A); grp.add(disc); }
     g.add(grp);
   };
-  mkPost(r.dist,""); // ゴール柱（内）
-  mkPost(r.dist,"",6.6); // ゴール柱（外）
+  /* 決勝柱：実際の競馬場と同じく、ゴールラインの内馬場側に立つ1本の柱と、
+     その頂部の円板（ゴール板）。以前の「柱2本＋コースを横切る赤い板」
+     （ゲート状の表現）は実物と違うため廃止した */
   { const A=pathAt(r.dist);
-    const board=new THREE.Mesh(new THREE.BoxGeometry(0.18,1.1,12.0), redMat);
-    board.position.set(A.x+A.px*0.6,3.6,A.z+A.pz*0.6); board.rotation.y=-A.th; g.add(board); }
+    const grp=new THREE.Group(); grp.position.set(A.x+A.px*inOff, 0, A.z+A.pz*inOff);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.14,4.4,10), postMat); pole.position.y=2.2; pole.castShadow=true; grp.add(pole);
+    const cvG=document.createElement("canvas"); cvG.width=cvG.height=256; const cg2=cvG.getContext("2d");
+    cg2.fillStyle="#f6f2e7"; cg2.beginPath(); cg2.arc(128,128,125,0,7); cg2.fill();
+    cg2.lineWidth=30; cg2.strokeStyle="#c22f24"; cg2.beginPath(); cg2.arc(128,128,108,0,7); cg2.stroke();
+    cg2.fillStyle="#c22f24"; cg2.beginPath(); cg2.arc(128,128,32,0,7); cg2.fill();
+    const disc=new THREE.Mesh(new THREE.CircleGeometry(1.05,28), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cvG), transparent:true, side:THREE.DoubleSide}));
+    disc.position.set(0,4.05,0); disc.rotation.y=facePhi(A); grp.add(disc);
+    g.add(grp); }
   [[1000,"10"],[800,"8"],[600,"6"],[400,"4"],[200,"2"]].forEach(([rm,lb])=>{ if(r.dist-rm>60) mkPost(r.dist-rm,lb); });
   /* --- メインスタンド：ホーム直線の向こう側に世界固定で建てる ---
      従来の背景は毎フレームカメラ（アンカー）に追従する平面だったため、
@@ -10926,7 +10967,7 @@ function rebuildGLCourse(r){
     const homeLen=(r.straight||P.home||350);
     const A=pathAt(Math.max(0, r.dist-homeLen*0.45));
     const stand=new THREE.Group();
-    stand.position.set(A.x+A.px*-36, 0, A.z+A.pz*-36);
+    stand.position.set(A.x+A.px*36, 0, A.z+A.pz*36);
     stand.rotation.y=-A.th;
     const cvS=document.createElement("canvas"); cvS.width=512; cvS.height=96;
     const cg=cvS.getContext("2d"); cg.fillStyle="#31435c"; cg.fillRect(0,0,512,96);
@@ -10940,19 +10981,13 @@ function rebuildGLCourse(r){
     const L=Math.max(180, homeLen*0.85);
     const base=new THREE.Mesh(new THREE.BoxGeometry(L,3,14), wallMat); base.position.y=1.5; stand.add(base);
     for(let t=0;t<4;t++){ const tier=new THREE.Mesh(new THREE.BoxGeometry(L,3.4,4.6), crowdMat); tier.position.set(0, 4.6+t*3.1, -t*3.4); stand.add(tier); }
-    /* 貴賓席のガラスボックスと屋根の柱列・両端の塔で、スタンドの作り込みを上げる */
+    /* 貴賓席のガラスボックスと屋根の柱列（装飾的な両端の塔と屋根の旗列は
+       「余計なモニュメント」として撤去済み：スタンド本体だけを残す） */
     const glassMat=new THREE.MeshStandardMaterial({color:0x9fc4d8, roughness:0.18, metalness:0.35});
     const glass=new THREE.Mesh(new THREE.BoxGeometry(L*0.52,2.6,3.6), glassMat); glass.position.set(0,17.6,-8.6); stand.add(glass);
     const colMat=new THREE.MeshStandardMaterial({color:0xc9cdc2, roughness:0.8});
     for(let fx=-L/2+9; fx<L/2-4; fx+=18){ const col=new THREE.Mesh(new THREE.BoxGeometry(0.55,13.6,0.55), colMat); col.position.set(fx,8.6,6.9); stand.add(col); }
-    [-1,1].forEach(sd=>{ const tw=new THREE.Mesh(new THREE.BoxGeometry(9,19,11), wallMat); tw.position.set(sd*(L/2+2),9.5,-3); stand.add(tw);
-      const twr=new THREE.Mesh(new THREE.BoxGeometry(11,0.6,13), roofMat); twr.position.set(sd*(L/2+2),19.3,-3); stand.add(twr); });
     const roof=new THREE.Mesh(new THREE.BoxGeometry(L*1.02,0.5,17), roofMat); roof.position.set(0,19.9,-3.4); roof.rotation.x=0.10; stand.add(roof);
-    /* 屋根の上の旗列（風でたなびく色とりどりの旗を静止配置で表現） */
-    const flagCols=[0xc9534a,0x5b8dd9,0xe9bc2e,0x7fb069,0xf2f2f2,0x35424f];
-    for(let fi=0;fi<10;fi++){ const fp=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,3.4,5), colMat); fp.position.set(-L/2+14+fi*(L-28)/9,21.8,-6); stand.add(fp);
-      const fl=new THREE.Mesh(new THREE.PlaneGeometry(1.9,1.05), new THREE.MeshStandardMaterial({color:flagCols[fi%flagCols.length], roughness:0.9, side:THREE.DoubleSide}));
-      fl.position.set(fp.position.x+0.95,23.2,-6); fl.rotation.y=0.35*Math.sin(fi*1.7); stand.add(fl); }
     const cvN=document.createElement("canvas"); cvN.width=1024; cvN.height=96;
     const cn=cvN.getContext("2d"); cn.fillStyle="#173f2a"; cn.fillRect(0,0,1024,96);
     cn.strokeStyle="#f3d67b"; cn.lineWidth=5; cn.strokeRect(5,5,1014,86);
@@ -10963,7 +10998,7 @@ function rebuildGLCourse(r){
     stand.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=true; } });
     g.add(stand);
     /* 遠景パノラマもホーム直線基準の実位置に固定する（毎フレーム追従させない） */
-    if(GL.backdrop){ GL.backdrop.position.set(A.x+A.px*-200, 26, A.z+A.pz*-200); GL.backdrop.rotation.y=Math.atan2(A.px, A.pz); }
+    if(GL.backdrop){ GL.backdrop.position.set(A.x+A.px*200, 26, A.z+A.pz*200); GL.backdrop.rotation.y=Math.atan2(A.px, A.pz); }
   }
   /* --- コーナー標識：各コーナーの入口の向こう側に世界固定の看板を立てる。
      「今どこを走っているか」が景色からも分かるようにする --- */
@@ -10977,57 +11012,19 @@ function rebuildGLCourse(r){
       c2.fillStyle="#ffe9a8"; c2.font="bold 54px sans-serif"; c2.textAlign="center"; c2.fillText(label,256,84);
       const tex=new THREE.CanvasTexture(cvS); tex.encoding=THREE.sRGBEncoding;
       const board=new THREE.Mesh(new THREE.PlaneGeometry(12,3), new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide}));
-      board.position.set(A.x+A.px*-11.5, 2.9, A.z+A.pz*-11.5); board.rotation.y=Math.atan2(A.px, A.pz); g.add(board);
+      board.position.set(A.x+A.px*11.5, 2.9, A.z+A.pz*11.5); board.rotation.y=Math.atan2(A.px, A.pz); g.add(board);
       const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.09,2.9,6), postMat);
-      pole.position.set(A.x+A.px*-11.5, 1.45, A.z+A.pz*-11.5); g.add(pole);
+      pole.position.set(A.x+A.px*11.5, 1.45, A.z+A.pz*11.5); g.add(pole);
     };
     if(arcs.length===1) mkSign(arcs[0].s0+4, "最終コーナー");
     else if(arcs.length>=2){ mkSign(arcs[0].s0+4, "第1コーナー"); mkSign(arcs[arcs.length-1].s0+4, "最終コーナー"); }
   }
-  /* --- 照明塔・内馬場（池／花壇／大型スクリーン）・遠景の丘と雲 ---
-     周辺景観の作り込み：すべてコース上の実位置に世界固定する */
+  /* --- 遠景の丘と雲 ---
+     照明塔・内馬場の池・花壇・大型スクリーンは「余計なモニュメント」と
+     して撤去した（残すのは馬場・ラチ・スタンド・樹木・丘・雲だけ） */
   {
     let ccx=0, ccz=0, ccn=0; for(let s=0;s<=P.total;s+=60){ const A0=pathAt(s); ccx+=A0.x; ccz+=A0.z; ccn++; }
     const CEN={x:ccx/Math.max(1,ccn), z:ccz/Math.max(1,ccn)};
-    /* 照明塔（4基）：ポール＋発光するライト面 */
-    const poleMat2=new THREE.MeshStandardMaterial({color:0x8b9299, roughness:0.55, metalness:0.4});
-    const lampMat=new THREE.MeshStandardMaterial({color:0xfff6d8, emissive:0xffedb5, emissiveIntensity:0.85, roughness:0.4});
-    [0.06,0.32,0.58,0.84].forEach(f=>{
-      const A=pathAt(P.total*f), off=-(P.sign)*21;
-      const grp=new THREE.Group(); grp.position.set(A.x+A.px*off,0,A.z+A.pz*off); grp.rotation.y=Math.atan2(A.px, A.pz);
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.34,17,7), poleMat2); pole.position.y=8.5; grp.add(pole);
-      const head=new THREE.Mesh(new THREE.BoxGeometry(3.4,1.5,0.5), poleMat2); head.position.set(0,16.8,0.6); head.rotation.x=0.5; grp.add(head);
-      const lamp=new THREE.Mesh(new THREE.PlaneGeometry(3.0,1.15), lampMat); lamp.position.set(0,16.55,0.92); lamp.rotation.x=0.5; grp.add(lamp);
-      g.add(grp);
-    });
-    /* 内馬場の池（向正面の内側）：水面＋砂の縁 */
-    { const A=pathAt(P.total*0.46), off=P.sign*36;
-      const sand=new THREE.Mesh(new THREE.CircleGeometry(10.5,26), new THREE.MeshStandardMaterial({color:0xd8c491, roughness:1}));
-      sand.rotation.x=-Math.PI/2; sand.scale.set(1.6,1,1); sand.position.set(A.x+A.px*off,0.03,A.z+A.pz*off); g.add(sand);
-      const pond=new THREE.Mesh(new THREE.CircleGeometry(9.2,26), new THREE.MeshStandardMaterial({color:0x3f7fbf, roughness:0.22, metalness:0.15}));
-      pond.rotation.x=-Math.PI/2; pond.scale.set(1.6,1,1); pond.position.set(A.x+A.px*off,0.06,A.z+A.pz*off); g.add(pond); }
-    /* 花壇（ホーム直線の内側に3つ） */
-    { const homeLen2=(r.straight||P.home||350);
-      const bedCols=[0xd9536a,0xe9bc2e,0xe8e2d2];
-      for(let bi=0;bi<3;bi++){ const A=pathAt(Math.max(20,r.dist-homeLen2*(0.28+bi*0.2))), off=P.sign*(14.5+bi*2.5);
-        const bed=new THREE.Mesh(new THREE.CylinderGeometry(3.3,3.5,0.4,18), new THREE.MeshStandardMaterial({color:bedCols[bi], roughness:1}));
-        bed.scale.set(1.5,1,1); bed.position.set(A.x+A.px*off,0.2,A.z+A.pz*off); g.add(bed); } }
-    /* 大型スクリーン（ホーム直線の内側・スタンド向き） */
-    { const homeLen3=(r.straight||P.home||350);
-      const A=pathAt(Math.max(20,r.dist-homeLen3*0.52)), off=P.sign*17;
-      const grp=new THREE.Group(); grp.position.set(A.x+A.px*off,0,A.z+A.pz*off); grp.rotation.y=Math.atan2(A.px, A.pz)+Math.PI;
-      [-4.6,4.6].forEach(lx=>{ const lp=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,4.6,6), poleMat2); lp.position.set(lx,2.3,0); grp.add(lp); });
-      const scrCv=document.createElement("canvas"); scrCv.width=512; scrCv.height=224;
-      const sg2=scrCv.getContext("2d"); sg2.fillStyle="#10222e"; sg2.fillRect(0,0,512,224);
-      sg2.strokeStyle="#f3d67b"; sg2.lineWidth=6; sg2.strokeRect(8,8,496,208);
-      sg2.fillStyle="#ffe9a8"; sg2.font="bold 44px sans-serif"; sg2.textAlign="center"; sg2.fillText((r.course||"")+"競馬場",256,92);
-      sg2.font="bold 34px sans-serif"; sg2.lineWidth=7; sg2.strokeStyle="#08131c"; sg2.lineJoin="round"; sg2.strokeText(r.name||"",256,152); sg2.fillStyle="#ffffff"; sg2.fillText(r.name||"",256,152);
-      const scrTex=new THREE.CanvasTexture(scrCv); scrTex.encoding=THREE.sRGBEncoding;
-      const scr=new THREE.Mesh(new THREE.PlaneGeometry(13.5,5.9), new THREE.MeshBasicMaterial({map:scrTex}));
-      scr.position.set(0,7.4,0.16); grp.add(scr);
-      const scrBack=new THREE.Mesh(new THREE.BoxGeometry(13.9,6.3,0.3), new THREE.MeshStandardMaterial({color:0x2b3540, roughness:0.8}));
-      scrBack.position.set(0,7.4,0); grp.add(scrBack);
-      g.add(grp); }
     /* 遠景の丘陵：コース中心の周囲に低い丘を連ね、霧で空へ溶かす。
        配置半径はコースパスの実寸（中心からの最大距離）から決める。以前は
        半径350〜460m固定で、パスの広がりがそれを超える競馬場（長距離・
@@ -11443,8 +11440,9 @@ function drawRace(simT){
   const leader=leadH._prog;
   const surfDirt=r.surf==="ダート";
   const gi=GROUNDS.indexOf(r.ground);
-  /* コース幾何（ミニマップ・区間判定用に維持） */
-  const C=coursePoints(W,H);
+  /* コース幾何（ミニマップ・区間判定用に維持）。回り方向は競馬場の
+     実際（左回り／右回り）に合わせ、3D経路・コースマップと一致させる */
+  const C=coursePoints(W,H,(typeof COURSE_INFO!=="undefined"&&COURSE_INFO[r.course]&&COURSE_INFO[r.course].dir==="右回り")? -1 : 1);
   const mPerPx=LAP_M/C.total;
   const startS=C.finS-r.dist/mPerPx;
   const sOf=h=>startS+h._prog*r.dist/mPerPx;
@@ -12642,7 +12640,7 @@ function secretaryState(){
     if(ne.left<=0){ const rNow=S.races.find(x=>x.name===ne.e.name); return {face:"smile", text:`今週、${ne.h.name}がエントリー中の「${ne.e.name}」に出走します！出馬表で作戦を確認して出走しましょう。このレースを走るか、エントリーを取り消すまで週は進みません。`, btns:[B("出走する","race",ne.h.id, rNow?rNow.id:undefined),B("調教する","train",ne.h.id,undefined,sugTid(ne.h))]}; }
     return {face:"normal", text:`${ne.h.name}の「${ne.e.name}」（${ne.e.course} ${ne.e.surf}${ne.e.dist}m）まであと${ne.left}週です。いまの調教はこのレースに向けた仕上げが中心になります。${allEntries().length>1?`ほかにもエントリーが${allEntries().length-1}件あります。`:""}`, btns:[B("調教で仕上げる","train",ne.h.id,undefined,sugTid(ne.h)), (S.races.find(x=>x.name===ne.e.name)? B("エントリーを確認","race",ne.h.id,(S.races.find(x=>x.name===ne.e.name)||{}).id) : Object.assign(B("エントリーを確認","stable",ne.h.id),{detail:true}))]};
   }
-  if(S.sale){ const SN={young:"幼駒セール（当歳）",mare:"繁殖牝馬セール",overseas:"海外トレーニングセール"}[S.sale.kind]; return {face:"smile", text:`今週は${SN}が開催中です！牧場タブから上場馬を見られます。関係者のオススメ評価も付いていますよ。`, btns:[B("セールを見る","farm",undefined,undefined,undefined,"farm-sale"),B("厩舎へ","stable")]}; }
+  if(S.sale){ const SN={young:"幼駒セール（当歳）",mare:"繁殖牝馬セール",overseas:"海外トレーニングセール"}[S.sale.kind]; return {face:"smile", text:`今週は${SN}が開催中です！馬主タブから上場馬を見られます。関係者のオススメ評価も付いていますよ。`, btns:[B("セールを見る","farm",undefined,undefined,undefined,"farm-sale"),B("厩舎へ","stable")]}; }
   if((month()===5||month()===6)&&(S.mares||[]).some(m=>!m.pregnant)){ return {face:"normal", text:`いまは種付けの季節（5〜6月）です。生産タブで配合評価を見て、種付けを登録しましょう。受胎は月末に判明し、翌年4月に幼駒が生まれます。`, btns:[B("生産へ","breed",undefined,undefined,undefined,"breed-form"),B("厩舎へ","stable")]}; }
   const injured=S.horses.find(h=>h.injured>0);
   if(injured) return {face:"worried", text:`${injured.name}が故障で休養中です…。放牧でしっかり治してあげましょう。`, btns:[B(`${injured.name}の様子を見る`,"train",injured.id,undefined,sugTid(injured))]};
@@ -13273,7 +13271,7 @@ function renderFarm(){
  const preview={}; FAC_CATS.forEach(c=>preview[c]=0);
  if(sf){ const lv0=facLv(sf.id); if(facBuilding(sf.id)===0 && lv0<(sf.maxLv||2)){ const mul=S.mgrPost===sf.id?1.5:1; const inc=(lv0+1)*mul - lv0*(S.mgrPost===sf.id?1.5:1); if(lv0===0||true){ const curEff=facEffect(sf.id); const nextEff=(lv0+1)*mul; const d=Math.max(0,nextEff-curEff); preview[sf.cat]=(preview[sf.cat]||0)+d; if(sf.id==="merit"){preview["名声"]+=d*0.6;} if(sf.id==="tourism"){preview["名声"]+=d*0.3;} } } }
  const upkeepM=FACILITIES.reduce((a,f)=>a+facMaintM(f,facLv(f.id)),0)+overseasUpkeepM();
- let html=subnavHTML("farm",[["top","牧場"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">牧場 <span class="tag">スペース ${sp.used}/${sp.base}</span></h2>`;
+ let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
  /* 牧場マップ：イラストの上に施設オブジェクトを置き、タップで選択する */
  { const pos=[[12,13],[37,13],[62,13],[87,13],[12,25],[37,25],[62,25],[87,25],[12,37],[37,37],[62,37],[87,37],[12,49],[37,49],[62,49],[87,49],[12,61],[37,61],[62,61],[87,61],[12,73],[37,73],[62,73],[87,73],[12,85],[37,85],[62,85],[87,85],[12,97],[37,97],[62,97]];
    html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<small>${bd>0?"工事中":lv>0?"Lv"+lv+"/"+facMaxLv(f):"未建設"}</small></button>`; }).join("")}</div>`;
@@ -13389,7 +13387,7 @@ function renderFarm(){
  /* クラブ（記録パネル内は入口だけ：本体は牧場タブ「クラブ」に集約） */
  html+=`<details class="fold"><summary>クラブ</summary><div class="foldbody"><div class="panel">`;
  if(!S.club){ html+=`<p class="small">年末処理から、または下のボタンでクラブを設立できます。</p><button class="btn sm" id="btn-club">クラブを設立する</button>`; }
- else { html+=`<p class="small"><b>${esc(S.club.name)}</b>／クラブ資金 ${fmt(S.club.funds||0)}万円／累計クラブ賞金 ${fmt(S.club.prize||0)}万円</p><button class="btn sm" data-goto-club="1">クラブ情報を見る（牧場タブ「クラブ」）</button>`; }
+ else { html+=`<p class="small"><b>${esc(S.club.name)}</b>／クラブ資金 ${fmt(S.club.funds||0)}万円／累計クラブ賞金 ${fmt(S.club.prize||0)}万円</p><button class="btn sm" data-goto-club="1">クラブ情報を見る（馬主タブ「クラブ」）</button>`; }
  html+=`</div></div></details>`;
  html+=panelClose();
  /* クラブ専用パネル：クラブ資金・募集馬（クラブ所有馬）・出資と収支・
@@ -14470,8 +14468,11 @@ function autoDigestRace(ne){
       const res=(raceState.result&&raceState.result.ownResults)||[];
       res.forEach(o=>log(`🤖 オート：${year()}年${month()}月第${weekInMonth()}週／${o.h.name} は ${r.name} に出走し ${o.place}着（賞金${fmt(o.prize)}万円）― 結果だけ表示で消化`));
       raceState.phase="idle";
-      /* 画面切替は付随処理：失敗しても精算済みの消化を「失敗」にしない */
-      try{ switchView("stable"); }catch(e2){ console.warn("autoDigest switchView failed", e2); }
+      /* 画面は切り替えない：見ているタブ・スクロールを維持する。
+         結果の知らせは記録に加え、勝利時はオートバーの表示文にも残す
+         （autoStepBody が AUTO.digestLabel を優先して表示する） */
+      const _win=res.find(o=>o.place===1);
+      AUTO.digestLabel=_win? `🏆 ${_win.h.name} が ${r.name} を勝ちました（結果だけ表示で消化）` : "";
     } else if(raceState.phase==="done"){
       AUTO.digestFailReason=`${r.name} の結果が精算されませんでした（エントリーが消費されませんでした）`;
     } else {
@@ -14482,12 +14483,12 @@ function autoDigestRace(ne){
        記録に出し、次に同じ失敗が起きても原因が追えるようにする */
     try{ log(`⚠ オート消化エラー：${r.name} ― ${em}`); const st=String((e&&e.stack)||"").split("\n")[1]; if(st) log(`⚠ 発生箇所：${st.trim()}`); }catch(e2){} }
   if(!ok){
-    /* 消化に失敗しても詰ませない：レース状態を初期化して厩舎画面と操作バー
-       （オート開始・次の週へ）を必ず戻し、手動で続けられる状態にフォールバックする。
+    /* 消化に失敗しても詰ませない：画面は切り替えず（見ているタブ・
+       スクロールを維持）、レース状態を初期化して操作バー（オート開始・
+       次の週へ）を必ず戻し、手動で続けられる状態にフォールバックする。
        phase が "run"/"done" のまま残るとバーが「レース中」として隠れ続けてしまう */
     try{ cancelAnimationFrame(raceState.raf); }catch(e){}
     raceState.phase="idle"; raceState.done=false; raceState.sim=null; raceState.vis=null; raceState.result=null;
-    try{ switchView("stable"); }catch(e){}
   }
   S.watchMode=prevWatch;
   return ok;
@@ -14620,7 +14621,7 @@ function autoCardAction(c,cfg){
     /* セールごとの停止設定で判定する：そのセールが「止まる」の時だけ止めて
        セール会場へ案内し、「止まらない」にしたセールは開催週でも通過する */
     const kind=c.saleKind||(S.sale&&S.sale.kind)||null;
-    if(autoStopSaleFor(kind,cfg)) return {type:"stop", reason:`${saleDisplayName(kind)}が開催中です（停止条件：セール）。牧場タブのセール会場で購入する馬を選んでください（厩舎ホームの提案「セールを見る」からも移動できます）`};
+    if(autoStopSaleFor(kind,cfg)) return {type:"stop", reason:`${saleDisplayName(kind)}が開催中です（停止条件：セール）。馬主タブのセール会場で購入する馬を選んでください（厩舎ホームの提案「セールを見る」からも移動できます）`};
     /* 停止OFFのセールは通過する。その際、調教師への指示でおまかせ購入が
        ONのセール種別なら、通過前に◎・☆だけを自動購入する（ガードつき） */
     const buyOn= kind==="mare"? !!cfg.buyMareOmakase : !!cfg.buyYoungOmakase;
@@ -14701,7 +14702,7 @@ function autoStepBody(){
     /* 停止対象でないレース（設定で「止まらない」側にした通常レース等）は、
        「結果だけ」観戦で即時消化して自動進行を続ける（作戦は現在の設定のまま） */
     AUTO.steps++;
-    if(autoDigestRace(ne)){ AUTO.label=`${ne.h.name} のレースを結果だけ表示で消化しました`; renderAll(); autoSchedule(850); }
+    if(autoDigestRace(ne)){ AUTO.label=AUTO.digestLabel||`${ne.h.name} のレースを結果だけ表示で消化しました`; AUTO.digestLabel=""; renderAll(); autoSchedule(850); }
     else autoStop(`レースを消化できなかったため停止しました${AUTO.digestFailReason?` ― ${AUTO.digestFailReason}`:"（出走条件・騎乗料・資金を確認してください）"}`);
     return;
   }
@@ -14772,7 +14773,7 @@ function autoStepBody(){
   if(AUTO.weeksDone>=cfg.weeks){ autoStop(`指定の ${cfg.weeks} 週を進めたため停止しました`); return; }
   const blocked=blockedEntries();
   if(blocked.length){
-    if(!autoRaceStopFor(blocked[0])&&autoDigestRace(blocked[0])){ AUTO.steps++; AUTO.label="レースを結果だけ表示で消化しました"; renderAll(); autoSchedule(850); return; }
+    if(!autoRaceStopFor(blocked[0])&&autoDigestRace(blocked[0])){ AUTO.steps++; AUTO.label=AUTO.digestLabel||"レースを結果だけ表示で消化しました"; AUTO.digestLabel=""; renderAll(); autoSchedule(850); return; }
     autoStop(AUTO.digestFailReason? `レースを消化できなかったため停止しました ― ${AUTO.digestFailReason}` : "出走週のため停止しました"); return;
   }
   /* 年末処理を跨ぐ週送りでは必ず止まる：年末処理（引退判断・明け2歳の処遇・
@@ -15153,7 +15154,7 @@ function _restoreScroll(sv){
 }
 function switchView(v){
   if(raceState.phase==="done"&&v!=="race"){ renderAll(); return; } // レース終了画面からは「帰る」ボタンでのみ離れられる
-  const SB={stable:["厩舎","牧場の朝 ― 馬たちと過ごす日々"],train:["調教","坂路とトラック ― 仕上げの時間"],race:["レース","競馬場 ― スタンドの歓声"],bet:["馬券","予想と勝負の記録"],breed:["生産","血統を紡ぐ ― 次の世代へ"],jockey:["騎手","鞍上のパートナーたち"],farm:["牧場","緑の丘と施設のある風景"],rank:["名馬","歴史に名を刻んだ馬たち"]};
+  const SB={stable:["厩舎","牧場の朝 ― 馬たちと過ごす日々"],train:["調教","坂路とトラック ― 仕上げの時間"],race:["レース","競馬場 ― スタンドの歓声"],bet:["馬券","予想と勝負の記録"],breed:["生産","血統を紡ぐ ― 次の世代へ"],jockey:["騎手","鞍上のパートナーたち"],farm:["馬主","馬主の拠点 ― 牧場経営・施設・家庭"],rank:["名馬","歴史に名を刻んだ馬たち"]};
   const sb=$("#sb-title"), ss=$("#sb-sub"); if(sb&&SB[v]){ sb.textContent=SB[v][0]; if(ss)ss.textContent=SB[v][1]; }
   const sbi=$("#sb-img"); if(sbi) sbi.src=(v==="race"||v==="bet"||v==="jockey"||v==="rank")?"assets/scene-racecourse.webp":"assets/scene-farm.webp";
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
