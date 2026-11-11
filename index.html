@@ -5031,6 +5031,7 @@ const S={
   pregnant:[], youngStock:[], charms:{green:0,copper:0,silver:0,gold:0,rainbow:0}, cups:[], g1Wins:0, hallOfFame:[],
   club:null, sale:null, saleWeekKey:"", clubOffers:[], ended:false, springFlags:{}, overseasFarm:null, clubFarm:false,
   worldHorses: defaultWorld(),
+  chronicle:[], worldEco:{idx:1, hist:[]}, sirePower:[], stableRankHist:[],
   soldToRival:[], rivalry:[], saleHist:[],
 };
 function log(m){S.log.unshift(m); if(S.log.length>14)S.log.pop();}
@@ -7145,6 +7146,10 @@ function lineHeatOf(sireName){ return trendHeat(lineOf(sireName||"").parent); }
 function pruneWorldData(){
  try{
   if(Array.isArray(S.news)&&S.news.length>30)S.news.length=30;
+  if(Array.isArray(S.chronicle)&&S.chronicle.length>40)S.chronicle.length=40; /* §33 年代記 */
+  if(Array.isArray(S.stableRankHist)&&S.stableRankHist.length>10)S.stableRankHist.splice(0,S.stableRankHist.length-10); /* §33 勢力ランキングの年次推移 */
+  if(S.worldEco&&Array.isArray(S.worldEco.hist)&&S.worldEco.hist.length>10)S.worldEco.hist.splice(0,S.worldEco.hist.length-10);
+  if(Array.isArray(S.sirePower)&&S.sirePower.length>8)S.sirePower.length=8;
   if(Array.isArray(S.lineTrendHist)&&S.lineTrendHist.length>10)S.lineTrendHist.splice(0,S.lineTrendHist.length-10);
   if(Array.isArray(S.betHistory)&&S.betHistory.length>12)S.betHistory.length=12;
   if(Array.isArray(S.ledgerHist)&&S.ledgerHist.length>12)S.ledgerHist.length=12;
@@ -7165,7 +7170,7 @@ function pruneWorldData(){
     const H=S.awardLedger.horses;
     Object.keys(H).forEach(nm=>{ const e=H[nm]; if(!e.own&&!keep.has(nm)&&(e.gWins||0)===0&&(e.g1Wins||0)===0) delete H[nm]; });
   }
-  (S.rivalStables||[]).forEach(st=>{ st.funds=clamp(Math.round(st.funds||0),0,60000); });
+  (S.rivalStables||[]).forEach(st=>{ st.funds=clamp(Math.round(st.funds||0),0,90000); }); /* §33：上限はライフサイクル側の90000に合わせる（下限0は保存時の整形のみ。倒産判定は年末処理が負値で行う） */
  }catch(e){}
 }
 /* 系統の盛衰と種牡馬ビジネス：年末に、産駒の実績（自厩舎の現役馬のうち
@@ -7189,7 +7194,7 @@ function rivalStables(){
      4牧場では方針が偏り、コンディション優先の牧場が存在しない年が出るため）。
      プレイヤーが確認できるよう牧場データに保存され、年を跨いで継続する */
   const DEF_POL={"北嶺牧場":"graded","青浜ファーム":"prize","高原ステーブル":"cond","帝都レーシング":"win"};
-  S.rivalStables.forEach(st=>{ if(DEF_POL[st.name]&&!st.policy) st.policy=DEF_POL[st.name]; });
+  S.rivalStables.forEach(st=>{ if(DEF_POL[st.name]&&!st.policy) st.policy=DEF_POL[st.name]; if(st.deficitYears==null) st.deficitYears=0; if(st.netYr==null) st.netYr=0; if(!st.founded) st.founded=1; }); /* §33：旧セーブの牧場にも財務の継続カウンタを補う */
   return S.rivalStables;
 }
 function wRating(w){ return w.rating!=null? w.rating : Math.round(((w.spd||60)+(w.sta||60)+(w.bst||60))/3 + (w.wins||0)*2); }
@@ -7226,47 +7231,67 @@ function worldYearStep(prevY){
   let newsBudget=2; // ライバル動向の新聞は年あたり最大2本まで（記事の氾濫を防ぐ）
   sts.forEach(st=>{
     const mine=world.filter(w=>w.stable===st.name&&!w.legend); /* 歴代名馬は現役の所属馬として数えない（売却・生産・看板馬の対象にもしない） */
-    const earn=mine.reduce((a,w)=>a+Math.max(0,Math.round((wRating(w)-52)*ri(6,20))),0);
+    const earn=mine.reduce((a,w)=>a+Math.max(0,Math.round((wRating(w)-52)*ri(6,20)))+Math.pow(Math.max(0,wRating(w)-85),2)*6,0); /* §33較正：賞金は上位馬に厚く（実績連動）。古い単線形だと強豪牧場の収入が際限なく伸び、弱小は一律に沈んだ */
     const fundsBefore=st.funds||10000;
-    st.funds=clamp(Math.max(600, fundsBefore+earn-ri(1400,4600)),600,60000); /* 下限で潰れず上限でも際限なく膨らまない */
+    const costYr=(mine.length<15? ri(900,2600) : ri(1200,3800))+mine.length*190+mine.reduce((a,w)=>a+Math.max(0,wRating(w)-58)*9,0); /* §33較正：維持費は頭数＋強い馬ほど遠征・出走コストが掛かる。弱い馬中心の牧場は1頭あたり赤字になり数年で傾き、看板馬を持つ牧場は黒字になる分布にする（10年監査で全牧場一律黒字だった反省） */
+    st.netYr=earn-costYr;
+    st._soldYr=0; /* 赤字継続の判定は売却収入も含めて年末に確定する（下の売却処理の後に更新） */
+    st.funds=clamp(fundsBefore+st.netYr,-3000,90000); /* §33 世界のライフサイクル：下限の救済を廃し、赤字が続けば縮小→倒産へ進む（worldLifecycleYear が処理）。上限でも際限なく膨らまない */
     st.lastEarn=earn;
     mine.forEach(w=>{ if(!champ||wRating(w)>wRating(champ)) champ=w; });
     /* 方針は牧場ごとに違う：生産型は生産頭数を増やし、購買型は市場で
        積極的に補強し、小規模牧場は資金が細ると所属馬を手放して立て直す */
     const isBreeder=(st.style||"").includes("生産"), isBuyer=(st.style||"").includes("名門")||(st.style||"").includes("クラブ"), isSmall=(st.style||"").includes("小規模");
     /* 資金難の牧場は評価の低い所属馬を手放す（馬は世界を去り、資金は回復する） */
-    if(st.funds<1800&&mine.length>3){
-      const sell=[...mine].sort((a,b)=>wRating(a)-wRating(b))[0];
-      const price=Math.max(300, Math.round(wRating(sell)*14));
-      const ix=world.indexOf(sell); if(ix>=0) world.splice(ix,1);
-      st.funds+=price;
-      if(newsBudget>0&&Math.random()<0.7){ newsBudget--; pushNews(`${st.name}が${sell.name}を放出`, `資金繰りのため、${st.name}が所属馬の${sell.name}を ${fmt(price)}万円 で手放した。小規模牧場の経営は常に綱渡りだ。`); }
+    if((st.funds<2500||(st.deficitYears||0)>=2)&&mine.length>3){
+      /* §33 縮小：資金難・赤字継続の牧場は評価の低い所属馬から手放して立て直す。
+         資金がマイナスなら2頭まで売る。それでも戻らなければ年末に倒産処理へ進む */
+      const sellN= st.funds<0? 2 : 1;
+      const sells=[...mine].sort((a,b)=>wRating(a)-wRating(b)).slice(0,sellN);
+      sells.forEach(sell=>{
+        const price=worldHorseValue(sell);
+        const ix=world.indexOf(sell); if(ix>=0) world.splice(ix,1);
+        st.funds+=price; st._soldYr=(st._soldYr||0)+price;
+        pushChron(`${st.name}が${sell.name}を放出（縮小）`, `${year()}年、資金繰りのため ${st.name} が所属馬の ${sell.name} を ${fmt(price)}万円 で手放した。赤字継続 ${st.deficitYears||0}年・残り所属 ${world.filter(w=>w.stable===st.name&&!w.legend).length}頭。`);
+        if(newsBudget>0&&Math.random()<0.7){ newsBudget--; pushNews(`${st.name}が${sell.name}を放出`, `資金繰りのため、${st.name}が所属馬の${sell.name}を ${fmt(price)}万円 で手放した。経営の縮小が始まっている。`); }
+      });
     }
     /* 生産：自牧場の牝馬×種牡馬から、その牧場の血統の2歳が加入する（生産型は資金が許せば2頭） */
     const mares=mine.filter(w=>w.sex==="牝"&&(w.age||0)>=4&&(w.age||0)<=10).sort((a,b)=>wRating(b)-wRating(a));
     const sires=mine.filter(w=>w.sex!=="牝"&&(w.age||0)>=4&&(w.age||0)<=12).sort((a,b)=>wRating(b)-wRating(a));
     const breedN= isSmall? (st.funds>2600?1:0) : isBreeder? (st.funds>6000?2:1) : 1;
     for(let bi=0; bi<breedN; bi++){
-      const ma=mares[bi], si=sires.length? sires[bi%sires.length] : null;
+      const ma=mares[bi]; let si=sires.length? sires[bi%sires.length] : null;
+      /* §33：世界の繁殖は自牧場の種牡馬だけでなく、勢いのある世界の種牡馬
+         （種牡馬勢力の上位）への種付けも行う。産駒の父が実在の勢力・系統に
+         つながり、母は世界の現役・引退牝馬なので血統が世代をまたいで残る */
+      if(Math.random()<0.45){
+        const sp=(S.sirePower||[]);
+        const poolTop=sp.length? sp[ri(0,Math.min(2,sp.length-1))] : null;
+        if(poolTop) si={name:poolTop.name, rating:clamp(Math.round(58+poolTop.score*0.18),62,95), _pool:true, _fee:poolTop.fee||0};
+        else if(!si) si={name:pick(SIRE_NAMES), rating:ri(70,88), _pool:true, _fee:ri(300,900)};
+      }
       if(!ma||!si||st.funds<=1200) break;
       /* 配合は牧場の最良の血を引く形にする（父母平均だけだと世代ごとに
          弱体化して、数年で世界の上位が生成馬に置き換わってしまう） */
       const f=newHorse({base:clamp(Math.round(Math.max(wRating(ma),wRating(si))*0.55+((wRating(ma)+wRating(si))/2)*0.45)+ri(-4,9),45,96), age:2, sire:si.name, dam:ma.name});
       f.stable=st.name; f.worldBred=true; f.mainJockey=randActiveJockey(); ensureFullHorse(f); f.rating=wRating(f);
-      world.push(f); st.funds-=600;
+      world.push(f); st.funds-=600+(si._pool? Math.round((si._fee||0)*0.5) : 0); /* 外部の人気種牡馬への種付けは種付け料も払う */
     }
     /* 購買：購買型は積極的に（2頭まで）、他は余裕がある時だけセール級の若馬を買い増す */
     const buyP= isBuyer?0.75 : isBreeder?0.3 : 0.5;
     const buyN= (isBuyer&&st.funds>16000)?2:1;
     for(let bi=0; bi<buyN; bi++){
-      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base: Math.random()<0.12? ri(84,93) : ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; f.mainJockey=randActiveJockey(); ensureFullHorse(f); f.rating=wRating(f); world.push(f); const paid=Math.round(ri(800,2400)*lineHeatOf(f.sire)); st.funds-=paid;
+      if(st.funds>9000&&Math.random()<buyP){ const f=newHorse({base: Math.random()<0.12? ri(84,93) : ri(58,80), age:2}); f.stable=st.name; f.worldBred=true; f.mainJockey=randActiveJockey(); ensureFullHorse(f); f.rating=wRating(f); world.push(f); const paid=Math.round(ri(800,2400)*lineHeatOf(f.sire)*worldEcoMult()); /* §33：セール価格は系統の流行×世界市況で変動する */ st.funds-=paid;
         if(!Array.isArray(S.saleHist))S.saleHist=[];
         S.saleHist.unshift({name:f.name, price:paid, week:S.week, buyer:st.name}); if(S.saleHist.length>12)S.saleHist.length=12;
         if(newsBudget>0&&paid>=1800){ newsBudget--; pushNews(`${st.name}がセールで${f.name}を落札`, `今年のセールで、${st.name}が若馬の${f.name}を ${fmt(paid)}万円 で落札した（父 ${esc(f.sire)}）。${lineHeatOf(f.sire)>1.05?`父系の流行も価格を押し上げた格好だ。`:""}来季のデビューが注目される。`); }
       }
     }
+    st.deficitYears= (st.netYr+(st._soldYr||0))<0? (st.deficitYears||0)+1 : 0; /* 売却で立て直した年は赤字年に数えない */
     st._fundsDelta=(st.funds||0)-fundsBefore;
   });
+  try{ worldLifecycleYear(prevY, world); }catch(e){} /* §33：倒産・新規参入・市況・種牡馬勢力・勢力ランキングの年次更新 */
   /* 世界の頭数の安全弁：何十年遊んでもセーブが肥大化しないよう、
      世界生産馬が増えすぎたら評価の低い古馬から世代交代させる */
   if(world.length>280){
@@ -7304,6 +7329,122 @@ function worldYearStep(prevY){
     else pushNews(`${champ.name}の時代が続く`, `${champ.stable||"ライバル牧場"}の${champ.name}（レーティング${wRating(champ)}）が今年も世界の頂点に君臨した。${retiredN?`今年は${retiredN}頭がターフを去り、顔ぶれは静かに入れ替わっている。`:""}牙城は高いが、世代交代の足音は確実に近づいている。`);
   }
   pruneWorldData(); /* 年末の締め：世界の頭数・履歴・資金の上限を必ず通す */
+}
+
+/* ============ §33 世界のライフサイクル（倒産・参入／血統の興亡／市況） ============
+   ライバル牧場・馬主は実績で決まる財務を持ち、赤字が続けば縮小し（所属馬の
+   放出は worldYearStep 内）、立ち行かなくなれば倒産して資産が他牧場と
+   セールへ分散し、代わりに新しい牧場・馬主が参入する。世界の繁殖は
+   自牧場の種牡馬に加え、産駒実績で変動する「種牡馬勢力」の上位への
+   種付けも行われ、血統が世代をまたいでつながる。セール価格・種付け料・
+   馬の評価額は系統の熱（trendHeat）×世界市況（worldEco）で変動する。
+   動きは新聞（pushNews）と年代記（S.chronicle）に残り、勢力ランキングの
+   年次推移（S.stableRankHist）とともに記録タブで見られる */
+function worldEcoMult(){ const e=S.worldEco; return (e&&Number.isFinite(+e.idx))? +e.idx : 1; }
+function pushChron(title, body){
+  if(!Array.isArray(S.chronicle)) S.chronicle=[];
+  S.chronicle.unshift({y:year(), m:month(), title, body});
+  if(S.chronicle.length>40) S.chronicle.length=40;
+}
+/* 種牡馬勢力：世界の現役・生産馬の父ごとに、産駒の実績（頭数・勝利・
+   獲得賞金・最良産駒のレーティング）を集計して順位と種付け料の目安を出す */
+function computeSirePower(){
+  const map={};
+  (S.worldHorses||[]).forEach(w=>{ if(w.legend||!w.sire) return; const k=w.sire; const e=map[k]||(map[k]={name:k, line:"その他", n:0, wins:0, earn:0, top:0}); e.n++; e.wins+=w.wins||0; e.earn+=w.earnings||0; e.top=Math.max(e.top, wRating(w)); });
+  (S.horses||[]).forEach(h=>{ if(!h.sire) return; const k=h.sire; const e=map[k]||(map[k]={name:k, line:"その他", n:0, wins:0, earn:0, top:0}); e.n++; e.wins+=h.wins||0; e.earn+=h.earnings||0; e.top=Math.max(e.top, ratingOf(h)); });
+  return Object.keys(map).map(k=>{ const e=map[k]; try{ e.line=lineOf(k).parent||"その他"; }catch(err){ e.line="その他"; }
+    e.score=Math.round(e.top*1.2+(e.wins/Math.max(1,e.n))*6+Math.min(40,(e.earn/Math.max(1,e.n))/300)+Math.min(20,e.n*1.5)); /* 較正：産駒の「平均の質」で測る（頭数と累積勝ち星の単純合計だと年々際限なく膨らんだ）。上限は概ね300 */
+    e.fee=Math.round((150+e.score*7)*trendHeat(e.line)*worldEcoMult()/10)*10;
+    return e; }).sort((a,b)=>b.score-a.score).slice(0,8);
+}
+/* 勢力ランキングの年次スナップショット（自厩舎も同じ土俵で並べる） */
+function snapshotStableRank(y, world){
+  const W=world||S.worldHorses||[];
+  const rows=rivalStables().map(st=>{ const mine=W.filter(w=>w.stable===st.name&&!w.legend); const top=mine.slice().sort((a,b)=>wRating(b)-wRating(a))[0];
+    return {name:st.name, funds:Math.round(st.funds||0), n:mine.length, prize:Math.round(st.clubPrizeYr||0), top:top?top.name:"", topR:top?wRating(top):0}; });
+  rows.push({name:"自厩舎（あなた）", funds:Math.round(S.funds||0), n:(S.horses||[]).length, prize:Math.round((S.horses||[]).reduce((a,h)=>a+(h.yearEarnings||0),0)), top:"", topR:0, self:true});
+  rows.sort((a,b)=>(b.prize-a.prize)||(b.funds-a.funds)); rows.forEach((r,i)=>r.rank=i+1);
+  S.stableRankHist=Array.isArray(S.stableRankHist)? S.stableRankHist : [];
+  S.stableRankHist.push({y, rows});
+  if(S.stableRankHist.length>10) S.stableRankHist.splice(0, S.stableRankHist.length-10);
+}
+function worldLifecycleYear(prevY, world){
+  const yr=prevY+1;
+  /* 市況（景気）：緩やかなランダムウォーク。セール価格・評価額に波及する */
+  const eco=(S.worldEco&&typeof S.worldEco==="object")? S.worldEco : (S.worldEco={idx:1, hist:[]});
+  eco.idx=Math.round(clamp((Number.isFinite(+eco.idx)? +eco.idx : 1)+(Math.random()-0.48)*0.09, 0.85, 1.18)*1000)/1000;
+  eco.hist=Array.isArray(eco.hist)? eco.hist : []; eco.hist.push({y:yr, idx:eco.idx});
+  if(eco.hist.length>10) eco.hist.splice(0, eco.hist.length-10);
+  /* 種牡馬勢力の更新と首位交代の記録 */
+  const prevSire=(S.sirePower||[])[0];
+  S.sirePower=computeSirePower();
+  const newSire=(S.sirePower||[])[0];
+  if(prevSire&&newSire&&prevSire.name!==newSire.name){
+    pushChron(`種牡馬勢力の交代：${newSire.name}が首位に`, `${yr}年、世界の産駒実績で ${newSire.name}（${lineDisp(newSire.line)}）が種牡馬勢力の首位に立った（産駒 ${newSire.n}頭・${newSire.wins}勝）。前年首位は ${prevSire.name}。勢力の移り変わりは種付け料とセール価格に波及する。`);
+    pushNews(`種牡馬勢力に交代：${newSire.name}が首位`, `世界の産駒実績で ${newSire.name} が種牡馬勢力の首位に立った（産駒 ${newSire.n}頭・${newSire.wins}勝）。流行の移り変わりは種付け需要にも波及する。`);
+  }
+  /* 倒産と新規参入：資金がマイナスで立て直せず、または赤字が長期化した
+     牧場は破綻する。資産（所属馬）は上位が他牧場へ移籍し、残りはセール
+     経由で他の牧場へ散る。空いた枠には新しい牧場・馬主が参入する */
+  /* 資金に余裕のある牧場は規模拡大・還元で余剰を吐き出し（際限ない膨張の防止）、
+     資金が回復した牧場の赤字継続カウンタは解除する（売却で立て直した年を赤字に数えない） */
+  rivalStables().forEach(st=>{ if((st.funds||0)>55000) st.funds=Math.round(st.funds-(st.funds-55000)*0.2); }); /* 赤字継続の解除は「その年が黒字（売却込み）」の時だけ（worldYearStep で判定済み）。資金残高だけで解除すると、傾いた牧場の信号が消えてしまう */
+  const dead=rivalStables().filter(st=> ((st.funds||0)<0 && ((st.deficitYears||0)>=3 || world.filter(w=>w.stable===st.name&&!w.legend).length<=2)) || ((st.deficitYears||0)>=4 && (st.funds||0)<1200));
+  dead.forEach(st=>{
+    const mine=world.filter(w=>w.stable===st.name&&!w.legend).sort((a,b)=>wRating(b)-wRating(a));
+    const others=rivalStables().filter(x=>x!==st);
+    const heir=others.slice().sort((a,b)=>(b.funds||0)-(a.funds||0))[0];
+    const movedNames=[];
+    mine.forEach((w,ix)=>{
+      if(ix<2&&heir){ w.stable=heir.name; movedNames.push(w.name); if(!Array.isArray(S.saleHist)) S.saleHist=[]; S.saleHist.unshift({name:w.name, price:worldHorseValue(w), week:S.week, buyer:heir.name}); }
+      else if(ix<5&&others.length){ w.stable=others[ix%others.length].name; movedNames.push(w.name); }
+      else { const ixw=world.indexOf(w); if(ixw>=0) world.splice(ixw,1); }
+    });
+    if(Array.isArray(S.saleHist)&&S.saleHist.length>12) S.saleHist.length=12;
+    S.rivalStables=rivalStables().filter(x=>x!==st);
+    pushNews(`${st.name}が経営破綻`, `赤字が続いた ${st.name} が経営破綻した。所属馬はセールや他牧場への移籍で分散し、${movedNames.length?`看板馬格の ${movedNames[0]} は ${heir?heir.name:"他牧場"} へ移った。`:""}競馬界の勢力図がまた塗り替わった。`);
+    pushChron(`${st.name}が経営破綻`, `${yr}年、${st.name}（${st.style||""}）が資金繰りに行き詰まり経営破綻した。所属 ${mine.length}頭は他牧場とセールへ分散（赤字継続 ${st.deficitYears||0}年）。`);
+    const NAMES=["旭日ファーム","蒼天ステーブル","緑風牧場","星和レーシング","白樺ファーム","紅葉ステーブル","潮騒ファーム","大樹レーシング","銀嶺牧場","若葉ステーブル"];
+    const used=new Set(rivalStables().map(x=>x.name));
+    (S.stableRankHist||[]).forEach(h=>(h.rows||[]).forEach(r=>used.add(r.name))); /* 過去に存在した牧場名は使わない（破綻した牧場と同名の新規参入が年代記で混ざらないように） */
+    const nm=NAMES.find(n=>!used.has(n))||("新興牧場"+yr);
+    const entr={name:nm, style:pick(["新興の生産牧場","新興の馬主クラブ","地方から参入した小規模牧場"]), funds:Math.round(ri(10000,17000)*eco.idx), policy:pick(["graded","prize","cond","win"]), founded:yr, deficitYears:0, netYr:0, clubPrize:0, clubGWins:0, clubG1Wins:0, clubPrizeYr:0};
+    S.rivalStables.push(entr);
+    for(let k=0;k<2;k++){ const f=newHorse({base:ri(62,84), age:2}); f.stable=nm; f.worldBred=true; f.mainJockey=randActiveJockey(); ensureFullHorse(f); f.rating=wRating(f); world.push(f); }
+    pushNews(`${nm}が新規参入`, `新たに ${nm} が競馬界へ参入した。${st.name} の破綻で空いた勢力図に、新しい風が吹き込む。`);
+    pushChron(`${nm}が新規参入`, `${yr}年、${nm}（${entr.style}）が初期資金 ${fmt(entr.funds)}万円 で参入し、若馬2頭でスタートした。`);
+  });
+  snapshotStableRank(yr, world);
+}
+/* 月次報告書・決算に載せる世界の動きの要約（実データのみ） */
+function worldReportLines(){
+  const out=[]; const eco=S.worldEco||{idx:1};
+  out.push(`世界市況は指数 ${(Number.isFinite(+eco.idx)? +eco.idx : 1).toFixed(2)}（1.00が標準）です。セール価格と馬の評価額は、市況と系統の流行で動きます`);
+  const sts=rivalStables().slice().sort((a,b)=>(b.funds||0)-(a.funds||0));
+  if(sts[0]) out.push(`資金首位の牧場は ${sts[0].name}（約${fmt(sts[0].funds||0)}万円）です。赤字が続けば縮小・破綻し、新規参入と入れ替わります`);
+  const sp=(S.sirePower||[])[0];
+  if(sp) out.push(`種牡馬勢力の首位は ${sp.name}（産駒 ${sp.n}頭・${sp.wins}勝／種付け料の目安 ${fmt(sp.fee)}万円）です`);
+  (S.chronicle||[]).slice(0,2).forEach(c=>out.push(`年代記より：${c.y}年「${c.title}」`));
+  return out;
+}
+/* 記録タブ（worldPanelsHTML）に出すライフサイクルの可視化 */
+function worldSummaryHTML(){
+  const eco=S.worldEco||{idx:1, hist:[]};
+  const idx=Number.isFinite(+eco.idx)? +eco.idx : 1;
+  const sp=S.sirePower||[];
+  const hist=S.stableRankHist||[];
+  const latest=hist[hist.length-1];
+  let h=`<div class="panel"><h2 class="sec" style="margin-top:0">🌍 世界の勢力と市況 <span class="tag">ライフサイクル</span></h2>`;
+  h+=`<div class="flex"><span class="tag">世界市況 <b>${idx.toFixed(2)}</b>（1.00＝標準）</span>${(eco.hist||[]).slice(-5).map(e=>`<span class="tag">${e.y}年 ${(+e.idx).toFixed(2)}</span>`).join("")}</div>`;
+  if(sp.length) h+=`<div class="mt"><b class="small">種牡馬勢力（産駒実績順）</b><br><span class="uchips" style="margin:0">${sp.slice(0,5).map((x,i)=>`<span class="uchip">${i+1}位 ${esc(x.name)} <span class="uv">産駒${x.n}頭・${x.wins}勝</span><span>種付け料目安 ${fmt(x.fee)}万円</span></span>`).join("")}</span><div class="small">産駒の実績で順位と種付け料の目安が毎年動き、世界の繁殖は上位の種牡馬にも行われます。衰えた系統は細り、勢いのある系統が伸びます。</div></div>`;
+  if(latest){
+    h+=`<div class="mt"><b class="small">牧場・馬主 勢力ランキング（${latest.y}年）</b>${latest.rows.map(r=>`<div class="stat"><span style="min-width:30px">${r.rank}位</span><span style="min-width:120px">${esc(r.name)}${r.self?"":""}</span><span class="uchips" style="margin:0"><span class="uchip xs">年間賞金 <span class="uv">${fmt(r.prize)}万円</span></span><span class="uchip xs">資金 <span class="uv">${fmt(r.funds)}万円</span></span><span class="uchip xs">所属 <span class="uv">${r.n}頭</span></span>${r.top?`<span class="uchip xs">看板馬 <span class="uv">${esc(r.top)}（${r.topR}）</span></span>`:""}</span></div>`).join("")}</div>`;
+    if(hist.length>1) h+=`<div class="mt"><b class="small">各年の首位</b><br><span class="uchips" style="margin:0">${hist.map(e=>{ const t=e.rows[0]; return t? `<span class="uchip">${e.y}年 <span class="uv">${esc(t.name)}</span><span>賞金 ${fmt(t.prize)}万円</span></span>` : ""; }).join("")}</span></div>`;
+  }
+  const ch=S.chronicle||[];
+  if(ch.length) h+=`<div class="mt"><b class="small">📜 競馬界年代記</b>${ch.slice(0,8).map(c=>`<div class="ticket"><b>${esc(c.title)}</b> <span class="small">${c.y}年${c.m}月</span><br><span class="small">${esc(c.body)}</span></div>`).join("")}</div>`;
+  h+=`</div>`;
+  return h;
 }
 
 /* 種付け料の見込み（年末の実処理 sireDemandTick と、配合画面の表示で共用。
@@ -8862,7 +9003,7 @@ function declineTransferOffer(id){
 function ownerRelOf(name){ const v=(S.ownerRel||{})[name]; return (typeof v==="number")? v : 40; }
 function addOwnerRel(name, d){ if(!S.ownerRel) S.ownerRel={}; S.ownerRel[name]=clamp(Math.round(ownerRelOf(name)+d),0,100); }
 function ownerDealsThisYear(){ const yr=year(); let n=0; if(S.transferOfferYear&&S.transferOfferYear.year===yr) n+=S.transferOfferYear.count||0; if(S.ownerEventYear&&S.ownerEventYear.year===yr) n+=S.ownerEventYear.count||0; return n; }
-function worldHorseValue(w){ let v=wRating(w)*14+(w.wins||0)*80; v*=lineHeatOf(w.sire||""); if((w.age||0)>=8) v*=0.55; return Math.max(200, Math.round(v)); }
+function worldHorseValue(w){ let v=wRating(w)*14+(w.wins||0)*80; v*=lineHeatOf(w.sire||""); v*=worldEcoMult(); /* §33：評価額は系統の熱×世界市況で変動する */ if((w.age||0)>=8) v*=0.55; return Math.max(200, Math.round(v)); }
 function loanPrincipalUsed(){ return (S.ownerLoans||[]).reduce((a,L)=>a+(L.principal||0),0); }
 /* 貸付総額の上限：手元資金＋貸付中元本の50%まで（無制限の金策にしない） */
 function ownerLoanCap(){ return Math.max(2000, Math.floor(0.5*((S.funds||0)+loanPrincipalUsed()))); }
@@ -13155,7 +13296,7 @@ function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, loanMissedTotal:S._loanMissedTotal||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
  reports:Array.isArray(S.reports)?S.reports.slice(0,24):[], reportUnread:S.reportUnread||0, monthAct:S.monthAct||null, repKey:S._repKey||"", trainerBoost:S.trainerBoost||{}, trainerTrain:S.trainerTrain||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
- news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
+ news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, chronicle:S.chronicle||[], worldEco:S.worldEco||null, sirePower:S.sirePower||[], stableRankHist:S.stableRankHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
   const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
   if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
@@ -14024,6 +14165,7 @@ function worldPanelsHTML(){
     const sales=(S.saleHist||[]).slice(0,3).map(sh=>`<div class="small" style="margin-top:4px">🔨 セール：${esc(sh.buyer)} が ${esc(sh.name)} を ${fmt(sh.price)}万円 で落札</div>`).join("");
     h+=`<div class="panel"><h2 class="sec" style="margin-top:0">🏇 ライバル牧場 <span class="tag">毎年、生産・売買・世代交代が進む</span></h2>${rows}${sold}${riv}${sales}${lt?`<p class="small" style="margin-top:6px">系統の勢力（世界の上位馬の父系シェア）：${lt} ― 流行の系統は種付け需要にも影響します</p>`:""}${(()=>{ const hist=(S.lineTrendHist||[]).slice(-6); if(hist.length<2) return ""; return `<div class="mt"><b class="small">系統シェアの推移（各年の上位系統）</b>${hist.map(rw=>{ const t0=(rw.top||[])[0]; if(!t0) return ""; return `<div class="stat"><span style="min-width:58px">${rw.y}年</span><span style="min-width:104px">${esc(lineDisp(t0.line))}</span><span class="facbar"><i class="base" style="width:${Math.min(100,t0.pct)}%"></i></span><b>${t0.pct}%</b><span class="small">${(rw.top||[]).slice(1).map(t=>`${esc(t.line)} ${t.pct}%`).join("／")}</span></div>`; }).join("")}</div>`; })()}</div>`;
   }catch(e){}
+  try{ h+=worldSummaryHTML(); }catch(e){} /* §33：勢力ランキング・年代記・種牡馬勢力・市況 */
   return h;
 }
 function renderRank(){
@@ -14119,6 +14261,7 @@ function showSettings(){
 <div class="rulecard"><b>会社化と経営組織（12枠）</b><p>名声10以上・設立費2億円で経営を「会社」として組織化できます（馬主タブ→「会社・イベント」）。調教師の役割制と同じ流儀で、12の担当枠にそれぞれ正担当1名＋副担当は制限なし（兼任OK）で架空スタッフを配置します。スタッフは候補から雇用し、月給が毎月かかります（能力合計が高い人ほど高給）。各枠には業務量（現役馬＋繁殖牝馬から算出）に対するカバー上限があり、正担当の能力で決まります。足りない枠は副担当を足してください。<br>効果対応表：<b>CFO（財務）</b>＝融資の金利（15%→最大9%）と枠（最大+25%）、維持費の経費最適化（最大6%）、余剰資金の運用（資金の30%まで・月0.1〜0.3%程度の小さな運用益）。<b>法務</b>＝命名権の価格（最大+20%）。<b>事業（企画）</b>＝イベントの質と規模の上限（大規模は企画3以上＋カバー充足）。<b>マーケティング</b>＝ファンビジネス収入（有名馬・名声に連動、毎月）とクラブ募集の進み（最大+50%）。<b>営業</b>＝スポンサー金額（最大+50%）と再契約までの期間短縮。<b>広報</b>＝名声の伸び増幅（最大+60%）と命名権の価格。<b>運営</b>＝イベントの集客の質。<b>施設管理</b>＝建設費（最大-30%）・工期短縮・施設維持費（最大-25%）。<b>輸送・国際</b>＝海外遠征費（最大-35%）と海外種牡馬の種付け料（最大-20%）。<b>保険・リスク</b>＝競走馬保険の掛金と故障時の給付金（加入は任意、掛金は毎月）。<b>データ分析</b>＝次走提案に勝率見込みの分析が付く。<b>採用</b>＝雇用候補の数と質。<br>牧場イベント（見学会／ファン感謝祭／マルシェ／チャリティオークション）は規模（小3,000万／中1.5億／大6億・4週に1回）ごとに費用がかかり、来場・収入・名声と、種類ごとの波及（クラブ募集の後押し、命名権への関心、スポンサーとの接近）が結果レポートに出ます。会社は終盤の余剰資金の受け皿として設計しており、序盤の資金では設立も大規模イベントも届かない段階制です。</p></div>
 <div class="rulecard"><b>調教師の役割制（3枠）</b><p>調教師の体制は3つの役割枠で組みます。各枠は正担当1名＋副担当は人数制限なしで、1人が複数枠を兼任できます。<br>・<b>調教担当</b>（調教・見極めが効く）：定常指示の調教の質と、おまかせの指示見直し、調教まわりの提案。<br>・<b>見極め担当</b>（相馬眼が効く）：購入の目利き、配合提案の質、評価コメントの話者。厩舎全体の代行（種付け・幼駒購入・繁殖牝馬購入）の担当は見極め担当（正）が固定で務め、判断の質はその人の相馬眼で決まります。代行するか否かは調教師への指示の3項目のオン／オフで決め、見極め担当（正）を付け替えると代行担当もその人に切り替わります。見極め担当（正）が未設定のときは、相馬眼トップの調教師が暫定で担当します。<br>・<b>コンディション担当</b>（体調・体重が効く）：おまかせの調子・体重の調整と、レース前の最終調整。<br>役割の効果は自厩舎の全頭に及ぶのが基本ですが、枠ごとにカバー頭数の上限があります（正担当は関連能力が高いほど多く、副担当を足すとその人の能力ぶん増えます）。馬が増えて上限を超えた分には、その役割の効果が届きません。カバーは厩舎の並び順に正担当→副担当で埋まります。付け替えは調教師画面の先頭のカードで完結します。預託料は調教担当が受け持つ馬ごとに払う形で、従来の較正帯のままです。</p></div>
 <div class="rulecard"><b>経営機能（予算・決算／研修／広告／福利厚生／土地／経営目標）</b><p>会社パネルの「経営ダッシュボード」に集約します。<br>・<b>年度予算と決算</b>：購入／建設／イベント／種付の年間予算枠を設定でき、部門別（競走／生産・販売／イベント事業／ファンビジネス／管理・その他）の収支が今月・今年で見られます。予算は管理・報告用で、超過しても支出は自動で止まりません。差異は月次報告書でCFOが報告します。<br>・<b>人材育成（研修）</b>：スタッフ（4週間）と調教師（8週間）に費用をかけて研修を受けさせると、担当に合った能力が1段階上がります（能力上限5・研修回数の上限あり）。採用担当の管轄です。<br>・<b>広告キャンペーン</b>：広報担当の管轄で、費用と期間（3段階）に応じてイベント集客・名声の伸び・スポンサー金額・命名権の関心が上がります。<br>・<b>福利厚生と士気</b>：福利厚生の水準（月額／人）を上げると継続支出が増える代わりに士気が上がり、全担当枠の効果に小さく（最大±6%程度）効きます。下げると士気は下がります。<br>・<b>土地の購入・拡張</b>：3期まで買い増しでき（6億／15億／35億）、牧場の価値（持分の価格に連動）と繁殖牝馬・幼駒の収容上限（各期+5頭）が上がります。施設管理とCFOに接続する終盤向けの資金の使い道です。<br>・<b>経営目標</b>：年度の目標（賞金収入／名声の伸び／G1勝利数／イベント収入から選択）を設定し、年末に判定します。達成で名声+3・士気+10、未達で士気-5。いずれも任意で、設定しなくても序盤が詰まることはありません。</p></div>
+<div class="rulecard"><b>世界のライフサイクル（§33）</b><p>ライバル牧場・馬主にも財務があり、年間の収支は所属馬の実績（賞金）と維持費で決まります。赤字が続く牧場は評価の低い所属馬や種牡馬格を手放して縮小し、資金がマイナスで立て直せない、または赤字が長期化すると経営破綻します。破綻した牧場の所属馬は、看板馬格が他牧場へ移籍し、残りはセール経由で他の牧場へ分散します。代わりに新しい牧場・馬主が初期資金と若馬を持って参入するので、世界は入れ替わり続けます。<br>血統の興亡：世界の繁殖は各牧場の牝馬と、自牧場の種牡馬に加えて「種牡馬勢力」の上位（世界の産駒の頭数・勝利・獲得賞金・最良産駒から毎年算出）への種付けでも行われます。産駒の実績で系統と種牡馬の勢力（順位・種付け料の目安）が年々動き、勢いのある系統は伸び、衰えた系統は細ります。世界の幼駒は実際の父母から生まれ、血統は世代をまたいでつながります。<br>市場：セール価格・種付け料・馬の評価額は、系統の熱と世界市況（景気指数 0.85〜1.18、毎年ゆるやかに変動）で動きます。<br>見える化：牧場の破綻・新規参入・系統と種牡馬勢力の交代・大口の移籍は競馬新聞と「競馬界年代記」に残ります。記録タブには牧場・馬主の勢力ランキング（年間の獲得賞金・資金・所属頭数・看板馬）と各年の首位の推移、市況と種牡馬勢力が並び、月次報告書と経営ダッシュボードにも世界の動きの要約が載ります。旧セーブでは新しい世界の状態は空から始まり、次回年末から回り始めます（既存の世界の馬・牧場・資金はそのまま引き継がれます）。</p></div>
 <div class="rulecard"><b>経営機能 第2弾（保険／スポンサー契約／ファンクラブ／格付けと融資／資産の貸出・売却／税金）</b><p>会社パネルの「経営機能 第2弾」に集約し、各担当枠のカードからも辿れます。<br>・<b>馬ごとの保険</b>（保険・リスク担当）：馬ごとに故障プラン／故障・死亡プラン／プレミアムプランへ加入できます。掛金は馬の評価額とプランで決まる毎月の継続支出、給付は故障の発生時に一度だけ（休養週数連動）。5週以上の重度故障・死亡時は上位プランで評価額の50〜80%が給付されます。従来の一括（団体）保険も併用できます。<br>・<b>スポンサー契約</b>（営業担当）：複数年契約（年額は名声・実績・営業力で変動）を結ぶと、月額の契約料が継続収入になります。成果条項として重賞勝利・G1勝利のたびにボーナスが出る一方、契約によっては賞金の数%を分配します。期間中の露出（イベント来場・勝利）と実績で、満了時の更新条件が変わります。<br>・<b>ファンクラブ有料会員</b>（マーケティング・広報）：開設費3,000万円。会員数は有名馬の実績と名声で変動し、月額料金（300／600／1,000円）×会員数が毎月の継続収入になります。イベントの来場は会員増に、会員はグッズの先行販売でマーチャンダイジングの売れ行きを押し上げます。<br>・<b>融資と信用格付け</b>（CFO）：融資は短期（12週）／長期（48週・金利高め）／担保つき（48週・金利低め・総資産の裏付けが必要）の3種から資金繰り画面で選べます。信用格付け（S〜D）は総資産・賞金収入・名声・G1実績・借入比率・延滞履歴で変動し、金利と借入枠に効きます。<br>・<b>資産の貸出・売却</b>（施設管理・CFO）：施設を24週間貸し出すと月額の貸出収入が入りますが、貸出中はその施設の効果が止まります。施設の売却（取得費の約半額）と土地の一部売却（購入額の7割）で即資金化もできます。<br>・<b>年次の税金精算</b>（CFO）：年末に、その年の利益へ 10%（1億円まで）／20%（超過分）の税金が自動で精算されます。赤字年は税金なし。結果はCFOの月次報告書と決算（月次明細の「法人税・税金精算」）に載ります。<br>いずれも会社設立が前提で、担当の正配置と費用が要る段階制です。各機能の判断結果は月次報告書と月次明細に反映されます。</p></div>
 <div class="rulecard"><b>月次明細の内訳</b><p>月次明細の各カテゴリはタップで開閉でき、内訳（どの馬の保険か・どのイベントか・誰の給与か・どのグッズか・どのスポンサーか等）が1件ずつ見られます。既定は閉じた状態でカテゴリ合計だけの簡潔な表示で、開閉状態は再描画やオート進行中も保持されます。内訳の合計＋「内訳の記録なし分」＝カテゴリ合計となり、明細全体の合計は台帳・資金の動きと一致します。過去の月も同じ形で内訳を開けます。</p></div>
 <div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
@@ -14277,6 +14420,7 @@ function applySave(d){
   if(d.sound&&typeof d.sound==="object") S.sound={on:d.sound.on!==false, bgm:clamp(Number.isFinite(+d.sound.bgm)?+d.sound.bgm:0.6,0,1), se:clamp(Number.isFinite(+d.sound.se)?+d.sound.se:0.9,0,1)};
   /* 旧セーブに残る架空の名馬が混ざっていたら、実在馬リストへ移行する */
   S.news=Array.isArray(d.news)?d.news:[]; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[]; S.lineTrendSmooth=Array.isArray(d.lineTrendSmooth)?d.lineTrendSmooth:null; S.lineHeatPrev=(d.lineHeatPrev&&typeof d.lineHeatPrev==="object")?d.lineHeatPrev:null;
+  S.chronicle=Array.isArray(d.chronicle)?d.chronicle:[]; S.worldEco=(d.worldEco&&typeof d.worldEco==="object"&&Number.isFinite(+d.worldEco.idx))?d.worldEco:{idx:1,hist:[]}; S.sirePower=Array.isArray(d.sirePower)?d.sirePower:[]; S.stableRankHist=Array.isArray(d.stableRankHist)?d.stableRankHist:[]; /* §33 世界のライフサイクル（旧セーブは空で補い、次回年末から回り始める。世界の状態は壊れない） */
   S.awardLedger=(d.awardLedger&&typeof d.awardLedger==="object")?d.awardLedger:null; S.awardHistory=Array.isArray(d.awardHistory)?d.awardHistory:[]; /* 年間表彰の台帳と受賞歴（旧セーブは空で補う） */
   S.stablePolicies=(d.stablePolicies&&typeof d.stablePolicies==="object")?d.stablePolicies:{}; /* 牧場一覧に無い馬主の方針（旧セーブは空で、初回参照時に決定的に割り当てる） */
   S.retiredHorses=Array.isArray(d.retiredHorses)?d.retiredHorses:[]; /* 繁殖入りしなかった引退馬の記録（旧セーブは空） */
@@ -16197,6 +16341,7 @@ function genMonthlyReport(){
     /* 役員レイヤー：今月の判断（小さな判断の即時実行と、総会へ回した議案）を役員ごとに報告する */
     if(Array.isArray(c.execLog)){ EXEC_ROLES.forEach(e=>{ const es=c.execLog.filter(x=>x.key===key&&x.exec===e.id); if(!es.length) return; const holder=execHolder(e.id); const lines=es.slice(0,4).map(x=>x.text); if(es.length>4) lines.push(`ほか ${es.length-4}件の判断がありました`); if(es.some(x=>x.type==="big")) lines.push("大きな判断は株主総会の議案として提出済みです（承認されたものだけが実行されます）"); lines.push("来月も管轄分野の判断を続けます"); push(`役員：${e.title}`, holder?holder.name:"", lines, ""); }); }
   }
+  try{ const wl=worldReportLines(); if(wl.length) push("世界の動き", "競馬界ウォッチ", wl, ""); }catch(e){} /* §33：月次報告書にも世界の動きの要約を載せる */
   if(!Array.isArray(S.reports)) S.reports=[];
   S.reports.unshift({key, label:ledLabel(key), week:S.week, totI, totO, hl, sections:secs});
   if(S.reports.length>24) S.reports.length=24;
@@ -16221,6 +16366,7 @@ function mgmtDashboardHTML(){ const c=S.company; if(!c) return ""; const m=mgmt(
    <h3 style="margin:0 0 4px">📊 経営ダッシュボード（CFO集計）</h3>
    <div class="flex"><span class="tag">士気 <b>${Math.round(m.morale)}</b>（効果 ${moraleFactor()>=1?"+":""}${Math.round((moraleFactor()-1)*1000)/10}%）</span><span class="tag">福利厚生 Lv.${m.welfareLv}（月 ${fmt(m.lastWelfare||0)}万円）</span><span class="tag">土地 第${m.land}期まで拡張（価値 +${fmt(landValue())}万円）</span>${camp?`<span class="tag">📣 キャンペーン中（Lv.${camp}・あと ${m.campUntil-S.week}週）</span>`:`<span class="tag">キャンペーンなし</span>`}</div>
    <div class="small" style="margin-top:6px"><b>経営目標</b>：${gp? (gp.stale? `昨年の目標は${gp.g.done? "達成" : "未達"}でした。今年の目標を設定してください` : `${goalTypeDef(gp.g.type).name} ${fmt(gp.cur)}${goalTypeDef(gp.g.type).unit}／${fmt(gp.g.target)}${goalTypeDef(gp.g.type).unit}（${gp.pct}%）${gp.achieved? " ― 達成ペースです" : ""}`) : "未設定（下の「経営目標」から設定できます）"}</div>
+   ${(()=>{ try{ const wl=worldReportLines(); return wl.length? `<h4 style="margin:8px 0 2px">世界の動き（要約）</h4>`+wl.map(t=>`<div class="small">${esc(t)}</div>`).join("") : ""; }catch(e){ return ""; } })()}
    <h4 style="margin:8px 0 2px">部門別収支（今月／今年）</h4>
    ${depts.map((d,i)=>`<div class="ye-lrow"><span>${d.name}</span><span class="uchips" style="margin:0"><span class="uchip xs">今月 <span class="uv">${fmt(d.inn-d.out)}万円</span></span><span class="uchip xs">今年 <span class="uv">${fmt(yDepts[i].inn-yDepts[i].out)}万円</span></span></span></div>`).join("")}
    <div class="ye-lrow" style="border-top:2px solid var(--line)"><span><b>合計</b></span><span class="uchips" style="margin:0"><span class="uchip xs">今月 <span class="uv">${fmt(ledMonthSum(L.inn)-ledMonthSum(L.out))}万円</span></span><span class="uchip xs">今年 <span class="uv">${fmt(ledMonthSum(yl.inn)-ledMonthSum(yl.out))}万円</span></span></span></div>
