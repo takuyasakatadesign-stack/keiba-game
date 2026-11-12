@@ -2220,6 +2220,241 @@ table.doctable tr.sub td{font-weight:700}
 .rankrow .rtr i{display:block;height:100%;background:var(--gold)}
 .rankrow.self{background:rgba(201,162,39,.13);border-radius:8px}
 
+/* ============================================================
+   §35 デザイン超大型アップデート第2弾（2026-11-12）
+   メイン画面群の見た目そのものの一新。土台（サカタケ配色・
+   ゴシック体・chunky なカードとボタン）は維持し、余白・階層・
+   面の使い方・見出しの作りを作り替える。
+   ・見出しは「緑の帯見出し（白太字＋下辺）」に統一
+   ・面は3層に整理：画面地（面色）／主カード（白・太枠）／
+     カード内セクション（面色・枠のみ、影なし＝入れ子にしない）
+   ・馬のイラスト面を拡大し、名前→状態→戦績の階層を固定
+   ・血統は家系図（.pedtree）、新聞は紙面（.news-paper）として図式化
+   数字そのものは装飾しない／列挙はチップ／ボタンは選択のそば。
+   ============================================================ */
+/* ---- 見出し：帯見出しに統一（全画面の第一印象を作り替える） ---- */
+h2.sec{
+  background:var(--green); color:#fff; border:2px solid var(--duo-green-d);
+  border-bottom:5px solid var(--duo-green-d); border-radius:14px;
+  padding:9px 14px; font-size:19px; font-weight:900; line-height:1.3;
+  margin:20px 0 12px; box-shadow:0 4px 0 rgba(60,60,60,.10);
+}
+h2.sec::before{ background:#fff; width:9px; height:9px; }
+h2.sec .tag{ background:var(--gold); color:var(--ink); }
+h2.sec:first-child{ margin-top:0; }
+.panel h3{ font-size:16.5px; border-bottom:3px solid var(--gold); padding-bottom:5px; }
+/* ---- 面の階層：主カードは太枠＋大きめの余白 ---- */
+#main{ padding:14px 12px 20px; }
+.panel{ padding:18px; border-radius:22px; }
+.panel,.hcard,.rcard,.focusbox,.guidebox{ border-width:2.5px; }
+.focusbox{ background:#fffbe9; border-color:var(--gold); }
+@media (prefers-color-scheme: dark){ .focusbox{ background:#2b2a1c; } }
+/* ---- 厩舎ホーム：次の手ヒーロー＋提案カード ---- */
+.guidebox{ padding:20px; border-radius:24px; border-color:var(--green); }
+.guidebox .g-next{ font-size:12.5px; letter-spacing:.06em; }
+.guidebox .g-title{ font-size:25px; margin:4px 0 6px; }
+.gcards{ grid-template-columns:1fr; gap:10px; margin-top:14px; }
+@media (min-width:760px){ .gcards{ grid-template-columns:repeat(3,1fr); } }
+.gcard{
+  flex-direction:column; align-items:stretch; gap:8px; padding:14px;
+  background:#fff; border:2.5px solid var(--line); border-radius:18px;
+  box-shadow:0 4px 0 #e5e5e5;
+}
+@media (prefers-color-scheme: dark){ .gcard{ background:#223528; } }
+.gcard img.gface{ width:58px; height:58px; }
+.gcard .gwho{ font-size:12px; }
+.gcard .gtext{ font-size:15px; line-height:1.6; }
+.gcard .gbtns{ margin-top:auto; }
+.gcard .gbtns .btn{ flex:1 1 auto; }
+.gcard .gx{ position:absolute; }
+.gcard{ position:relative; }
+.gcard .gx{ top:6px; right:6px; margin-left:0; }
+/* お知らせ・ログ：左に状態ドットを持つタイムライン行 */
+.logrow{ border-left:none; border-radius:14px; padding:10px 12px; font-size:13.5px; }
+/* ---- 所有馬一覧：イラストを大きく、階層を固定 ---- */
+.hlist .hrow{
+  padding:12px; gap:14px; border-radius:20px; margin-bottom:10px; align-items:stretch;
+}
+.hlist .hrow img{
+  width:128px; height:96px; border-radius:14px; object-fit:cover;
+  object-position:center 38%; border:2.5px solid var(--line); align-self:center;
+}
+.hrow .hr-name{ font-size:19px; line-height:1.3; }
+.hrow .hr-stat{ font-size:13px; line-height:1.6; }
+.hrow .stattiles{ margin:7px 0 2px; }
+.hcard{ padding:14px; border-radius:22px; }
+.hcard .art{ aspect-ratio:16/9; border-radius:16px; }
+.hcard .art .zekken{ font-size:19px; min-width:36px; height:36px; }
+.hname{ font-size:20px; }
+@media (max-width:640px){
+  .hlist .hrow img{ width:96px; height:76px; }
+  .hcard .art{ aspect-ratio:2.1/1; }
+  .guidebox .g-title{ font-size:21px; }
+  .panel{ padding:14px; }
+}
+/* 状態チップ列は名前の直下にそろえる（視線の流れを固定） */
+.hstat{ gap:9px; }
+.statechip{ font-size:14.5px; padding:6px 14px; border-width:2.5px; }
+.statechip .sdot{ width:12px; height:12px; }
+/* ---- 馬詳細：名前プレート／大イラスト／能力セクション ---- */
+.namebar{
+  background:var(--green); border:2.5px solid var(--duo-green-d);
+  border-bottom:5px solid var(--duo-green-d); border-radius:16px; padding:12px 16px;
+}
+.namebar .nb-name{ color:#fff; font-size:25px; }
+.namebar .nb-sub{ background:rgba(255,255,255,.22); color:#fff; border:2px solid rgba(255,255,255,.45); }
+.detail-art{ aspect-ratio:16/9; border-width:2.5px; border-radius:18px; }
+.gauges{
+  background:var(--chip); border:2px solid var(--line); border-radius:18px;
+  padding:14px 14px 8px; margin:14px 0 6px;
+}
+.gauge .gbar{ height:17px; border-radius:9px; }
+.gauge .gname{ font-size:14.5px; }
+.rankb{ width:30px; height:30px; font-size:16px; border-radius:9px; }
+.aptrow{ gap:7px; margin:12px 0; }
+.aptchip{ font-size:14px; padding:5px 13px; border-width:2.5px; }
+.stattiles{ gap:9px; }
+.stile{ border-radius:16px; padding:10px 12px; }
+.stile .stv{ font-size:20px; }
+.dtabs{ gap:6px; margin:14px 0 8px; }
+.dtabs button{ min-height:46px; font-size:14.5px; }
+/* ---- 血統：家系図（ツリー） ---- */
+.pedtree{ margin-top:6px; }
+.pt-root{
+  background:var(--green); color:#fff; border:2.5px solid var(--duo-green-d);
+  border-bottom:5px solid var(--duo-green-d); border-radius:16px;
+  padding:11px 14px; text-align:center;
+}
+.pt-root .pt-name{ font-size:21px; font-weight:900; line-height:1.25; overflow-wrap:anywhere; }
+.pt-root .pt-sub{ font-size:12.5px; font-weight:800; opacity:.92; }
+.pt-stem{ width:4px; height:16px; background:var(--duo-green-d); margin:0 auto; border-radius:2px; }
+.pt-branches{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+@media (max-width:560px){ .pt-branches{ grid-template-columns:1fr; } }
+.pt-branch{ border:2.5px solid var(--line); border-radius:18px; padding:12px; background:#fff; min-width:0; }
+@media (prefers-color-scheme: dark){ .pt-branch{ background:#223528; } }
+.pt-branch.sire{ border-top:8px solid var(--blue); }
+.pt-branch.dam{ border-top:8px solid var(--red); }
+.pt-blabel{ font-size:11.5px; font-weight:900; letter-spacing:.08em; color:var(--ink2); margin-bottom:6px; }
+.pt-node{ background:var(--chip); border:2px solid var(--line); border-radius:14px; padding:9px 11px; min-width:0; }
+.pt-node.main{ background:#fff; border-width:2.5px; }
+.pt-node .pt-nm{ font-size:17px; font-weight:900; line-height:1.3; overflow-wrap:anywhere; }
+.pt-node .pt-role{ font-size:11px; font-weight:900; color:var(--ink2); }
+.pt-kids{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
+.pt-kids .pt-node .pt-nm{ font-size:14px; }
+.pt-link{ width:4px; height:12px; background:var(--line); margin:2px auto 0; border-radius:2px; }
+.pt-branch .pt-node + .pt-link{ margin-top:6px; }
+/* ---- 市場・セール・繁殖：カードの作り直し ---- */
+.salecard{
+  border-width:2.5px; border-top:8px solid var(--gold); border-radius:18px;
+  padding:14px; gap:12px;
+}
+.salecard .sc-name{ font-size:18px; }
+.salecard .sc-meta{ font-size:12.5px; line-height:1.55; }
+.salecard .sc-stats{ font-size:13px; line-height:1.6; }
+.salecard .sc-actions .btn{ min-height:52px; font-size:15px; }
+.parentcard{ border-radius:18px; padding:13px 14px; }
+.parentcard .pc-name{ font-size:18px; }
+.evalbox{ border-radius:16px; padding:12px; }
+.evalbox .ev{ font-size:25px; }
+/* ---- 出馬表・作戦・馬券 ---- */
+.rcard{ padding:15px; border-radius:20px; }
+.rcard .rn{ font-size:18px; }
+.rcard .rm{ font-size:13px; line-height:1.65; }
+#card-table th{ background:var(--green); color:#fff !important; font-size:12px; padding:9px 6px; }
+#card-table td{ padding:8px 6px; }
+.ownset{ border-width:2.5px; border-radius:20px; padding:15px; }
+.ownset .os-head img{ width:118px; height:80px; border-radius:12px; }
+.ticket{
+  background:#fffbe9; border:2.5px dashed var(--duo-yellow-d); border-radius:16px;
+  padding:12px 14px; font-size:13.5px;
+}
+@media (prefers-color-scheme: dark){ .ticket{ background:#2e2c1c; } }
+.betpick button{ min-width:52px; min-height:52px; font-size:16px; border-radius:14px; }
+.tacbtns button{ min-height:48px; padding:9px 16px; font-size:14.5px; border-radius:14px; }
+/* ---- レース画面HUD：タイトル帯／順位チップ／実況／結果 ---- */
+#racetitle-bar{
+  background:#fff; color:var(--ink); padding:12px 14px; gap:10px;
+  border-bottom:5px solid var(--green);
+}
+#racetitle-bar .rt-grade{ background:var(--gold); color:var(--ink); font-size:13px; padding:4px 11px; border-radius:8px; }
+#racetitle-bar .rt-name{ color:var(--ink); font-size:22px; text-shadow:none; }
+#racetitle-bar .rt-meta{ color:var(--ink2); font-size:13px; }
+@media (max-width:640px){ #racetitle-bar .rt-name{ font-size:18px; } }
+#racehud{ background:#fff; color:var(--ink); border-top:2px solid var(--line); padding:10px 14px; gap:22px; }
+#racehud .rh-rem{ color:var(--duo-green-d); font-size:31px; }
+#racehud .rh-pos{ color:var(--ink); font-size:20px; }
+#commentary{
+  background:#fffbe9; color:var(--ink); font-size:15.5px; line-height:1.6;
+  border-top:3px solid var(--gold); padding:13px 15px; min-height:52px;
+}
+@media (prefers-color-scheme: dark){ #commentary{ background:#2e2c1c; } }
+.poschip{
+  background:#fff; color:var(--ink); border:2px solid var(--line);
+  padding:4px 13px 4px 5px; font-size:13.5px; margin:0 6px 6px 0;
+  box-shadow:0 3px 0 #e5e5e5;
+}
+.poschip .gnum{ min-width:23px; height:23px; font-size:13px; }
+#racecam-float{ padding:7px 8px; border-width:2.5px; }
+#racecam-float .cambtn{ min-height:48px; font-size:14px; }
+.resultart{ border-radius:18px; border:2.5px solid var(--line); }
+.resultart img{ height:220px; }
+@media (max-width:640px){ .resultart img{ height:170px; } #racehud .rh-rem{ font-size:25px; } }
+/* ---- 表彰式：式次第プログラムの体裁に ---- */
+.aw-hall{
+  border:3px solid #8a6d1f; border-radius:20px; padding:22px 18px 16px;
+  box-shadow:0 6px 0 rgba(60,50,10,.25), 0 18px 40px rgba(0,0,0,.35);
+}
+.aw-ribbon{ font-size:23px; padding-bottom:11px; border-bottom:3px double rgba(201,162,39,.75); }
+.aw-hname{ font-size:27px; }
+.aw-info{ border-radius:14px; padding:12px 15px; }
+.aw-table th{ font-size:13.5px; padding:8px; }
+.aw-table td{ padding:8px; font-size:14px; }
+/* ---- 競馬新聞：紙面デザイン ---- */
+.news-paper{
+  background:#fffdf4; border:2.5px solid #8a7a4a; border-radius:8px;
+  padding:0 0 8px; overflow:hidden;
+}
+@media (prefers-color-scheme: dark){ .news-paper{ background:#f7f3e6; color:#232323; } }
+.news-mast{
+  display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  border-bottom:4px double #8a7a4a; padding:13px 16px 9px; margin-bottom:6px;
+}
+.news-name{ font-size:27px; font-weight:900; letter-spacing:.14em; color:#232323; }
+.news-date{ font-size:12px; font-weight:800; color:#5c5340; }
+.news-item{ padding:10px 16px; border-bottom:1.5px solid #d8cf9f; }
+.news-item:last-child{ border-bottom:none; }
+.news-head{ font-size:17.5px; font-weight:900; line-height:1.4; color:#232323; margin:0 0 2px; border:none; padding:0; }
+.news-meta{ font-size:11.5px; font-weight:800; color:#8a7a4a; margin-bottom:3px; }
+.news-body{ font-size:13.5px; line-height:1.75; color:#3a3524; margin:0; }
+/* ---- 牧場マップと施設：レベルの見た目差分 ---- */
+.farmmap{ border-width:2.5px; border-radius:20px; }
+.farmmap>img{ height:460px; }
+.fmark{
+  width:92px; padding:6px 6px 5px; border-radius:14px; font-size:12.5px;
+  border-width:2.5px; background:#fff;
+}
+.fmark.built{ background:var(--green); border-color:var(--duo-green-d); color:#fff; }
+.fmark small{ font-size:10.5px; }
+.fmpips{ display:block; font-size:9px; letter-spacing:2px; line-height:1.2; color:var(--duo-yellow-d); }
+.fmark:not(.built) .fmpips{ color:var(--ink2); }
+@media (max-width:400px){ .fmark{ width:80px; font-size:11px; } }
+.facrow{ padding:13px 14px; border-radius:16px; border-width:2.5px; margin-top:8px; }
+.facrow .fname{ font-size:16.5px; }
+.facrow .pips{ font-size:16px; letter-spacing:3px; }
+.facopen{ border-width:2.5px; border-radius:0 0 16px 16px; padding:12px 14px 14px; }
+/* ---- §35 コースレコード更新バナー／ウイニングラン ---- */
+.rec-banner{
+  background:#fffbe9; border:3px solid var(--gold); border-bottom:6px solid var(--duo-yellow-d);
+  border-radius:18px; padding:14px 16px; margin-top:10px; text-align:center;
+}
+.rec-banner .rec-bt{ font-size:24px; font-weight:900; color:var(--duo-green-d); line-height:1.3; }
+.rec-banner .rec-bm{ font-size:17px; font-weight:800; margin:3px 0; }
+#winrun-wrap{ position:relative; border:2.5px solid var(--line); border-radius:20px; overflow:hidden; background:#0d2013; }
+#winrun-wrap canvas{ display:block; width:100%; height:clamp(300px,54dvh,520px); }
+#winrun-wrap .wr-skip{
+  position:absolute; right:12px; bottom:12px; z-index:5;
+}
+
 </style>
 </head>
 <body>
@@ -3135,7 +3370,58 @@ const COURSE_RECORDS={
  "阪神|芝|2000":{time:116.2, horse:"ベラジオオペラ", year:2025, race:"大阪杯"},
  "阪神|芝|2200":{time:129.7, horse:"タイトルホルダー", year:2022, race:"宝塚記念"},
 };
-function courseRecord(r){ return COURSE_RECORDS[r.course+"|"+r.surf+"|"+r.dist]||null; }
+function courseRecord(r){ return liveRecord(r); }
+/* ============ §35 コースレコード（ゲーム内記録・較正済み） ============
+   従来の実在レコード（秒）は当ゲームの時計生成（勝ち時計は実在より
+   約1割遅い分布）では絶対に届かず「永遠に抜けない記録」だった。
+   ゲーム内レコードは、時計生成の式（速度＝15.55＋(能力−62)×0.0135）に
+   合わせて較正した基準タイムを初期値とし、レースで更新されていく。
+   基準速度 16.19m/s は「能力換算で約109〜111の馬が良馬場で好走した
+   とき」に届く水準：条件戦・通常の重賞の勝ち馬（能力85〜103程度）では
+   物理的に届かず、トップクラスが良馬場・好条件で揃ったときにだけ
+   まれに更新される（全条件合計で年に数件程度の想定）。
+   実在レコードの保持馬・レース・年は、確認できる条件ではそのまま
+   初期保持者として引き継ぐ（タイムだけゲーム内較正値）。
+   記録は S.records に {time,horse,rider,race,y,m,own} で永続保存され、
+   やり直しの巻き戻し（saveData 復元）にも含まれる */
+function recordKeyOf(r){ return (typeof r==="string")? r : r.course+"|"+r.surf+"|"+r.dist; }
+function baseRecordTime(course, surf, dist){
+  /* 距離・馬場の補正は時計生成側の分布に合わせる：ゲーム内の速度は距離で
+     ほぼ落ちない（落ちるのはスタミナ不足の失速分だけ）ため、距離補正は
+     ごく小さくし、ダートは適性分布の分だけ僅かに遅くする。較正検証では
+     条件戦級・通常の重賞級では全条件0件、G1級・良馬場でのみ数%に収めた */
+  const surfF = surf==="ダート"? 0.992 : 1;
+  const distF = 1; /* 距離補正なし：速度16.19m/s＝能力換算で約110の水準を全距離で統一（長距離だけ緩くならないように） */
+  return Math.round(dist/(16.19*surfF*distF)*10)/10;
+}
+function recordBook(){ if(!S.records||typeof S.records!=="object") S.records={}; return S.records; }
+function liveRecord(r){
+  const k=recordKeyOf(r), parts=k.split("|"), course=parts[0], surf=parts[1], dist=+parts[2];
+  let held=null; try{ held=recordBook()[k]||null; }catch(e){}
+  if(held) return {key:k, time:held.time, horse:held.horse, rider:held.rider||"", race:held.race||"", year:held.y, y:held.y, m:held.m, own:!!held.own, held:true};
+  const real=COURSE_RECORDS[k];
+  return {key:k, time:baseRecordTime(course,surf,dist), horse:real?real.horse:"―", rider:"", race:real?real.race:"", year:real?real.year:null, y:real?real.year:null, own:false, held:false, realTime:real?real.time:null};
+}
+/* 勝ち時計が現レコードを破ったら記録を更新する。戻り値 {rec, prev} または null */
+function checkCourseRecord(r, winner, rider){
+  const t=winner&&winner._time; if(!(t>0)) return null;
+  const prev=liveRecord(r); if(t>=prev.time) return null;
+  const own=!!(winner.owner||(S.horses||[]).includes(winner));
+  const rec={time:Math.round(t*10)/10, horse:winner.name, rider:rider||"", race:r.name, y:year(), m:month(), own};
+  recordBook()[prev.key]=rec;
+  return {rec, prev, key:prev.key};
+}
+function recordBookHTML(){
+  const keys=new Set([...Object.keys(COURSE_RECORDS), ...Object.keys(recordBook())]);
+  try{ [...(GRADED||[]), ...(EXCHANGE_RACES||[]), ...(OVERSEAS_RACES||[])].forEach(x=>{ if(x&&x.course&&x.surf&&x.dist) keys.add(x.course+"|"+x.surf+"|"+x.dist); }); }catch(e){}
+  const rows=[...keys].map(k=>{ const p=k.split("|"); return {k, course:p[0], surf:p[1], dist:+p[2], rec:liveRecord(k)}; })
+    .sort((a,b)=> a.course.localeCompare(b.course,"ja") || (a.surf<b.surf?-1:1) || a.dist-b.dist);
+  return `<h2 class="sec">レコードブック <span class="tag">コースレコード一覧</span></h2>
+  <p class="small">各条件の現在のレコード保持馬とタイムです。基準タイムは当ゲームの時計水準に較正した値で、トップクラスの馬が良馬場・好条件で揃ったときにだけ更新されます。レースで更新されると、ここに新しい保持馬が載ります（自厩舎の馬には印が付きます）。</p>
+  <div class="panel" style="padding:6px 10px"><table><tr><th>コース</th><th>条件</th><th>保持馬</th><th class="r">タイム</th><th>記録レース</th></tr>
+  ${rows.map(x=>`<tr class="${x.rec.own?"mine":""}"><td>${esc(x.course)}</td><td>${x.surf}${x.dist}m</td><td>${esc(x.rec.horse)}${x.rec.own?` <span class="aw-ownbadge">自厩舎</span>`:""}${x.rec.held?"":` <span class="small">（基準）</span>`}</td><td class="r"><b>${fmtTime(x.rec.time)}</b></td><td class="small">${x.rec.held?`${x.rec.y}年 ${esc(x.rec.race||"")}`:(x.rec.race?`実在レコード保持：${esc(x.rec.race)}（${x.rec.year}年・${fmtTime(x.rec.realTime)}）`:"―")}</td></tr>`).join("")}
+  </table></div>`;
+}
 /* ============ 実在馬（現役・2025年シーズンの実績。JRA公式の公表値に基づく） ============
    races/wins/top2/top3/獲得賞金/馬体重/主な勝ち鞍は2025年のG1優勝時点またはシーズン終了時点の実績。
    rider=実際の主戦・G1優勝騎手の表示名（訪問騎手等は表示名のみ、計算は jockey の騎手で代用） */
@@ -6187,7 +6473,7 @@ function horseDetailHTML(h, sugs){
  } else if(detailTab==="record"){
    const dr=dirRecOf(h); const cr=ensureCourseRec(h);
    const crTxt=Object.keys(cr).length? Object.keys(cr).map(c=>`<span class="uchip">${esc(c)} <span class="uv">${recText(cr[c])}</span></span>`).join("") : "―";
-   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<div class="uchips" style="margin:2px 0 8px"><span class="uchip">通算 <span class="uv">${h.races}戦${h.wins}勝</span></span><span class="uchip">近走 <span class="uv">${formDisp(h)}</span></span><span class="uchip">獲得賞金 <span class="uv">${fmt(h.earnings)}万円</span></span></div>${recordHTML(h,true)}<details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
+   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<div class="uchips" style="margin:2px 0 8px"><span class="uchip">通算 <span class="uv">${h.races}戦${h.wins}勝</span></span><span class="uchip">近走 <span class="uv">${formDisp(h)}</span></span><span class="uchip">獲得賞金 <span class="uv">${fmt(h.earnings)}万円</span></span>${(()=>{ try{ const mine=Object.entries(S.records||{}).filter(([k,v])=>v&&v.horse===h.name); return mine.map(([k,v])=>{ const p=k.split("|"); return `<span class="uchip gold">🏅 レコード保持 ${esc(p[0])} ${esc(p[1])}${p[2]}m <span class="uv">${fmtTime(v.time)}</span></span>`; }).join(""); }catch(e){ return ""; } })()}</div>${recordHTML(h,true)}<details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
    <div class="quad"><h4>全成績</h4><dl class="kv"><dt>通算</dt><dd>${h.races}戦 ${h.wins}勝（2着 ${Math.max(0,(h.top2||0)-h.wins)}回・3着 ${Math.max(0,(h.top3||0)-(h.top2||0))}回）</dd><dt>近走</dt><dd>${formDisp(h)}</dd><dt>前走</dt><dd>${esc(h.lastRace||"―")}</dd><dt>休養</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd></dl></div>
    <div class="quad"><h4>芝・ダート別</h4><dl class="kv"><dt>芝</dt><dd>${h.surfRec&&h.surfRec["芝"]?recText(h.surfRec["芝"]):"―"}</dd><dt>ダート</dt><dd>${h.surfRec&&h.surfRec["ダート"]?recText(h.surfRec["ダート"]):"―"}</dd><dt>重馬場</dt><dd>${h.heavyRec?recText(h.heavyRec):"―"}</dd><dt>距離帯</dt><dd>${h.distRec&&Object.keys(h.distRec).length? `<span class="uchips" style="margin:0">${Object.keys(h.distRec).map(b=>`<span class="uchip">${BAND_JP[b]} <span class="uv">${recText(h.distRec[b])}</span></span>`).join("")}</span>`:"―"}</dd></dl></div>
    <div class="quad"><h4>左右・競馬場別</h4><dl class="kv"><dt>左回り</dt><dd>${recText(dr.left.r?dr.left:(h.dirRec||{})["左"])}</dd><dt>右回り</dt><dd>${recText(dr.right.r?dr.right:(h.dirRec||{})["右"])}</dd><dt>競馬場別</dt><dd><span class="uchips" style="margin:0">${crTxt}</span></dd></dl></div>
@@ -6195,11 +6481,29 @@ function horseDetailHTML(h, sugs){
    </div></div></details>`;
  } else if(detailTab==="ped"){
    const L=lineOf(h.sire), DL=lineOf(h.damSireName||h.dam);
-   body=`<dl class="kv"><dt>父</dt><dd>${esc(h.sire)}<span class="mk">${L.parent}</span><span class="mk">${L.type==="SP"?"SP系統":L.type==="ST"?"ST系統":"中間"}</span>${L.grade?`<span class="mk hot">${L.grade}種牡馬</span>`:""}<span class="mk">${L.pop}</span></dd>
-   <dt>母</dt><dd>${esc(h.dam)}</dd>
-   <dt>父系因子</dt><dd>${(L.factors||[]).length? (L.factors||[]).map(f=>`<span class="trait plus">${ABNAME[f]}</span>`).join(" ") : "なし"}</dd>
-   <dt>牝系</dt><dd>${h.famousDam?"名牝系":(h.damLine==="主流"?"主流牝系":"一般牝系")}</dd></dl>
-   <p class="small">系統・因子は生産タブの配合評価で理論判定に使われます。</p>`;
+   let anc=[]; try{ anc=(pedigreeOf(h.sire,{name:h.dam,sire:h.damSireName||""}).anc)||[]; }catch(e){}
+   const g2=anc.filter(a=>a.gen===2);
+   const nodeHTML=(a,role,main)=> a? `<div class="pt-node${main?" main":""}"><div class="pt-role">${role}</div><div class="pt-nm">${esc(a.name)}</div><div class="uchips" style="margin:3px 0 0"><span class="uchip xs">${esc(a.parent||"")}</span>${a.grade?`<span class="uchip xs gold">${esc(a.grade)}種牡馬</span>`:""}${(a.factors||[]).map(f=>`<span class="uchip xs">${ABNAME[f]||""}</span>`).join("")}</div></div>` : `<div class="pt-node"><div class="pt-role">${role}</div><div class="pt-nm">―</div></div>`;
+   const lineChips=(X)=>`<span class="uchips" style="margin:3px 0 0"><span class="uchip xs">${esc(X.parent||"")}</span><span class="uchip xs">${X.type==="SP"?"SP系統":X.type==="ST"?"ST系統":"中間系統"}</span>${X.grade?`<span class="uchip xs gold">${esc(X.grade)}種牡馬</span>`:""}<span class="uchip xs">${esc(X.pop||"")}</span></span>`;
+   body=`<div class="pedtree">
+   <div class="pt-root"><div class="pt-name">${esc(h.name)}</div><div class="pt-sub">${esc(h.sex||"")}${h.age||""}歳 ・ ${esc(coatName(h))}</div></div>
+   <div class="pt-stem"></div>
+   <div class="pt-branches">
+    <div class="pt-branch sire"><div class="pt-blabel">父系 ― サイアーライン</div>
+     <div class="pt-node main"><div class="pt-role">父</div><div class="pt-nm">${esc(h.sire)}</div>${lineChips(L)}</div>
+     <div class="pt-link"></div>
+     <div class="pt-kids">${nodeHTML(g2[0],"父方の先祖")}${nodeHTML(g2[1],"父方の先祖")}</div>
+    </div>
+    <div class="pt-branch dam"><div class="pt-blabel">母系 ― ファミリーライン</div>
+     <div class="pt-node main"><div class="pt-role">母</div><div class="pt-nm">${esc(h.dam)}</div><span class="uchips" style="margin:3px 0 0"><span class="uchip xs ${h.famousDam?"gold":""}">${h.famousDam?"名牝系":(h.damLine==="主流"?"主流牝系":"一般牝系")}</span></span></div>
+     <div class="pt-link"></div>
+     <div class="pt-node"><div class="pt-role">母父</div><div class="pt-nm">${esc(h.damSireName||DL.name||"―")}</div>${lineChips(DL)}</div>
+     <div class="pt-link"></div>
+     <div class="pt-kids">${nodeHTML(g2[2],"母方の先祖")}${nodeHTML(g2[3],"母方の先祖")}</div>
+    </div>
+   </div></div>
+   <div class="mt"><b>父系因子</b><div class="uchips">${(L.factors||[]).length? (L.factors||[]).map(f=>`<span class="uchip gold">${ABNAME[f]}</span>`).join("") : `<span class="uchip dim">なし</span>`}</div></div>
+   <p class="small">家系図：上が本馬、父系（青の帯）と母系（赤の帯）に分かれ、下へ行くほど先祖です。系統・因子は生産タブの配合評価で理論判定に使われます。3代目以降の血統表は生産タブの配合評価で見られます。</p>`;
  } else if(detailTab==="rival"){
    const world=(S.worldHorses||[]).filter(w=>!w.legend); /* 歴代名馬は現役の比較相手ではないので含めない（殿堂・ランキングで扱う） */
    body= world.length? `<p class="small" style="margin-top:0">世界の有力馬（実在馬）と ${esc(h.name)} の比較です。対戦済みの馬には「対戦済」と表示します。</p><table><tr><th>馬名</th><th>性齢</th><th class="num">戦績</th><th class="num">重賞</th><th class="r">獲得賞金</th><th></th></tr>${world.map(w=>`<tr class="${w.name===h.name?"rank-me":""}"><td>${esc(w.name)}</td><td>${w.sex}${w.age}歳</td><td class="num">${w.races}戦${w.wins}勝</td><td class="num">${w.gWins||0}勝</td><td class="r">${fmt(w.earnings)}万円</td><td>${(h.metRivals||[]).includes(w.name)?'<span class="badge win">対戦済</span>':""}</td></tr>`).join("")}</table>` : `<p class="small">比較できる有力馬のデータがありません。</p>`;
@@ -9836,7 +10140,7 @@ function renderRace(){
   if(r){
     const eh0=S.horses.find(h=>h.id===S.selected&&!eligible(h,r))||S.horses.find(h=>!eligible(h,r));
     cardInner="";
-    if(cardFocus){ const ph0=eh0||selHorse(); if(ph0) cardInner+=`<div class="panel paddock"><div class="pad-art">${gallopArtHTML(ph0)}</div><div class="pad-info"><div class="pad-name">${esc(ph0.name)}</div><div class="small">${r.name}／${r.course} ${r.surf}${r.dist}m・馬場${r.ground}／${CLASSES[r.cls]}</div><div class="small">作戦・騎手・観戦方法と、自馬の単勝馬券は「作戦・単勝」タブで完結します</div></div></div>`; }
+    if(cardFocus){ const ph0=eh0||selHorse(); if(ph0) cardInner+=`<div class="panel paddock"><div class="pad-art">${gallopArtHTML(ph0)}</div><div class="pad-info"><div class="pad-name">${esc(ph0.name)}</div><div class="small">${r.name}／${r.course} ${r.surf}${r.dist}m・馬場${r.ground}／${CLASSES[r.cls]}</div><div class="small">作戦・騎手・観戦方法と、自馬の単勝馬券は「作戦・単勝」タブで完結します</div>${(()=>{ const rc=courseRecord(r); return rc?`<div class="small">🏅 コースレコード <b>${fmtTime(rc.time)}</b> ${esc(rc.horse)}${rc.held?`（${rc.y}年 ${esc(rc.race||"")}）`:"（基準タイム）"}</div>`:""; })()}</div></div>`; }
     cardInner+=`<div class="panel" id="entry-panel">
     <div class="flex"><span class="small">出走させる馬</span>
     <select id="entry-horse">${S.horses.map(h=>{const e=eligible(h,r);return `<option value="${h.id}" ${e?"disabled":""} ${eh0&&h.id===eh0.id?"selected":""}>${esc(h.name)}（${classLabel(h)}）${e?" ― "+e:""}</option>`;}).join("")}</select>
@@ -10235,6 +10539,7 @@ function startRace(r,mine,field){
      など finishRace の全効果が漏れなく戻る（AUTO消化は対象外） */
   if(!raceState._isRedo && !(typeof AUTO!=="undefined"&&AUTO.running)){
     try{ raceState._redoSnap={json:JSON.stringify(saveData())}; raceState._redoField=null; }catch(e){ raceState._redoSnap=null; }
+    raceState._winRunShown=false; raceState.winRun=null; raceState.recordBreak=null;
   }
   let all=field;
   if(!all){ all=finalizeField(r, mine?[mine]:[]); fixGates(all); }
@@ -11621,15 +11926,33 @@ function rebuildGLCourse(r){
      （ゲート状の表現）は実物と違うため廃止した */
   { const A=pathAt(r.dist);
     /* 決勝柱は真横カメラの反対側（馬の向こう側）に立てる：ゴールライン上で
-       カメラと馬の間に入らず、馬の向こうに円板が見える実況中継の構図にする */
+       カメラと馬の間に入らず、馬の向こうに円板が見える実況中継の構図にする。
+       §35：実物のJRA決勝柱に寄せた造形に作り直し——内ラチ側に立つ背の高い
+       細身の柱（約5.2m）＋土台、頂部に厚みのある円盤（直径約1.5m）。
+       円盤は平たい板ではなく、赤いリムを持つ円柱体にし、両面に
+       赤と白の同心円を描く。面は標準マテリアルで光を受け、影も落とす。
+       馬（体高約1.7m、騎手の頭頂約2.4m）との対比で実物スケールにする */
     const grp=new THREE.Group(); grp.position.set(A.x+A.px*farOff, 0, A.z+A.pz*farOff);
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.14,4.4,10), postMat); pole.position.y=2.2; pole.castShadow=true; grp.add(pole);
-    const cvG=document.createElement("canvas"); cvG.width=cvG.height=256; const cg2=cvG.getContext("2d");
-    cg2.fillStyle="#f6f2e7"; cg2.beginPath(); cg2.arc(128,128,125,0,7); cg2.fill();
-    cg2.lineWidth=30; cg2.strokeStyle="#c22f24"; cg2.beginPath(); cg2.arc(128,128,108,0,7); cg2.stroke();
-    cg2.fillStyle="#c22f24"; cg2.beginPath(); cg2.arc(128,128,32,0,7); cg2.fill();
-    const disc=new THREE.Mesh(new THREE.CircleGeometry(1.05,28), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cvG), transparent:true, side:THREE.DoubleSide}));
-    disc.position.set(0,4.05,0); disc.rotation.y=facePhi(A); grp.add(disc);
+    const steelMat=new THREE.MeshStandardMaterial({color:0xf2f2ec, roughness:0.35, metalness:0.55});
+    const redMat=new THREE.MeshStandardMaterial({color:0xc22f24, roughness:0.45, metalness:0.2});
+    const foot=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.7,0.35,14), new THREE.MeshStandardMaterial({color:0x9aa39b, roughness:0.9}));
+    foot.position.y=0.17; foot.castShadow=true; foot.receiveShadow=true; grp.add(foot);
+    const base=new THREE.Mesh(new THREE.CylinderGeometry(0.20,0.26,0.5,12), steelMat); base.position.y=0.55; base.castShadow=true; grp.add(base);
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.085,0.12,4.7,12), steelMat); pole.position.y=2.85; pole.castShadow=true; grp.add(pole);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(0.105,0.105,0.28,12), redMat); band.position.y=4.42; grp.add(band);
+    const collar=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.12,12), steelMat); collar.position.y=4.62; grp.add(collar);
+    const cvG=document.createElement("canvas"); cvG.width=cvG.height=512; const cg2=cvG.getContext("2d");
+    cg2.fillStyle="#f8f5ec"; cg2.beginPath(); cg2.arc(256,256,252,0,7); cg2.fill();
+    cg2.lineWidth=10; cg2.strokeStyle="#8f8a7c"; cg2.beginPath(); cg2.arc(256,256,246,0,7); cg2.stroke();
+    cg2.lineWidth=64; cg2.strokeStyle="#c22f24"; cg2.beginPath(); cg2.arc(256,256,206,0,7); cg2.stroke();
+    cg2.lineWidth=34; cg2.strokeStyle="#c22f24"; cg2.beginPath(); cg2.arc(256,256,118,0,7); cg2.stroke();
+    cg2.fillStyle="#c22f24"; cg2.beginPath(); cg2.arc(256,256,52,0,7); cg2.fill();
+    const faceTex=new THREE.CanvasTexture(cvG); faceTex.encoding=THREE.sRGBEncoding;
+    const faceMat=new THREE.MeshStandardMaterial({map:faceTex, roughness:0.5, metalness:0.05});
+    const discGrp=new THREE.Group(); discGrp.position.set(0,5.45,0); discGrp.rotation.y=facePhi(A);
+    const disc=new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.14,36), [redMat, faceMat, faceMat]);
+    disc.rotation.x=Math.PI/2; disc.castShadow=true; discGrp.add(disc);
+    grp.add(discGrp);
     g.add(grp); }
   [[1000,"10"],[800,"8"],[600,"6"],[400,"4"],[200,"2"]].forEach(([rm,lb])=>{ if(r.dist-rm>60) mkPost(r.dist-rm,lb); });
   /* --- メインスタンド：ホーム直線の向こう側に世界固定で建てる ---
@@ -12211,12 +12534,22 @@ function drawRace(simT){
   });
   const goalX=(r.dist-camLeft)*pxPerM;
   if(goalX>-30&&goalX<W+30){
-    ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.moveTo(goalX,trackTop+4); ctx.lineTo(goalX,H); ctx.stroke();
-    ctx.fillStyle="#c22f24"; ctx.beginPath(); ctx.arc(goalX,trackTop+8,7,0,7); ctx.fill();
-    ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(goalX,trackTop+8,2.8,0,7); ctx.fill();
+    /* §35：2D側も実物の決勝柱として描く——遠ラチの向こうに立つ細身の柱と、
+       頂部の大きな同心円盤（白地に赤の二重リングと芯）。馬の走行帯より
+       奥（遠ラチ側）に置くので馬は遮らない。ゴールラインは柱から下へ細く */
+    ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(goalX,trackTop+22); ctx.lineTo(goalX,H); ctx.stroke();
+    ctx.fillStyle="rgba(10,30,14,.25)"; ctx.fillRect(goalX-7,trackTop+30,14,3);
+    ctx.fillStyle="#e8e8e2"; ctx.fillRect(goalX-1.8,trackTop+12,3.6,trackTop+20);
+    ctx.fillStyle="#c22f24"; ctx.fillRect(goalX-2.2,trackTop+15,4.4,3);
+    const gy=trackTop+11, gr=11.5;
+    ctx.beginPath(); ctx.arc(goalX,gy,gr+1.6,0,7); ctx.fillStyle="#c22f24"; ctx.fill();
+    ctx.beginPath(); ctx.arc(goalX,gy,gr,0,7); ctx.fillStyle="#f8f5ec"; ctx.fill();
+    ctx.lineWidth=3.4; ctx.strokeStyle="#c22f24"; ctx.beginPath(); ctx.arc(goalX,gy,gr-2.2,0,7); ctx.stroke();
+    ctx.lineWidth=2; ctx.beginPath(); ctx.arc(goalX,gy,gr-6.4,0,7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(goalX,gy,2.6,0,7); ctx.fillStyle="#c22f24"; ctx.fill();
     ctx.font="bold 10px sans-serif"; ctx.fillStyle="#fff"; ctx.shadowColor="rgba(0,0,0,.6)"; ctx.shadowBlur=3;
-    ctx.fillText("GOAL", goalX, trackTop-3); ctx.shadowBlur=0;
+    ctx.textAlign="center"; ctx.fillText("GOAL", goalX, trackTop-4); ctx.shadowBlur=0;
   }
   /* ===== 馬（中継カメラ・横から） ===== */
   const items=sim.all.map(h=>{
@@ -12946,7 +13279,24 @@ function finishRace(){
     if(tot>0) S.lastEvent={type:"betwin", pay:tot};
    }catch(e){ log(`⚠ 馬券精算でエラー（レースの精算は継続しました）：${e&&e.message?e.message:e}`); raceState.betResults=[]; }
   }
+  /* §35 コースレコード判定：勝ち時計が現レコードを破れば更新し、結果画面で
+     表彰表示する。世界の馬の勝利でも更新される。自厩舎の保持記録が他馬に
+     破られたときは知らせる。精算は1回だけ（_settleKeys ガード内） */
+  raceState.recordBreak=null;
+  try{ const w=sorted[0]; const rb=checkCourseRecord(r, w, riderName(w));
+    if(rb){ raceState.recordBreak=rb;
+      log(`🏅 コースレコード更新！ ${w.name} が ${r.course} ${r.surf}${r.dist}m で ${fmtTime(rb.rec.time)}（従来 ${fmtTime(rb.prev.time)} ${rb.prev.horse}）`);
+      try{ pushNews(`🏅 ${w.name}がコースレコード更新`, `${r.course} ${r.surf}${r.dist}m の ${r.name} で、${w.name} が ${fmtTime(rb.rec.time)} のコースレコードを樹立した（従来の記録は ${rb.prev.horse} の ${fmtTime(rb.prev.time)}）。トップクラスが良馬場で揃ったときにだけ生まれる、めったにない快挙だ。`); }catch(e){}
+      if(rb.prev.held&&rb.prev.own&&!rb.rec.own) log(`🏅 あなたの馬 ${rb.prev.horse} が保持していた ${r.course} ${r.surf}${r.dist}m のレコードが、${w.name} に破られました`);
+    }
+  }catch(e){}
   raceState.result={sorted, myPlace, prize, prize1, stateChange, ownResults};
+  /* §35 ウイニングラン：G1で自馬が1着のときだけ、結果画面の前に祝賀シーンを
+     挟む（表示専用。精算は完了済みで、シーンの有無は結果に影響しない） */
+  raceState.winRun=null;
+  try{ const wo=ownResults.find(o=>o.place===1);
+    if(r.cls>=8&&wo&&!raceState._winRunShown){ raceState.winRun={h:wo.h}; raceState.phase="winrun"; }
+  }catch(e){}
   /* サウンド（付随処理）：失敗しても精算結果には影響させない */
   try{ if(AU.ctx){
     const betPayed=raceState.betResults?raceState.betResults.reduce((a,b)=>a+b.pay,0):0;
@@ -12954,7 +13304,7 @@ function finishRace(){
     if(ownResults.some(o=>o.place===1)) auWinJingle();
     if(betPayed>0) setTimeout(()=>auBetWin(),450);
     if(AU._crowdTimer) clearTimeout(AU._crowdTimer);
-    AU._crowdTimer=setTimeout(()=>{ AU._crowdTimer=0; if(raceState.phase!=="run"){ auStopCrowd(); auSetMode("home"); } },2800); // ゴール歓声は約3秒で完全に止める（残響として残さない）
+    AU._crowdTimer=setTimeout(()=>{ AU._crowdTimer=0; if(raceState.phase!=="run"&&raceState.phase!=="winrun"){ auStopCrowd(); auSetMode("home"); } },2800); // ゴール歓声は約3秒で完全に止める（残響として残さない）。ウイニングラン中は祝賀シーン側の歓声を優先する
   } }catch(e){ console.warn("finishRace audio failed", e); }
   /* 描画・保存（付随処理）：ここで例外が出てもレース精算は完了済みとして扱う */
   try{ renderRaceScreen($("#v-race")); wirePanels($("#v-race")); hud(); renderChrome(); saveAuto(); }
@@ -13061,6 +13411,76 @@ function lossAnalysisHTML(o){
       : `<p style="text-align:left">大きな敗因は見当たりません。状態・適性・展開に目立った問題はなく、今回は勝ち馬の力が上でした。</p>`);
   return `<div class="panel"><h3>🔍 敗因分析：${esc(h.name)}（${place}着）</h3>${dataLine}${body}</div>`;
 }
+/* ============ §35 ウイニングラン（G1・自馬1着のときだけ） ============
+   ゴール後の自然な減速ランの後に続く独立した祝賀シーン（表示専用）。
+   精算は finishRace で完了済み：シーンは結果を一切変更せず、10秒で
+   自動終了し、タップ／ボタンでいつでもスキップして結果画面へ進む。
+   スプライト（既存のギャロップシート合成）とキャンバスで構成し、
+   2D／3Dどちらの表示モードでも同じシーンが出る（3DのGLは結果画面前に
+   破棄される設計のため、祝賀シーンはキャンバス専用シーンとして独立） */
+function endWinRun(){
+  if(raceState._wrRaf) cancelAnimationFrame(raceState._wrRaf);
+  raceState._wrRaf=0; raceState.winRun=null; raceState.phase="done";
+  try{ auSetCrowd(0.8,0.3); }catch(e){}
+  const el=$("#v-race"); if(el){ renderRaceScreen(el); wirePanels(el); }
+}
+function startWinRunScene(){
+  const cv=$("#wrcv"); if(!cv) return;
+  const wr=raceState.winRun; if(!wr) return;
+  raceState._winRunShown=true;
+  try{ auFanfareFor(8); auSetCrowd(1.0,0.4); }catch(e){}
+  cv.width=cv.clientWidth||360; cv.height=cv.clientHeight||320;
+  const confetti=[]; for(let i=0;i<70;i++) confetti.push({x:Math.random(), y:Math.random(), s:2+Math.random()*3.5, v:0.02+Math.random()*0.05, ph:Math.random()*6.28, c:["#ffc800","#58cc02","#1cb0f6","#ff4b4b","#ffffff"][i%5]});
+  raceState._wrConfetti=confetti; raceState._wrStart=performance.now();
+  const step=(now)=>{
+    if(raceState.phase!=="winrun"||!raceState.winRun){ raceState._wrRaf=0; return; }
+    const t=(now-raceState._wrStart)/1000;
+    drawWinRun(cv, t);
+    if(t>=10){ endWinRun(); return; }
+    raceState._wrRaf=requestAnimationFrame(step);
+  };
+  raceState._wrRaf=requestAnimationFrame(step);
+}
+function drawWinRun(cv, t){
+  const wr=raceState.winRun; if(!wr) return;
+  const ctx=cv.getContext("2d"), W=cv.width, H=cv.height, h=wr.h, r=raceState.race;
+  /* 空とスタンド（観客ドットが跳ねて沸く） */
+  const sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,"#8ec7f2"); sky.addColorStop(0.55,"#c4e4f8"); sky.addColorStop(0.56,"#5d8a4a"); sky.addColorStop(1,"#47753a");
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  const standY=H*0.16, standH=H*0.30;
+  ctx.fillStyle="#31435c"; ctx.fillRect(0,standY,W,standH);
+  ctx.fillStyle="#20503a"; ctx.fillRect(0,standY-8,W,10);
+  const cols=["#e8e2d2","#c9534a","#5b8dd9","#e9bc2e","#7fb069","#f2f2f2"];
+  const scroll=(t*14)%23;
+  for(let i=0;i<260;i++){ const gx=((i*47)%Math.max(60,W))-scroll, gy=standY+8+((i*31)%Math.max(20,standH-16)) + Math.sin(t*6+i)*2.2;
+    if(gx<-4) continue; ctx.fillStyle=cols[i%6]; ctx.globalAlpha=0.85; ctx.fillRect(gx,gy,3.4,3.4); }
+  ctx.globalAlpha=1;
+  /* カメラフラッシュ */
+  for(let i=0;i<7;i++){ const fx=((i*173+Math.floor(t*2)*97)%Math.max(80,W)), fy=standY+14+((i*67)%Math.max(24,standH-24));
+    if(((t*2+i)%3)<0.24){ ctx.fillStyle="rgba(255,255,255,.95)"; ctx.beginPath(); ctx.arc(fx,fy,4.5,0,7); ctx.fill(); } }
+  /* 芝のコースと白ラチ */
+  ctx.fillStyle="#6aa84f"; ctx.fillRect(0,H*0.60,W,H*0.40);
+  ctx.strokeStyle="#fff"; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(0,H*0.635); ctx.lineTo(W,H*0.635); ctx.stroke();
+  ctx.lineWidth=2.4; for(let x=-((t*26)%46); x<W; x+=46){ ctx.beginPath(); ctx.moveTo(x,H*0.635); ctx.lineTo(x,H*0.70); ctx.stroke(); }
+  /* 勝ち馬：カメラが寄り添い、馬は中央でトロット（背景が流れる） */
+  const frame=Math.floor(t*5.5)%8;
+  let spr=null; try{ spr=getHorseSprite(h, frame, false, r.surf==="ダート"); }catch(e){}
+  const sh=H*0.46, sw=sh*1.32, sx=W*0.5-sw/2, sy=H*0.60-sh+Math.sin(t*5.5)*3.2;
+  if(spr){ ctx.save(); ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=10; ctx.shadowOffsetY=6; ctx.drawImage(spr, sx, sy, sw, sh); ctx.restore(); }
+  /* 紙吹雪 */
+  (raceState._wrConfetti||[]).forEach(c=>{ const y=((c.y + t*c.v)%1.15)*H, x=c.x*W + Math.sin(t*1.6+c.ph)*14;
+    ctx.fillStyle=c.c; ctx.fillRect(x, y, c.s, c.s*0.62); });
+  /* 祝賀プレート */
+  const title="G1制覇", name=h.name;
+  ctx.font="900 "+Math.min(30, W/11)+"px sans-serif"; ctx.textAlign="center";
+  const tw=Math.max(ctx.measureText(title).width, ctx.measureText(name).width)+52;
+  ctx.fillStyle="rgba(10,24,14,.85)"; ctx.beginPath(); ctx.roundRect(W/2-tw/2, 10, tw, 66, 12); ctx.fill();
+  ctx.strokeStyle="#ffc800"; ctx.lineWidth=2.5; ctx.beginPath(); ctx.roundRect(W/2-tw/2, 10, tw, 66, 12); ctx.stroke();
+  ctx.fillStyle="#ffc800"; ctx.fillText(title, W/2, 42);
+  ctx.fillStyle="#fff"; ctx.font="900 "+Math.min(21, W/17)+"px sans-serif"; ctx.fillText(name+" ― "+r.name, W/2, 66);
+  if(raceState.recordBreak){ ctx.font="900 "+Math.min(17, W/21)+"px sans-serif"; ctx.fillStyle="#ffe9a8";
+    ctx.fillText("🏅 コースレコード更新 "+fmtTime(raceState.recordBreak.rec.time), W/2, H-14); }
+}
 function renderRaceScreen(el){
   renderActionBar();
   const r=raceState.race;
@@ -13081,6 +13501,16 @@ function renderRaceScreen(el){
     const bp2=$("#btn-posbar"); if(bp2) bp2.addEventListener("click",()=>{ const pb=$("#posbar"); if(!pb)return; const on=pb.style.display==="none"; pb.style.display=on?"":"none"; bp2.textContent=on?"順位表示 ON":"順位表示 OFF"; bp2.classList.toggle("on",on); });
     $("#btn-skip").addEventListener("click",()=>{cancelAnimationFrame(raceState.raf); finishRace();});
     const stb=$("#btn-straight"); if(stb) stb.addEventListener("click",skipToStraight); raceState._sbDis=null; syncStraightBtn();
+    return;
+  }
+  if(raceState.phase==="winrun"&&raceState.winRun){
+    const wr=raceState.winRun, rr=raceState.race;
+    el.innerHTML=`<div id="winrun-wrap"><canvas id="wrcv"></canvas><button class="btn gold wr-skip" id="btn-wr-skip">スキップ ▶</button></div>
+    <div id="commentary" style="margin-top:8px">🎙 ${esc(wr.h.name)}、ウイニングランです！ スタンド前をゆっくりとパレードし、スタンドからは大きな拍手が送られています！${raceState.recordBreak?` しかも勝ち時計 ${fmtTime(raceState.recordBreak.rec.time)} はコースレコード更新です！`:""}</div>
+    <div class="small" style="margin-top:6px">${esc(rr.name)}（G1）優勝 ― シーンは約10秒で終わります。タップでも結果画面へ進めます。</div>`;
+    const cv=$("#wrcv"); if(cv) cv.addEventListener("click",()=>endWinRun());
+    const bs=$("#btn-wr-skip"); if(bs) bs.addEventListener("click",()=>endWinRun());
+    startWinRunScene();
     return;
   }
   if(raceState.phase==="done"){
@@ -13105,6 +13535,7 @@ function renderRaceScreen(el){
         <div class="small">${esc(r.name)}／${r.course} ${r.surf}${r.dist}m ${r.ground}（${raceState.paceInfo}／${raceState.trendInfo||""} 1000m ${raceState.pace1000||"-"}）</div>
         <div style="font-size:30px; font-weight:900; line-height:1.25">優勝 ${esc(sorted[0].name)} <span class="small">${fmtTime(sorted[0]._time)}</span></div>
         ${ownResults.length? ownResults.map(o=>`<div style="font-size:17px; font-weight:800; margin-top:3px">自厩舎 ${esc(o.h.name)}：<span style="font-size:32px; color:${o.place===1?"var(--gold)":"var(--ink)"}">${o.place}着</span> <span class="small">作戦：${tacOf(o.h).n}</span></div>`).join("") : `<div class="small">観戦レース</div>`}
+      ${raceState.recordBreak?`<div class="rec-banner"><div class="rec-bt">🏅 コースレコード更新！</div><div class="rec-bm">${esc(raceState.recordBreak.rec.horse)} ― ${r.course} ${r.surf}${r.dist}m <b>${fmtTime(raceState.recordBreak.rec.time)}</b></div><div class="small">従来のレコード ${fmtTime(raceState.recordBreak.prev.time)}（${esc(raceState.recordBreak.prev.horse)}）を ${Math.max(0.1, raceState.recordBreak.prev.time-raceState.recordBreak.rec.time).toFixed(1)} 秒更新しました。この記録はレコードブックと、次回以降の同条件レースのレコード欄に残ります。</div></div>`:""}
       ${(()=>{ const s2=sorted[1], m2=s2? (s2._margin||0) : 99; const ph = m2<0.35&&sorted.length>1;
         const cere = r.cls>=8&&ownResults.some(o=>o.place===1);
         if(!ph&&!cere) return "";
@@ -13115,7 +13546,7 @@ function renderRaceScreen(el){
       ${ownResults.map(o=>lossAnalysisHTML(o)).join("")}
     `)}
     ${panelHTML("racedone","order",`
-      ${rec2?`<div class="panel">🏅 コースレコード ${fmtTime(rec2.time)} ${esc(rec2.horse)} ― 勝ち時計 ${fmtTime(sorted[0]._time)}（レコードにあと ${(sorted[0]._time-rec2.time).toFixed(1)} 秒${sorted[0]._time<=rec2.time?"・レコード更新！":""}）</div>`:""}
+      ${raceState.recordBreak?`<div class="panel">🏅 新コースレコード ${fmtTime(raceState.recordBreak.rec.time)} ${esc(raceState.recordBreak.rec.horse)}（${raceState.recordBreak.rec.y}年 ${esc(raceState.recordBreak.rec.race)}）― 従来 ${fmtTime(raceState.recordBreak.prev.time)} ${esc(raceState.recordBreak.prev.horse)}</div>`:(rec2?`<div class="panel">🏅 コースレコード ${fmtTime(rec2.time)} ${esc(rec2.horse)}${rec2.held?`（${rec2.y}年 ${esc(rec2.race||"")}）`:"（基準）"} ― 勝ち時計 ${fmtTime(sorted[0]._time)}${sorted[0]._time>rec2.time?`（レコードにあと ${(sorted[0]._time-rec2.time).toFixed(1)} 秒）`:""}</div>`:"")}
       <div class="panel"><table>
       <tr><th class="num">着</th><th class="num">番</th><th>馬名</th><th class="optcol">騎手</th><th class="r">タイム</th><th>着差</th><th class="r optcol">上り</th><th class="r">賞金</th></tr>
       ${pageSlice("doneOrder", orderRows, 10).join("")}
@@ -13396,7 +13827,7 @@ function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S
  pregnant:S.pregnant||[], youngStock:S.youngStock||[], charms:S.charms||{}, cups:S.cups||[], g1Wins:S.g1Wins||0, club:S.club||null, ended:!!S.ended, overseasFarm:S.overseasFarm||null, clubFarm:!!S.clubFarm, firstWinDone:!!S.firstWinDone, guideSkip:S.guideSkip||[], sale:S.sale||null, saleWeekKey:S.saleWeekKey||"", ledger:S.ledger||null, ledgerHist:S.ledgerHist||[], facV2:!!S.facV2, ownerName:S.ownerName||null, farmEquity:(S.farmEquity==null?null:S.farmEquity), sireYr:S._sireYr||0, loanMissedTotal:S._loanMissedTotal||0, lastDividend:S.lastDividend||null, family:S.family||null,affection:S.affection||null,familyCand:S.familyCand||null, people:S.people||null, playedIds:S._playedRaceIds||{},
  reports:Array.isArray(S.reports)?S.reports.slice(0,24):[], reportUnread:S.reportUnread||0, monthAct:S.monthAct||null, repKey:S._repKey||"", trainerBoost:S.trainerBoost||{}, trainerTrain:S.trainerTrain||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
- news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, chronicle:S.chronicle||[], worldEco:S.worldEco||null, sirePower:S.sirePower||[], stableRankHist:S.stableRankHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
+ records:S.records||{}, news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, chronicle:S.chronicle||[], worldEco:S.worldEco||null, sirePower:S.sirePower||[], stableRankHist:S.stableRankHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
 function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
   const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
   if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
@@ -13972,7 +14403,7 @@ function renderFarm(){
  let html=subnavHTML("farm",[["top","馬主"],["fac","施設"],["young","幼駒"],["sale","セール"],["records","記録"],["biz","経営"],["overseas","海外牧場"],["company","会社・イベント"],["reports",repUn>0?`報告書（${repUn}）`:"報告書"],["club","クラブ"],["family","家庭"]])+panelOpen("farm","top")+`<h2 class="sec">馬主 <span class="tag">所有牧場のスペース ${sp.used}/${sp.base}</span></h2>`;
  /* 牧場マップ：イラストの上に施設オブジェクトを置き、タップで選択する */
  { const pos=[[12,13],[37,13],[62,13],[87,13],[12,25],[37,25],[62,25],[87,25],[12,37],[37,37],[62,37],[87,37],[12,49],[37,49],[62,49],[87,49],[12,61],[37,61],[62,61],[87,61],[12,73],[37,73],[62,73],[87,73],[12,85],[37,85],[62,85],[87,85],[12,97],[37,97],[62,97]];
-   html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<small>${bd>0?"工事中":lv>0?"Lv"+lv+"/"+facMaxLv(f):"未建設"}</small></button>`; }).join("")}</div>`;
+   html+=`<div class="farmmap"><img src="assets/scene-farm.webp" alt="牧場のイラストマップ">${FACILITIES.map((f,i)=>{ const lv=facLv(f.id), bd=facBuilding(f.id); const [px,py]=pos[i%pos.length]; return `<button class="fmark ${lv>0?"built":""}" data-fmark="${f.id}" style="left:${px}%;top:${py}%">${f.n}<span class="fmpips">${lv>0? "●".repeat(lv)+"○".repeat(Math.max(0,facMaxLv(f)-lv)) : "○".repeat(Math.max(1,facMaxLv(f)))}</span><small>${bd>0?"工事中":lv>0?"Lv"+lv+"/"+facMaxLv(f):"未建設"}</small></button>`; }).join("")}</div>`;
  }
  html+=`<div id="farm-rest">`;
  const postName=S.mgrPost? (FACILITIES.find(f=>f.id===S.mgrPost)||{}).n : "なし";
@@ -14250,7 +14681,7 @@ function worldPanelsHTML(){
   h+=ownerFinanceHTML();
   const news=S.news||[];
   if(news.length){
-    h+=`<div class="panel"><h2 class="sec" style="margin-top:0">📰 競馬新聞 <span class="tag">世界の動き</span></h2>${news.slice(0,6).map(n=>`<div class="ticket"><b>${esc(n.title)}</b> <span class="small">${n.y}年${n.m}月</span><br><span class="small">${esc(n.body)}</span></div>`).join("")}</div>`;
+    h+=`<div class="panel news-paper"><div class="news-mast"><span class="news-name">競馬新聞</span><span class="news-date">世界の動き ― ライバル・系統・市場の動向</span></div>${news.slice(0,6).map(n=>`<article class="news-item"><h3 class="news-head">${esc(n.title)}</h3><div class="news-meta">${n.y}年${n.m}月</div><p class="news-body">${esc(n.body)}</p></article>`).join("")}</div>`;
   }
   try{
     const sts=rivalStables();
@@ -14301,7 +14732,7 @@ function renderRank(){
     return `<tr class="legend-detail"><td></td><td colspan="5"><b>主な勝鞍（G1）</b>：${esc(h.g1)}<br>父 ${esc(h.sire)}／母 ${esc(h.dam)}／毛色 ${esc(h.coatName||"")}／主戦 ${esc(h.rider)}／脚質 ${esc(h.style)}（当ゲーム解釈）／代表距離 ${h.dmin}〜${h.dmax}m・${h.dept}<br>獲得賞金 ${fmt(h.earnings)}万円は海外・地方分を含む生涯総額（実額）。レーティング ${h.rating} は当ゲーム換算。</td></tr>`;
   };
   const table=(list,mode,cols,key)=>{ const rows=list.map((h,i)=>rowMain(h,i,mode)+detailRow(h)); return `<div class="panel" style="padding:6px 10px"><table><tr><th class="num">順位</th><th>馬名</th><th>性・生年</th><th class="num">戦績</th>${cols}</tr>${pageSlice(key,rows,10).join("")||`<tr><td colspan="6" class="small">該当する馬がいません。</td></tr>`}</table></div>`+pagerHTML(key,rows.length,10); };
-  el.innerHTML=subnavHTML("rank",[["earn","賞金順"],["rating","レーティング順"]])
+  el.innerHTML=subnavHTML("rank",[["earn","賞金順"],["rating","レーティング順"],["records","レコード"]])
   + worldPanelsHTML()
   + `<div class="ranktabs">${[["all","すべて"],["legend","歴代名馬"],["current","現役実在馬"],["mine","自厩舎"]].map(([k,n])=>`<button data-rf="${k}" class="${rankFilter===k?"on":""}">${n}</button>`).join("")}</div>`
   + `<div class="ranktabs"><span class="small" style="align-self:center">地域：</span>${[["all","全地域"],["日本","日本"],["米国","米国"],["欧州","欧州"],["その他","その他"]].map(([k,n])=>`<button data-rr="${k}" class="${rankRegion===k?"on":""}">${n}</button>`).join("")}</div>`
@@ -14315,7 +14746,8 @@ function renderRank(){
       <table><tr><th>馬名</th><th class="num">生年</th><th>性</th><th>父</th><th>母</th><th class="num">適性距離</th><th>地域</th><th>換算帯</th></tr>${rows||`<tr><td colspan="8" class="small">該当する馬がいません。</td></tr>`}</table>
       ${list.length>prefCap?`<div class="flex mt"><button class="btn sm" data-prefmore="1">さらに表示する（残り ${(list.length-prefCap).toLocaleString()}頭）</button></div>`:""}</div>`; })() : "")
   + panelHTML("rank","earn",`<h2 class="sec">獲得賞金順 <span class="tag">実額・生年併記</span></h2><p class="small">歴代名馬は行を押すと血統・主戦・主な勝鞍が見られます。自厩舎馬が歴代名馬の賞金を抜くと「○○超え」の印が付きます。自厩舎馬は、獲得賞金 ${fmt(hallThresholds().earn)}万円以上／レーティング ${hallThresholds().rating}以上／G1 2勝以上のいずれかに達すると「殿堂入り」し、歴代名馬タブにも実在馬と並んで表示されます（引退・繁殖入りした後も残ります）。</p>${table(byEarn,"earn",`<th class="r">獲得賞金</th><th class="num">レーティング</th>`,"rankEarn")}`)
-  + panelHTML("rank","rating",`<h2 class="sec">レーティング順 <span class="tag">歴代名馬は当ゲーム換算</span></h2><p class="small">自厩舎馬のレーティングは、能力素地（最大約59点）に、通算勝率（最大22点）、G1勝利（1勝9点・最大26点）、重賞勝利（最大9点）、G1複勝率（最大8点）、獲得賞金（最大7点）を加えて算出します。G1の帯域を分けるため、G1未勝利の馬は上限85点、G1勝ち馬は下限86点とし、G1未勝利の馬がG1勝ち馬の帯域を上回ることはありません。出走数や勝利数の多さだけでは上がらず、殿堂入りライン（${hallThresholds().rating}点）は複数のG1を勝つ歴史的名馬クラスが届く水準です。</p>${table(byRating,"rating",`<th class="num">レーティング</th><th class="r">獲得賞金</th>`,"rankRate")}<p class="small mt">出典：戦績・獲得賞金・主な勝鞍・血統は JRA公式（競馬の殿堂／競走馬情報）、netkeiba、JBIS の公開情報に基づく実データ。獲得賞金は海外・地方分を含む生涯総額の実額で、時代により賞金水準が異なるため生年を併記しています（換算調整はしていません）。歴代名馬のレーティングと脚質・距離帯は当ゲーム内の換算・解釈です。</p>`);
+  + panelHTML("rank","rating",`<h2 class="sec">レーティング順 <span class="tag">歴代名馬は当ゲーム換算</span></h2><p class="small">自厩舎馬のレーティングは、能力素地（最大約59点）に、通算勝率（最大22点）、G1勝利（1勝9点・最大26点）、重賞勝利（最大9点）、G1複勝率（最大8点）、獲得賞金（最大7点）を加えて算出します。G1の帯域を分けるため、G1未勝利の馬は上限85点、G1勝ち馬は下限86点とし、G1未勝利の馬がG1勝ち馬の帯域を上回ることはありません。出走数や勝利数の多さだけでは上がらず、殿堂入りライン（${hallThresholds().rating}点）は複数のG1を勝つ歴史的名馬クラスが届く水準です。</p>${table(byRating,"rating",`<th class="num">レーティング</th><th class="r">獲得賞金</th>`,"rankRate")}<p class="small mt">出典：戦績・獲得賞金・主な勝鞍・血統は JRA公式（競馬の殿堂／競走馬情報）、netkeiba、JBIS の公開情報に基づく実データ。獲得賞金は海外・地方分を含む生涯総額の実額で、時代により賞金水準が異なるため生年を併記しています（換算調整はしていません）。歴代名馬のレーティングと脚質・距離帯は当ゲーム内の換算・解釈です。</p>`)
+  + panelHTML("rank","records", recordBookHTML());
   el.querySelectorAll("[data-money]").forEach(b=>b.addEventListener("click",()=>{ if(b.dataset.money==="fin") showFinance(); else showLedger(); }));
   el.querySelectorAll("[data-rf]").forEach(b=>b.addEventListener("click",()=>{ rankFilter=b.dataset.rf; renderAll(); }));
   el.querySelectorAll("[data-rr]").forEach(b=>b.addEventListener("click",()=>{ rankRegion=b.dataset.rr; renderAll(); }));
@@ -14368,6 +14800,7 @@ function showSettings(){
 <div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
 <div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「報告書」で読め（サブナビに未読件数が出ます。会社・イベントの先頭にも同じものがあります）、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
 <div class="rulecard"><b>デザインと正式書類（§34）</b><p>画面の列挙はチップ、数値の大小はバー／ゲージ、推移はミニグラフと前月比チップ、状態はバッジとドットで表します（数字そのものには装飾を付けません。調教師コメント等の文章として読むものは文章のままです）。<br>・<b>月次報告書</b>：冒頭に会社の月次サマリ（収入・支出の比較バー、前月比、差引の推移グラフ、ハイライトのチップ）を置き、担当ごとの報告は顔つきカードで「実績／収支／予定」に構造化して表示します。過去の報告書も同じ形式です。経営ダッシュボードとCFO報告も同じ設計言語（KPIタイル／部門別バー／予算バーと時期の目安線）で揃えています。<br>・<b>見積書</b>：株主総会の金額のある議案（土地・大規模イベント・キャンペーン・グッズ大量生産・幹部採用・大口運用など）には、文書番号・日付・発行者（担当役員）・宛先・明細（項目・数量・単価・金額）・小計／消費税（10%・内税）／合計・備考を備えた見積書が添付され、議案カードから開けます。<br>・<b>精算書</b>：議案を実行すると精算書が発行され、見積額と精算額の差異が分かります。精算額は台帳の支出記録から算出するので、書類の合計＝台帳の記録＝資金の動きと一致します。精算書は翌月に読む月次報告書と、その月の月次明細に添付されます。プレイヤーが自分で起こす大きな支出（施設建設・拡張、海外牧場の開設、会社設立、馬の購入、広告キャンペーン、イベント開催、グッズ制作など）にも、実行前に同額の見積を発行したうえで精算書が残り、経営ダッシュボードと月次明細から開けます。月次明細の内訳（1,000万円以上の支出）からも、その1件の精算書を生成して開けます。</p></div>
+<div class="rulecard"><b>メイン画面のデザイン一新（§35）</b><p>プレイヤーが常時見るメイン画面群の見た目そのものを作り替えました（デザインシステム＝サカタケ配色・ゴシック体・chunky なカードとボタンは土台として維持。重い画像アセットは追加せず、既存イラストとCSS／DOMで構成）。<br>・<b>見出しと面</b>：全画面の見出しを「緑の帯見出し（白太字＋下辺）」に統一し、面は画面地／主カード（白・太枠）／カード内セクション（面色・影なし）の3層に整理しました。<br>・<b>厩舎ホーム</b>：「次の手」を大きなヒーロー面にし、提案カードは顔写真を大きくした縦型カード（理由→ボタンの順、ボタンはカード内下部）で並べます。<br>・<b>所有馬一覧・馬カード</b>：馬のイラスト面を拡大し、「名前→状態→戦績タイル→能力」の視覚的階層を固定しました。馬詳細は名前プレート（緑の帯）＋大イラスト＋大きめの能力ゲージで見せます。<br>・<b>血統</b>：文字列の列挙ではなく家系図（本馬を頂点に父系＝青の帯／母系＝赤の帯へ枝分かれするツリー、各ノードに系統・因子のチップ）として図式化しました。<br>・<b>市場・セール・繁殖</b>：セールカードは金の上帯つきの大きなカードに、父母カードと配合評価も面と余白を作り直しました。<br>・<b>出馬表・作戦・馬券</b>：出馬表の見出し行を緑の帯にし、作戦パネルは大イラストつき、馬券は破線の券面デザインで見せます。<br>・<b>レース画面</b>：タイトル帯は白地に大きなレース名、残り距離は大きく緑で、実況は券面色のボックス、順位チップは白ピル＋ゼッケン円で表示します。結果画面のイラストも拡大しました。<br>・<b>表彰式と新聞</b>：表彰式は金枠の式次第プログラムの体裁に作り込み、競馬新聞は題字・二重罫・見出し・日付を持つ紙面デザインにしました。<br>・<b>牧場マップと施設</b>：マップ上の施設マーカーは建設済み＝緑の面にレベル分のピップ（●）を表示し、未建設とひと目で区別できます。施設一覧もレベルピップを大きく表示します。<br>・<b>決勝柱</b>：3Dレースのゴール目印は実物のJRA決勝柱に合わせ、内ラチ側（真横カメラでは馬の向こう側）に立つ背の高い細身の柱（土台・赤い帯つき、約5.2m）の頂部に、厚みと赤いリムのある大きな円盤（直径約1.5m、両面に赤と白の同心円）を載せた立体造形にしました。馬を遮らない位置・大きさは従来どおりです。2D表示でも遠ラチの向こうに同じ決勝柱（柱＋同心円盤）を描きます。<br>・<b>コースレコード</b>：全条件（コース×馬場×距離）に、当ゲームの時計生成に合わせて較正した基準レコードを用意しました（実在レコードが確認できる条件は保持馬・レースを引き継ぎ、タイムのみ較正）。条件戦や通常の重賞では届かず、トップクラスが良馬場・好条件で揃ったときにだけ、年に数件程度の頻度で更新される水準です。勝ち時計が記録を破ると（世界の馬でも更新されます）、結果画面に大きな更新バナーが出て表彰され、新聞にも載ります。記録は馬名・タイム・日付・騎手つきで保存され、自厩舎馬の詳細には「レコード保持」の印が付き、自厩舎の記録が他馬に破られたときは知らせます。それ以降、その条件の出馬表（パドック欄）とコース情報に現在のレコードが表示され、記録タブの「レコードブック」で全条件の保持者を一覧できます。<br>・<b>ウイニングラン</b>：G1で自分の馬が1着になったときだけ、ゴール後の減速ランの後、結果画面の前に祝賀シーンが入ります。勝ち馬がスタンド前をパレードし、観客の拍手とカメラフラッシュ、紙吹雪、G1ファンファーレで祝福します（約10秒、タップまたはボタンでスキップ可能）。演出は表示専用で、精算や結果には影響しません。<br>・<b>CROの管轄拡張（調教師人事）</b>：CROは社員だけでなく調教師の雇用・契約解除も判断します。権限額以内の若手採用と成績不振者の解除は即時実行して月次報告書に載せ、高額な一流調教師の招聘と主力の解除は株主総会の議案（契約金・違約金の見積書つき）にします。判断は担当馬の成績・能力・年齢と衰え・維持費の釣り合いで行います。解除時は担当馬を付け替え、役割（調教・見極め・コンディションの正・副）を能力順に自動で引き継いで空席を作らず、見極め正担当の引き継ぎはおまかせ種付け・購入の代行にも連動します。引退表明済みの調教師は二重に解除しません。<br>・<b>社員の能力項目とG〜Sランク</b>：社員は14項目（企画力・運営力・広報力・交渉力・採用力・財務力・法務力・販促力・施設力・国際力・保険力・分析力・実行力・人脈）をG〜Sの8段階で持ち、会社パネルと雇用候補にチップで表示します。各担当枠の効果は対応項目の値で決まり、役員は管轄項目の組み合わせで判断の質が決まります。適正配置と役員任命は項目値に基づき、研修で項目が伸びます。まれにS項目を持つ天才級の社員が候補に現れます。旧セーブの能力（0〜5）は移行で8段階に変換し、効果は正規化するため移行で誰も弱くなりません。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>適正配置ボタン</b><p>調教師画面の役割分担カードと、会社パネル（13枠）の枠カード群の近くにある「適正配置」ボタンで、ワンタップで正・副担当を最適化して即適用します。会社側は役員レイヤー（管轄能力トップを各役職へ任命）とマーチャンダイジング枠も対象です。最適化の基準は両方共通です。<br>(1) <b>カバー優先</b>：全枠が対象をカバーできる構成を最優先します（調教師側は自馬全頭、会社側は会社の規模に必要な業務量）。<br>(2) カバーできる構成の中で、<b>各枠の正担当は該当能力が最も高い人</b>にします（枠の効果が最大になります）。<br>(3) <b>副担当はカバー不足を埋めるのに必要な分だけ</b>を、該当能力の高い順に足します（足りていれば追加しません）。兼任（1人が複数枠の正・副になる）は可能です。<br>対象は現在雇用・契約している人材のみで、新規雇用や解雇は自動ではしません。全員を副担当に足してもカバーが不足する場合は、適用後の結果サマリで「○○枠があと○頭分不足（人材が足りません）」と知らせます。適用後はその場に結果サマリ（各枠の正担当とカバー ○/○）が出ます。手動で付け替えたあとにボタンを押せば、その時点の人材と頭数で再最適化されます。</p></div>
 <div class="rulecard"><b>牧場長の任命・交代</b><p>牧場長は1名で、馬主タブの牧場長欄（「牧場長を変更する」）からいつでも交代できます。候補は初代の佐伯、配偶者、雇用中の調教師（兼任）、雇用済みの牧場スタッフに、新規雇用の候補を加えた全員で、候補ごとに5能力（相馬眼／血統知識／馴致／種付け／健康管理）を比べて選べます。牧場長の能力は、セール評価の精度（相馬眼）／配合の爆発力（血統知識）／幼駒の判明と成長（馴致）／受胎率（種付け）／故障の回復（健康管理）に効きます。配偶者が牧場長でない間は、牧場長を上回った分だけ配偶者の能力がボーナスとして加わります（牧場長本人の場合は二重に加わりません）。新規雇用の牧場スタッフには契約金と月給がかかります。</p></div>
@@ -14520,7 +14953,7 @@ function applySave(d){
   }
   if(d.sound&&typeof d.sound==="object") S.sound={on:d.sound.on!==false, bgm:clamp(Number.isFinite(+d.sound.bgm)?+d.sound.bgm:0.6,0,1), se:clamp(Number.isFinite(+d.sound.se)?+d.sound.se:0.9,0,1)};
   /* 旧セーブに残る架空の名馬が混ざっていたら、実在馬リストへ移行する */
-  S.news=Array.isArray(d.news)?d.news:[]; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[]; S.lineTrendSmooth=Array.isArray(d.lineTrendSmooth)?d.lineTrendSmooth:null; S.lineHeatPrev=(d.lineHeatPrev&&typeof d.lineHeatPrev==="object")?d.lineHeatPrev:null;
+  S.news=Array.isArray(d.news)?d.news:[]; S.records=(d.records&&typeof d.records==="object")?d.records:{}; S.rivalStables=d.rivalStables||null; S.lineTrend=d.lineTrend||null; S.lineTrendHist=Array.isArray(d.lineTrendHist)?d.lineTrendHist:[]; S.lineTrendSmooth=Array.isArray(d.lineTrendSmooth)?d.lineTrendSmooth:null; S.lineHeatPrev=(d.lineHeatPrev&&typeof d.lineHeatPrev==="object")?d.lineHeatPrev:null;
   S.chronicle=Array.isArray(d.chronicle)?d.chronicle:[]; S.worldEco=(d.worldEco&&typeof d.worldEco==="object"&&Number.isFinite(+d.worldEco.idx))?d.worldEco:{idx:1,hist:[]}; S.sirePower=Array.isArray(d.sirePower)?d.sirePower:[]; S.stableRankHist=Array.isArray(d.stableRankHist)?d.stableRankHist:[]; /* §33 世界のライフサイクル（旧セーブは空で補い、次回年末から回り始める。世界の状態は壊れない） */
   S.awardLedger=(d.awardLedger&&typeof d.awardLedger==="object")?d.awardLedger:null; S.awardHistory=Array.isArray(d.awardHistory)?d.awardHistory:[]; /* 年間表彰の台帳と受賞歴（旧セーブは空で補う） */
   S.stablePolicies=(d.stablePolicies&&typeof d.stablePolicies==="object")?d.stablePolicies:{}; /* 牧場一覧に無い馬主の方針（旧セーブは空で、初回参照時に決定的に割り当てる） */
@@ -15820,8 +16253,16 @@ const COMP_ROLES=[
  {id:"data", name:"データ分析担当", group:"運営支援", ranks:["data"], rankName:"分析", desc:"次走提案に勝率見込みなどの分析情報を付ける"},
  {id:"hr", name:"採用担当", group:"運営支援", ranks:["hr"], rankName:"採用", desc:"雇用候補の数と質（良い人材が現れる確率）"},
 ];
-const COMP_ABILITIES=[["plan","企画"],["ops","運営"],["pr","広報"],["sales","営業"],["hr","採用"],["fin","財務"],["legal","法務"],["mkt","販促"],["fac","施設"],["intl","国際"],["ins","保険"],["data","分析"]];
+const COMP_ABILITIES=[["plan","企画力"],["ops","運営力"],["pr","広報力"],["sales","交渉力"],["hr","採用力"],["fin","財務力"],["legal","法務力"],["mkt","販促力"],["fac","施設力"],["intl","国際力"],["ins","保険力"],["data","分析力"],["exec","実行力"],["net","人脈"]];
 const COMP_GROUPS=["経営","事業","運営支援"];
+/* 社員の能力ランク：G〜Sの8段階（値0〜7）。旧セーブの0〜5は移行マップで
+   8段階へ変換し、効果計算は正規化（×5/7）するので移行で誰も弱くならない */
+const STAFF_RANK_LETTERS=["G","F","E","D","C","B","A","S"];
+const STAFF_RANK_MAP_OLD=[1,2,3,5,6,7];
+function staffRankLetter(v){ return STAFF_RANK_LETTERS[clamp(Math.round(v||0),0,7)]; }
+function staffAbilChipsHTML(st, keys){ const list=keys||COMP_ABILITIES.map(([k])=>k); return `<span class="uchips">${list.map(k=>{ const nm=(COMP_ABILITIES.find(([x])=>x===k)||[])[1]||k; const v=(st&&st.ranks&&st.ranks[k])||0; return `<span class="uchip ${v>=6?"gold":v<=1?"dim":""}">${nm} <span class="uv">${staffRankLetter(v)}</span></span>`; }).join("")}</span>`; }
+function staffSalaryFor(total){ return 25+Math.round((total||0)*6); }
+function compRankN(roleId){ return compRank(roleId)*5/7; } /* 効果計算用の正規化ランク（旧0〜5相当） */
 const STAFF_SUR=["佐藤","鈴木","高橋","田中","渡辺","伊藤","山本","中村","小林","加藤","吉田","山田","佐々木","山口","松本","井上","木村","林","斎藤","清水","森","池田","橋本","阿部","石川","前田","藤田","後藤","岡田","長谷川","村上","近藤","石井","遠藤","青木","坂本","福田","太田","西村","藤井","金子","岡本","中島","原田","和田","中野","小島","高木","安藤","島田","工藤","宮崎","酒井","市川","野口","千葉","岩崎","菅原","木下","松井","野村","河野","菊地","杉本","新井","平野","宮本","戸田","大塚","平井","望月"];
 const STAFF_GIV=["健太","直樹","裕太","真一","翔太","拓也","大輝","和也","亮介","誠","由美","恵子","真理","沙織","美咲","彩花","麻衣","里奈","千尋","陽子","健一","正樹","浩二","智也","祐介","梓","楓","栞","葵","凪","颯","蓮","悠","航","陸","空"];
 const FOUND_COST=20000, FOUND_FAME=10;
@@ -15832,6 +16273,8 @@ function compState(){ const c=S.company; if(!c) return null;
   if(!Array.isArray(c.staff))c.staff=[]; if(!Array.isArray(c.candidates))c.candidates=[]; if(!c.roles||typeof c.roles!=="object")c.roles={}; if(c.invest==null)c.invest=0;
   try{ execState(); }catch(e){} /* 役員レイヤー・議案・グッズ在庫の初期化（旧セーブ補完） */
   try{ biz2(); }catch(e){} /* 経営第2弾（保険・スポンサー・ファンクラブ・貸出・税金）の初期化（旧セーブ補完） */
+  /* 社員能力の8段階化（§35）：旧0〜5→G〜S、実行力・人脈を新設。効果は正規化されるため誰も弱くならない */
+  if(!c._abilV2){ const mig=st=>{ if(!st||typeof st!=="object") return; if(!st.ranks||typeof st.ranks!=="object") st.ranks={}; COMP_ABILITIES.forEach(([k])=>{ const old=st.ranks[k]; if(k==="exec"||k==="net"){ if(old==null) st.ranks[k]=ri(1,4); } else st.ranks[k]=STAFF_RANK_MAP_OLD[clamp(old==null?2:Math.round(old),0,5)]; }); st.total=COMP_ABILITIES.reduce((a,[k])=>a+(st.ranks[k]||0),0); }; (c.staff||[]).forEach(mig); (c.candidates||[]).forEach(mig); c._abilV2=1; }
   const ids=new Set(c.staff.map(s=>s.id));
   for(const r of COMP_ROLES){ let cur=c.roles[r.id]; if(!cur||typeof cur!=="object"){cur={main:null,subs:[]};c.roles[r.id]=cur;}
     if(cur.main==null||!ids.has(cur.main)){ const best=c.staff.slice().sort((a,b)=>compRankOf(b,r)-compRankOf(a,r)||(a.id-b.id))[0]; cur.main=best?best.id:null; }
@@ -15839,8 +16282,8 @@ function compState(){ const c=S.company; if(!c) return null;
   }
   return c; }
 function compWorkload(){ return 10+Math.ceil(((S.horses||[]).length+(S.mares||[]).length)/2); }
-function compCapMain(role, st){ return st? 6+compRankOf(st,role)*3 : 0; }
-function compCapSub(role, st){ return st? 3+compRankOf(st,role) : 0; }
+function compCapMain(role, st){ return st? 6+Math.round(compRankOf(st,role)*5/7*3) : 0; }
+function compCapSub(role, st){ return st? 3+Math.round(compRankOf(st,role)*5/7) : 0; }
 function compCoverage(roleId){ const c=compState(); const W=compWorkload(); if(!c) return {covered:0,need:W,short:Math.max(0,W),frac:0,main:null};
   const role=compRoleDef(roleId), cur=c.roles[roleId]; const main=compStaffById(cur.main);
   let cap=compCapMain(role,main); const subs=(cur.subs||[]).map(compStaffById).filter(Boolean); subs.forEach(s=>cap+=compCapSub(role,s));
@@ -15848,7 +16291,7 @@ function compCoverage(roleId){ const c=compState(); const W=compWorkload(); if(!
 function compMain(roleId){ const c=compState(); if(!c) return null; return compStaffById(c.roles[roleId].main); }
 function compRank(roleId){ const m=compMain(roleId); return m? compRankOf(m, compRoleDef(roleId)) : 0; }
 /* 効果係数 0..1（正担当の能力×カバー率）。未設立・未配置は0 */
-function compEff(roleId){ const c=S.company; if(!c||!Array.isArray(c.staff)||!c.staff.length) return 0; const m=compMain(roleId); if(!m) return 0; const r=compRankOf(m, compRoleDef(roleId)); if(r<=0) return 0; const cv=compCoverage(roleId); return clamp((0.45+0.11*r)*cv.frac*moraleFactor(), 0, 1); }
+function compEff(roleId){ const c=S.company; if(!c||!Array.isArray(c.staff)||!c.staff.length) return 0; const m=compMain(roleId); if(!m) return 0; const r=compRankOf(m, compRoleDef(roleId))*5/7; if(r<=0) return 0; const cv=compCoverage(roleId); return clamp((0.45+0.11*r)*cv.frac*moraleFactor(), 0, 1); }
 function compSalaryTotal(){ const c=S.company; return c&&Array.isArray(c.staff)? c.staff.reduce((a,s)=>a+(s.salary||0),0) : 0; }
 /* ============ 適正配置（最適化ボタン） ============
    調教師3枠・会社13枠の最適化基準：
@@ -15948,11 +16391,14 @@ function genStaffCandidate(){ const c=S.company; const hrEff=c? compEff("hr") : 
   const used=new Set(); if(c){ c.staff.forEach(s=>used.add(s.name)); c.candidates.forEach(s=>used.add(s.name)); }
   let name=""; for(let t=0;t<300;t++){ const cand=pick(STAFF_SUR)+pick(STAFF_GIV); if(!used.has(cand)){ name=cand; break; } }
   if(!name) name=pick(STAFF_SUR)+pick(STAFF_GIV)+pick(STAFF_GIV);
-  const ranks={}; COMP_ABILITIES.forEach(([k])=>{ let r=ri(0,2); if(Math.random()<0.22+hrEff*0.35) r+=ri(1,2); if(Math.random()<0.05+hrEff*0.12) r=5; ranks[k]=clamp(r,0,5); });
+  const ranks={}; COMP_ABILITIES.forEach(([k])=>{ let r=ri(0,3); if(Math.random()<0.22+hrEff*0.35) r+=ri(1,3); ranks[k]=clamp(r,0,7); });
   const sp1=pick(COMP_ABILITIES)[0]; let sp2=pick(COMP_ABILITIES)[0]; if(sp2===sp1) sp2="fin";
-  ranks[sp1]=clamp(ranks[sp1]+ri(1,2),0,5); ranks[sp2]=clamp(ranks[sp2]+1,0,5);
+  ranks[sp1]=clamp(ranks[sp1]+ri(1,2),0,7); ranks[sp2]=clamp(ranks[sp2]+1,0,7);
+  /* まれに天才級の社員が現れる（S項目＋高い副項目） */
+  let genius=false;
+  if(Math.random()<0.03+hrEff*0.07){ genius=true; const gk=pick(COMP_ABILITIES)[0]; ranks[gk]=7; let gk2=pick(COMP_ABILITIES)[0]; if(gk2===gk) gk2="exec"; ranks[gk2]=clamp(Math.max(ranks[gk2],5),0,7); }
   const total=COMP_ABILITIES.reduce((a,[k])=>a+ranks[k],0);
-  return {id: 5000+(_staffSeq++)*7+ri(0,6), name, ranks, salary: 25+total*10, total};
+  return {id: 5000+(_staffSeq++)*7+ri(0,6), name, ranks, salary: staffSalaryFor(total), total, genius};
 }
 function compRefreshCandidates(free){ const c=compState(); if(!c) return; const n=3+compRank("hr"); c.candidates=[]; for(let i=0;i<n;i++) c.candidates.push(genStaffCandidate()); if(!free){} }
 function foundCompany(){ const c=S.company; if(c) return; if((S.fame||0)<FOUND_FAME){ toast(`会社化には名声${FOUND_FAME}以上が必要です`); return; } if(S.funds<FOUND_COST){ toast("資金が不足しています"); return; }
@@ -15989,9 +16435,9 @@ function companyMonthly(){ const c=S.company; if(!c||!Array.isArray(c.staff)) re
      目標へ少しずつ寄り、全担当枠の効果（compEff）に小さく効く */
   try{ const m=mgmt(); if(m){ const wcost=[0,15,40,80][m.welfareLv||0]*(c.staff.length||0); m.lastWelfare=wcost; if(wcost>0){ S.funds-=wcost; ledOut("welfare",wcost,`福利厚生費（Lv.${m.welfareLv||0}・スタッフ ${c.staff.length}名分）`); }
     const target=35+(m.welfareLv||0)*18; const d=target-m.morale; m.morale=clamp(m.morale+Math.sign(d)*Math.min(4,Math.abs(d)),0,100); } }catch(e){}
-  if(compMain("mkt")){ const fb=Math.min(8000, Math.round(((S.fame||0)*6+(S.champions||0)*300+(S.g1Wins||0)*80)*(0.3+0.14*compRank("mkt"))*compEff("mkt")/compCoverage("mkt").frac||0)); if(fb>0){ S.funds+=fb; ledIn("fanbiz",fb,"ファンビジネス収入（有名馬・名声連動／マーケティング担当）"); } }
+  if(compMain("mkt")){ const fb=Math.min(8000, Math.round(((S.fame||0)*6+(S.champions||0)*300+(S.g1Wins||0)*80)*(0.3+0.14*compRankN("mkt"))*compEff("mkt")/compCoverage("mkt").frac||0)); if(fb>0){ S.funds+=fb; ledIn("fanbiz",fb,"ファンビジネス収入（有名馬・名声連動／マーケティング担当）"); } }
   if(c.insOn){ const per=Math.max(2, Math.ceil(10*(1-0.3*compEff("ins")))); const prem=per*(S.horses||[]).length; if(prem>0){ S.funds-=prem; ledOut("insurance",prem,`団体保険の掛金（一括加入・対象 ${(S.horses||[]).length}頭）`); try{ biz2().ms.insPrem+=prem; }catch(e){} } }
-  if(c.invest>0){ const gain=Math.max(0, Math.round(c.invest*(0.001+0.0004*compRank("fin"))*rnd(0.7,1.3))); if(gain>0){ c.invest+=gain; } c._lastGain=gain; }
+  if(c.invest>0){ const gain=Math.max(0, Math.round(c.invest*(0.001+0.0004*compRankN("fin"))*rnd(0.7,1.3))); if(gain>0){ c.invest+=gain; } c._lastGain=gain; }
   try{ biz2Monthly(); }catch(e){} /* 経営第2弾の月次処理（馬ごと保険料・スポンサー・ファンクラブ・貸出） */
 }
 /* 保険給付（調教中の故障発生時に呼ばれる）：馬ごとのプランが優先、
@@ -16014,11 +16460,11 @@ function insurancePayout(h, weeks){ const c=S.company; if(!c) return 0;
    マーチャンダイジング担当は有名馬のグッズを制作し、在庫は週ごとに
    売れていく（馬の人気とマーケティングで変動）。CMOが統括する */
 const EXEC_ROLES=[
- {id:"ceo", title:"CEO", full:"最高経営責任者", scope:"全体統括：予算・経営目標・土地など大きな判断", keys:["fin","plan","mkt","hr","legal"], limit:50000},
- {id:"ev", title:"チーフイベントオフィサー", full:"イベント担当役員", scope:"イベントの意思決定：事業・運営を統括", keys:["plan","ops"], limit:15000},
- {id:"cmo", title:"CMO", full:"チーフマーケティングオフィサー", scope:"マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括", keys:["mkt","pr"], limit:15000},
- {id:"cro", title:"CRO", full:"チーフリクルーティングオフィサー", scope:"採用の意思決定：採用を統括", keys:["hr"], limit:5000},
- {id:"cfo", title:"CFO", full:"チーフフィナンシャルオフィサー", scope:"財務の意思決定：資金運用・経費の最適化", keys:["fin"], limit:20000},
+ {id:"ceo", title:"CEO", full:"最高経営責任者", scope:"全体統括：予算・経営目標・土地など大きな判断", keys:["fin","plan","mkt","hr","legal","exec"], limit:50000},
+ {id:"ev", title:"チーフイベントオフィサー", full:"イベント担当役員", scope:"イベントの意思決定：事業・運営を統括", keys:["plan","ops","exec"], limit:15000},
+ {id:"cmo", title:"CMO", full:"チーフマーケティングオフィサー", scope:"マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括", keys:["mkt","pr","net"], limit:15000},
+ {id:"cro", title:"CRO", full:"チーフリクルーティングオフィサー", scope:"採用の意思決定：社員と調教師の雇用・契約解除を統括", keys:["hr","net","data"], limit:5000},
+ {id:"cfo", title:"CFO", full:"チーフフィナンシャルオフィサー", scope:"財務の意思決定：資金運用・経費の最適化", keys:["fin","data"], limit:20000},
 ];
 const EXEC_LIMIT_OPTS=[3000,5000,10000,20000,50000,100000];
 function execDef(id){ return EXEC_ROLES.find(e=>e.id===id); }
@@ -16032,7 +16478,7 @@ function execState(){ const c=S.company; if(!c) return null;
   if(!c.merch||typeof c.merch!=="object") c.merch={stock:0, sold:0, revenue:0, horse:""};
   return c; }
 function execHolder(id){ const c=execState(); if(!c) return null; const h=c.exec[id]&&c.exec[id].holder; return h!=null? compStaffById(h) : null; }
-function execAbility(id){ const st=execHolder(id); if(!st) return 0; const e=execDef(id); const vs=e.keys.map(k=>st.ranks[k]||0); return Math.round(vs.reduce((a,b)=>a+b,0)/Math.max(1,vs.length)*10)/10; }
+function execAbility(id){ const st=execHolder(id); if(!st) return 0; const e=execDef(id); const vs=e.keys.map(k=>st.ranks[k]||0); return Math.round(vs.reduce((a,b)=>a+b,0)/Math.max(1,vs.length)*5/7*10)/10; } /* 管轄項目の平均（旧0〜5相当に正規化） */
 function setExecHolder(id, sid){ const c=execState(); if(!c) return; c.exec[id].holder=(sid===""||sid==null)? null : +sid; const st=compStaffById(c.exec[id].holder); log(`🏢 ${execDef(id).title} に ${st?st.name:"（空席）"} を任命しました`); saveAuto(); renderAll(); }
 function setExecLimit(id, v){ const c=execState(); if(!c) return; c.exec[id].limit=+v||0; log(`🏢 ${execDef(id).title} の権限額を ${fmt(c.exec[id].limit)}万円 に設定しました（これを超える大きな判断は株主総会の議案になります）`); saveAuto(); renderAll(); }
 function nextMeetingLabel(){ const w=S.week%48; const ends=[11,23,35,47]; const e=ends.find(x=>x>=w); const endW=(e==null? 59 : e); const months={11:"3月",23:"6月",35:"9月",47:"12月",59:"3月"}; const left=endW-w+1; return `${year()+(e==null?1:0)}年目 ${months[endW]}末（あと${left}週）`; }
@@ -16063,6 +16509,37 @@ function addProposal(execId, kind, title, desc, cost, data){ const c=S.company; 
   const p={id:(S.week+1)*1000+(_propSeq++), exec:execId, kind, title, desc, cost:cost||0, data:data||{}, week:S.week};
   c.proposals.push(p); execLogPush(execId,"big",`株主総会へ議案を提出：${title}（${fmt(cost)}万円）`, cost);
   log(`🏢 ${execDef(execId).title} が株主総会への議案を提出しました：${title}（${fmt(cost)}万円）`); return p; }
+/* ============ CROの調教師人事（§35で管轄を拡張） ============
+   CROは社員だけでなく調教師の雇用・契約解除も判断する。
+   ・小さな判断（権限額以内の若手採用／成績不振者の解除）は即時実行し月次報告へ
+   ・大きな判断（高額な一流調教師の招聘／主力の解除＝違約金が権限額超か
+     役割の正担当）は株主総会の議案にし、見積書（契約金・違約金）が付く
+   ・引退表明済み（people.retiring）の調教師は二重に解除しない
+   ・解除時は担当馬を付け替え、役割（調教／見極め／コンディションの正・副）は
+     rolesState() の自動引き継ぎで空席にしない。見極め正担当の引き継ぎは
+     おまかせ種付け・購入の代行担当（eyeTopTrainer）にもそのまま連動する */
+function croRetiring(id){ return !!(S.people&&S.people.retiring&&S.people.retiring["t"+id]); }
+function croTrainerAge(d){ try{ ensurePeople(); const a=(S.people.tAges||{})[d.id]; return a!=null? a : (d.age||50); }catch(e){ return d.age||50; } }
+function croTrainerScore(d){ const tot=trainerTotal(d); const age=croTrainerAge(d);
+  const wins=assignedHorses(d.id).reduce((a,h)=>a+(((h.rec||{}).w)||0),0);
+  return tot + Math.min(6, wins*0.3) - Math.max(0, age-62)*0.35 - trainerCost(d).upkeep*0.06; }
+function croTrainerPool(){ return TRAINER_ROSTER.filter(d=>!d.retired&&!croRetiring(d.id)&&!employedTrainers().some(x=>x.id===d.id)&&(d.region==="jp"||!!(S.overseasFarm||S.clubFarm))); }
+function croHireTrainer(d){ const cost=trainerCost(d); S.funds-=cost.hire; ledOut("trainer",cost.hire,`調教師の契約金：${d.name}（CROの判断）`);
+  if(!Array.isArray(S.trainers)||!S.trainers.length) S.trainers=[S.trainerId||"jp122"];
+  S.trainers.push(d.id);
+  const st=rolesState(); const added=[];
+  ROLES.forEach(r=>{ if(roleUncovered(r.id).length>0 && st[r.id].main!==d.id && !(st[r.id].subs||[]).includes(d.id)){ st[r.id].subs.push(d.id); added.push(r.name); } });
+  if(added.length){ _roleCovCache={}; syncRoleAssignments(); }
+  try{ mAct().hire++; }catch(e){}
+  return {cost, added}; }
+function croFireTrainer(d){ const emps=employedTrainers(); if(emps.length<=1) return null;
+  const st0=rolesState(); const before={}; ROLES.forEach(r=>{ before[r.id]=st0[r.id].main; });
+  S.trainers=emps.filter(x=>x.id!==d.id).map(x=>x.id);
+  if(S.trainerId===d.id){ S.trainerId=S.trainers[0]; applyTrainer(); }
+  (S.horses||[]).forEach(h=>{ if(h.trainerId===d.id){ h.trainerId=null; assignTrainerAuto(h); } });
+  const st=rolesState(); _roleCovCache={}; syncRoleAssignments();
+  const hand=[]; ROLES.forEach(r=>{ if(before[r.id]===d.id){ const nm=trainerById(st[r.id].main); hand.push(`${r.name}→${nm?nm.name:"—"}`); } });
+  return hand; }
 function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); const name=(execHolder(e.id)||{}).name||"";
   const overLimit=cost=>cost>(c.exec[e.id].limit||0);
   if(e.id==="ceo"){ const gain=Math.round((80+50*ab)*rnd(0.8,1.2)); S.funds+=gain; ledIn("otherIn",gain);
@@ -16078,20 +16555,37 @@ function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); co
   if(e.id==="cmo"){ if(compMain("merch")&&S.funds>=MERCH_LOTS[0].cost+1000){ if(produceMerch(1,true)){ execLogPush("cmo","small",`有名馬グッズの小ロット制作を決めました（CMO ${name}／マーチャンダイジング統括）`, MERCH_LOTS[0].cost); return; } }
     c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+2);
     execLogPush("cmo","small",`命名権・グッズの販促施策を実施（関心の後押し2週間／CMO ${name}）`, 0); log(`🏢 CMO（${name}）：販促施策を実施（命名権・グッズの関心が2週間上がります）`); return; }
-  if(e.id==="cro"){ compRefreshCandidates(true);
+  if(e.id==="cro"){ /* 調教師人事（小さな判断は即時実行） */
+    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id));
+    if(emps.length>3){ const scored=emps.map(d=>({d, s:croTrainerScore(d)})).sort((a,b)=>a.s-b.s); const worst=scored[0];
+      if(worst.s<6 && assignedHorses(worst.d.id).length<=2){ const sev=Math.round(trainerCost(worst.d).upkeep*2);
+        if(sev<=(c.exec.cro.limit||5000) && S.funds>=sev){ S.funds-=sev; ledOut("trainer",sev,`調教師の契約解除に伴う違約金：${worst.d.name}（CROの判断）`); const hand=croFireTrainer(worst.d);
+          if(hand){ execLogPush("cro","small",`成績不振の調教師 ${worst.d.name} との契約を終了しました（違約金 ${fmt(sev)}万円）。役割の引き継ぎ：${hand.length?hand.join("／"):"対象の役割なし"}（CRO ${name}）`, -sev); log(`🏢 CRO（${name}）：調教師 ${worst.d.name} との契約を終了（違約金 ${fmt(sev)}万円／役割は自動で引き継ぎ）`); return; }
+          S.funds+=sev; } } }
+    const young=croTrainerPool().filter(d=>croTrainerAge(d)<=45).sort((a,b)=>croTrainerScore(b)-croTrainerScore(a))[0];
+    if(young){ const cost=trainerCost(young); if(cost.hire<=(c.exec.cro.limit||5000) && S.funds>=cost.hire){ const r=croHireTrainer(young);
+      execLogPush("cro","small",`若手調教師 ${young.name}（${croTrainerAge(young)}歳）を採用しました（契約金 ${fmt(cost.hire)}万円${r.added.length?`／カバー不足の ${r.added.join("・")} の副担当に配置`:""}）（CRO ${name}）`, -cost.hire); log(`🏢 CRO（${name}）：若手調教師 ${young.name} を採用（契約金 ${fmt(cost.hire)}万円）`); return; } }
+    compRefreshCandidates(true);
     execLogPush("cro","small",`採用候補のリサーチと入れ替えを行いました（CRO ${name}）`, 0); log(`🏢 CRO（${name}）：採用候補をリサーチし、顔ぶれを入れ替えました`); return; }
   if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.05), room);
     if(amt>0){ c.invest=(c.invest||0)+amt; execLogPush("cfo","small",`余剰資金 ${fmt(amt)}万円 を運用に回しました（CFO ${name}／運用中 ${fmt(c.invest)}万円）`, amt); log(`🏢 CFO（${name}）：余剰資金 ${fmt(amt)}万円 を運用に回しました`); }
     else execLogPush("cfo","small",`資金繰りを点検しました（運用枠に空きなし／CFO ${name}）`, 0); return; }
 }
-function genExecCandidate(){ const st=genStaffCandidate(); const keys=COMP_ABILITIES.map(([k])=>k); const top=keys.slice().sort((a,b)=>(st.ranks[b]||0)-(st.ranks[a]||0)).slice(0,3); top.forEach(k=>{ st.ranks[k]=clamp((st.ranks[k]||0)+2,0,5); }); st.total=COMP_ABILITIES.reduce((a,[k])=>a+(st.ranks[k]||0),0); st.salary=25+st.total*10; return st; }
+function genExecCandidate(){ const st=genStaffCandidate(); const keys=COMP_ABILITIES.map(([k])=>k); const top=keys.slice().sort((a,b)=>(st.ranks[b]||0)-(st.ranks[a]||0)).slice(0,3); top.forEach(k=>{ st.ranks[k]=clamp((st.ranks[k]||0)+2,0,7); }); st.total=COMP_ABILITIES.reduce((a,[k])=>a+(st.ranks[k]||0),0); st.salary=staffSalaryFor(st.total); return st; }
 function execBigDecision(e){ const c=S.company; const m=mgmt(); const ab=execAbility(e.id);
   if(e.id==="ceo"){ if(m.land<LAND_TIERS.length-1){ const t=LAND_TIERS[m.land+1]; addProposal("ceo","land",`土地の購入・拡張（${t.name}）`,`牧場の価値と収容上限を上げる大きな投資です（CEOの提案／判断の質 ${ab}）`, t.cost, {}); }
     else { const t=CAMP_TIERS[2]; addProposal("ceo","campaign3",`${t.name}`,`${t.weeks}週間の大規模キャンペーンです（CEOの提案）`, t.cost, {}); } return; }
   if(e.id==="ev"){ const sz=EVENT_SIZES[2]; addProposal("ev","eventBig","大規模ファン感謝祭の開催",`来場 ${sz.att.toLocaleString()}人規模のイベントです（チーフイベントオフィサーの提案／事業・運営を統括）`, sz.cost, {}); return; }
   if(e.id==="cmo"){ if(compMain("merch")){ const lot=MERCH_LOTS[2]; addProposal("cmo","merchBig",`有名馬グッズの大量生産（${lot.units}個）`,`対象は ${c.merch.horse||(merchHorse()?merchHorse().name:"有名馬")}。在庫は週ごとに売れていきます（CMOの提案）`, lot.cost, {}); }
     else { const t=CAMP_TIERS[2]; addProposal("cmo","campaign3",`${t.name}`,`${t.weeks}週間の大規模キャンペーンです（CMOの提案）`, t.cost, {}); } return; }
-  if(e.id==="cro"){ const st=genExecCandidate(); const cost=st.salary*6; addProposal("cro","headhunt",`幹部級スタッフ ${st.name} のヘッドハント`,`能力合計 ${st.total} の即戦力候補です（CROの見極め／判断の質 ${ab}）`, cost, {staff:st}); return; }
+  if(e.id==="cro"){ /* 調教師人事（大きな判断は総会の議案へ） */
+    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id));
+    if(emps.length>2){ const scored=emps.map(d=>({d, s:croTrainerScore(d)})).sort((a,b)=>a.s-b.s); const worst=scored[0];
+      if(worst.s<9){ const sev=Math.round(trainerCost(worst.d).upkeep*6); const isCore=ROLES.some(r=>{ const st=rolesState(); return st[r.id]&&st[r.id].main===worst.d.id; });
+        if(sev>(c.exec.cro.limit||5000)||isCore){ if(addProposal("cro","trainerFire",`調教師 ${worst.d.name} との契約終了`,`担当馬の成績・能力・年齢と維持費の釣り合いを踏まえたCROの判断です。解除後は役割（調教／見極め／コンディション）を能力順に自動で引き継ぎ、見極めの代行担当も連動します（CROの提案／判断の質 ${ab}）`, sev, {tid:worst.d.id})) return; } } }
+    const star=croTrainerPool().slice().sort((a,b)=>trainerTotal(b)-trainerTotal(a))[0];
+    if(star){ const cost=trainerCost(star); if(cost.hire>(c.exec.cro.limit||5000)){ if(addProposal("cro","trainerHire",`一流調教師 ${star.name} の招聘`,`能力合計 ${trainerTotal(star)}・維持費 ${fmt(cost.upkeep)}万円／週の実績ある調教師です（CROの提案／判断の質 ${ab}）`, cost.hire, {tid:star.id})) return; } }
+    const st=genExecCandidate(); const cost=st.salary*6; addProposal("cro","headhunt",`幹部級スタッフ ${st.name} のヘッドハント`,`能力合計 ${st.total} の即戦力候補です（CROの見極め／判断の質 ${ab}）`, cost, {staff:st}); return; }
   if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.20), room);
     if(amt>0) addProposal("cfo","investBig","余剰資金の大口運用",`資金の約2割を運用に回す大きな判断です（CFOの提案）`, amt, {amt}); return; }
 }
@@ -16116,6 +16610,8 @@ function execProposal(p){ const c=S.company; const m=mgmt();
   if(p.kind==="merchBig"){ if(S.funds<MERCH_LOTS[2].cost) return {ok:false, msg:"資金が不足しています"}; if(!produceMerch(3,true)) return {ok:false, msg:"制作できませんでした"}; return {ok:true, msg:`グッズを大ロット（${MERCH_LOTS[2].units}個）制作しました`}; }
   if(p.kind==="headhunt"){ const st=p.data&&p.data.staff; if(!st) return {ok:false, msg:"候補の情報がありません"}; if(S.funds<p.cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=p.cost; ledOut("salary",p.cost,`ヘッドハント費用：${st.name}（幹部級スタッフ）`); c.staff.push(st); compState(); try{ mAct().hire++; }catch(e){} return {ok:true, msg:`${st.name} を幹部スタッフとして迎えました（月給 ${fmt(st.salary)}万円）`}; }
   if(p.kind==="investBig"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min((p.data&&p.data.amt)||0, room); if(amt<=0) return {ok:false, msg:"運用枠（資金の30%）に空きがありません"}; c.invest=(c.invest||0)+amt; return {ok:true, msg:`余剰資金 ${fmt(amt)}万円 を運用に回しました（運用中 ${fmt(c.invest)}万円）`}; }
+  if(p.kind==="trainerHire"){ const d=TRAINER_ROSTER.find(t=>t.id===(p.data&&p.data.tid)); if(!d||d.retired) return {ok:false, msg:"候補が現役ではありません"}; if(croRetiring(d.id)) return {ok:false, msg:"引退表明済みの調教師です"}; if(employedTrainers().some(x=>x.id===d.id)) return {ok:false, msg:"すでに契約中です"}; if(S.funds<p.cost) return {ok:false, msg:"資金が不足しています"}; const r=croHireTrainer(d); return {ok:true, msg:`調教師 ${d.name} を迎えました（契約金 ${fmt(p.cost)}万円${r.added.length?`／カバー不足の ${r.added.join("・")} の副担当に配置`:""}）`}; }
+  if(p.kind==="trainerFire"){ const d=trainerById(p.data&&p.data.tid); if(!d) return {ok:false, msg:"対象の調教師が見つかりません"}; if(!employedTrainers().some(x=>x.id===d.id)) return {ok:false, msg:"すでに契約が終了しています"}; if(croRetiring(d.id)) return {ok:false, msg:"引退表明済みのため解除しません（勇退の手続きを優先します）"}; if(employedTrainers().length<=1) return {ok:false, msg:"契約中の調教師が1名のため解除できません"}; if(S.funds<p.cost) return {ok:false, msg:"違約金の資金が不足しています"}; S.funds-=p.cost; ledOut("trainer",p.cost,`調教師の契約解除に伴う違約金：${d.name}（株主総会の承認）`); const hand=croFireTrainer(d); if(!hand){ S.funds+=p.cost; return {ok:false, msg:"解除できませんでした"}; } return {ok:true, msg:`調教師 ${d.name} との契約を終了しました（違約金 ${fmt(p.cost)}万円）。役割の引き継ぎ：${hand.length?hand.join("／"):"対象の役割なし"}`}; }
   if(p.kind==="miniEvent"){ const cost=p.cost||500; if(S.funds<cost) return {ok:false, msg:"資金が不足しています"}; S.funds-=cost; ledOut("event",cost); const ab=execAbility("ev"); const att=Math.round(300*(0.6+0.12*ab)*rnd(0.85,1.15)); const income=Math.round(att*1.4*(0.7+0.1*ab)); if(income>0){ S.funds+=income; ledIn("biz",income); } try{ const A=mAct(); A.evN++; A.evAtt+=att; A.evIn+=income; A.evCost+=cost; }catch(e){} return {ok:true, msg:`見学会（小規模）を実施：来場 ${att}人／収支 ${income-cost>=0?"+":""}${fmt(income-cost)}万円`}; }
   return {ok:false, msg:"不明な議案です"};
 }
@@ -16230,7 +16726,7 @@ function staffTrainCost(st){ const key=staffTrainKey(st); return 400+150*(st.ran
 function startStaffTraining(sid){ const c=compState(); if(!c) return; const st=compStaffById(sid); if(!st) return;
   if(st.trainUntil&&S.week<st.trainUntil){ toast("研修中です"); return; }
   const key=staffTrainKey(st); const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key;
-  if((st.ranks[key]||0)>=5){ toast(`「${an}」は上限（5）に達しています`); return; }
+  if((st.ranks[key]||0)>=7){ toast(`「${an}」は上限（S）に達しています`); return; }
   if((st.trainCnt||0)>=6){ toast("研修の上限回数（6回）に達しています"); return; }
   const cost=staffTrainCost(st); if(S.funds<cost){ toast("資金が不足しています"); return; }
   undoPush(`研修（${st.name}）の前`); S.funds-=cost; ledOut("training",cost,`研修：${st.name}（スタッフ・${an}）`); st.trainUntil=S.week+4; st.trainKey=key;
@@ -16249,7 +16745,7 @@ function startTrainerTraining(tid){ const d=trainerById(tid); if(!d) return; if(
   log(`🎓 調教師 ${d.name} の研修を開始しました（${TR_RANK_LBL[key]} を伸ばす・8週間・${fmt(cost)}万円／採用担当の管轄）`); saveAuto(); renderAll(); }
 /* 研修の完了処理（週送り後に呼ばれる） */
 function mgmtWeekly(){ const c=S.company;
-  if(c&&Array.isArray(c.staff)) c.staff.forEach(st=>{ if(st.trainUntil&&S.week>=st.trainUntil){ const key=st.trainKey; st.trainUntil=0; st.trainKey=null; if(key){ st.ranks[key]=Math.min(5,(st.ranks[key]||0)+1); st.trainCnt=(st.trainCnt||0)+1; try{ mAct().trainDone++; }catch(e){} const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key; log(`🎓 ${st.name} の研修が完了しました：${an} が ${st.ranks[key]} に上がりました`); } } });
+  if(c&&Array.isArray(c.staff)) c.staff.forEach(st=>{ if(st.trainUntil&&S.week>=st.trainUntil){ const key=st.trainKey; st.trainUntil=0; st.trainKey=null; if(key){ st.ranks[key]=Math.min(7,(st.ranks[key]||0)+1); st.trainCnt=(st.trainCnt||0)+1; try{ mAct().trainDone++; }catch(e){} const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key; log(`🎓 ${st.name} の研修が完了しました：${an} が ${staffRankLetter(st.ranks[key])} に上がりました`); } } });
   if(S.trainerTrain) Object.keys(S.trainerTrain).forEach(tid=>{ const t=S.trainerTrain[tid]; if(t&&S.week>=t.until){ delete S.trainerTrain[tid]; if(!S.trainerBoost) S.trainerBoost={}; if(!S.trainerBoost[tid]) S.trainerBoost[tid]={}; S.trainerBoost[tid][t.key]=(S.trainerBoost[tid][t.key]||0)+1; applyTrainerBoosts(); try{ mAct().trainDone++; }catch(e){} const d=trainerById(tid); log(`🎓 調教師 ${d?d.name:""} の研修が完了しました：${TR_RANK_LBL[t.key]||t.key} が ${d?d.ranks[t.key]:""} に上がりました`); } });
 }
 /* ============ 経営機能 第2弾（保険の馬ごと加入／スポンサー契約／ファンクラブ／
@@ -16607,7 +17103,7 @@ function mgmtActionsHTML(){ const c=S.company; if(!c) return ""; const m=mgmt();
   const capOpts=[0,10000,30000,60000,120000,300000];
   const budgetRows=BUDGET_CATS.map(([k,ln])=>`<label class="small" style="display:flex;gap:8px;align-items:center;padding:3px 0">${ln}予算（年間）<select data-budget-cap="${k}" style="flex:1">${capOpts.map(v=>`<option value="${v}" ${(m.budget.caps[k]||0)===v?"selected":""}>${v? fmt(v)+"万円まで" : "上限なし"}</option>`).join("")}</select></label>`).join("");
   const gt=goalTypeDef(goalSel.type);
-  const staffRows=c.staff.length? c.staff.map(st=>{ const key=staffTrainKey(st); const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key; const busy=st.trainUntil&&S.week<st.trainUntil; const maxed=(st.ranks[key]||0)>=5||(st.trainCnt||0)>=6; return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1;min-width:120px"><b>${esc(st.name)}</b> <span class="small">${an} ${st.ranks[key]||0}／研修${st.trainCnt||0}回</span></span>${busy?`<span class="tag">研修中（あと ${st.trainUntil-S.week}週）</span>`:maxed?`<span class="tag">上限</span>`:`<button class="btn sm" data-train-staff="${st.id}">研修する（${an}・4週・${fmt(staffTrainCost(st))}万円）</button>`}</div>`; }).join("") : `<div class="small">スタッフがいません</div>`;
+  const staffRows=c.staff.length? c.staff.map(st=>{ const key=staffTrainKey(st); const an=(COMP_ABILITIES.find(([k])=>k===key)||[])[1]||key; const busy=st.trainUntil&&S.week<st.trainUntil; const maxed=(st.ranks[key]||0)>=7||(st.trainCnt||0)>=6; return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1;min-width:120px"><b>${esc(st.name)}</b> ${st.genius?`<span class="uchip gold">天才級</span>`:""}<span class="small">${an} <b>${staffRankLetter(st.ranks[key]||0)}</b>／研修${st.trainCnt||0}回</span></span>${busy?`<span class="tag">研修中（あと ${st.trainUntil-S.week}週）</span>`:maxed?`<span class="tag">上限</span>`:`<button class="btn sm" data-train-staff="${st.id}">研修する（${an}・4週・${fmt(staffTrainCost(st))}万円）</button>`}</div>`; }).join("") : `<div class="small">スタッフがいません</div>`;
   const trainerRows=employedTrainers().map(d=>{ const key=trainerTrainKey(d); const busy=S.trainerTrain&&S.trainerTrain[d.id]; const maxed=rankVal(d.ranks[key])>=5||trainerBoostTotal(d.id)>=3; return `<div class="flex" style="padding:4px 0;border-top:1px solid var(--line);align-items:center;gap:6px;flex-wrap:wrap"><span style="flex:1;min-width:120px"><b>${esc(d.name)}</b> <span class="small">${TR_RANK_LBL[key]} ${d.ranks[key]}／研修${trainerBoostTotal(d.id)}回</span></span>${busy?`<span class="tag">研修中（あと ${S.trainerTrain[d.id].until-S.week}週）</span>`:maxed?`<span class="tag">上限</span>`:`<button class="btn sm" data-train-trainer="${d.id}">研修する（${TR_RANK_LBL[key]}・8週・${fmt(2000)}万円）</button>`}</div>`; }).join("");
   const campBtns=CAMP_TIERS.map(t=>`<button class="btn sm" data-camp="${t.lv}" ${compMain("pr")?"":"disabled"}>${t.name}（${fmt(t.cost)}万円・${t.weeks}週）</button>`).join(" ");
   const nextLand=m.land<LAND_TIERS.length-1? LAND_TIERS[m.land+1] : null;
@@ -16660,19 +17156,19 @@ function runEvent(){ const c=compState(); if(!c) return; if(S.week<(c.eventCdUnt
   saveAuto(); renderAll(); }
 /* ---- 会社パネルUI ---- */
 function compRoleCardHTML(r){ const c=S.company; const cur=c.roles[r.id]; const main=compStaffById(cur.main); const cv=compCoverage(r.id); const short=cv.short>0;
-  const rankChips=st=>COMP_ABILITIES.filter(([k])=>(st.ranks[k]||0)>=3).slice(0,4).map(([k,n])=>`<span class="tag">${n}${st.ranks[k]}</span>`).join(" ");
+  const rankChips=st=>COMP_ABILITIES.filter(([k])=>(st.ranks[k]||0)>=4).slice(0,4).map(([k,n])=>`<span class="tag">${n} <b>${staffRankLetter(st.ranks[k])}</b></span>`).join(" ");
   const othersOf=s=>compMainRolesOf(s.id).filter(x=>x.id!==r.id);
   const mainOthers=main? othersOf(main) : [];
-  const opts=c.staff.map(s=>{ const oo=othersOf(s); return `<option value="${s.id}" ${cur.main===s.id?"selected":""}>${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・カバー${compCapMain(r,s)}頭）${oo.length?` ― ⚠他枠の正担当（${oo.map(x=>x.rankName).join("・")}）`:""}</option>`; }).join("");
+  const opts=c.staff.map(s=>{ const oo=othersOf(s); return `<option value="${s.id}" ${cur.main===s.id?"selected":""}>${esc(s.name)}（${r.rankName} ${staffRankLetter(compRankOf(s,r))}・カバー${compCapMain(r,s)}頭）${oo.length?` ― ⚠他枠の正担当（${oo.map(x=>x.rankName).join("・")}）`:""}</option>`; }).join("");
   const subs=c.staff.filter(s=>s.id!==cur.main);
   return `<div class="panel" style="margin:0;${short?"border:2px solid #d23b2e":""}">
    <div class="flex" style="justify-content:space-between;align-items:flex-start"><b>${r.name}</b>${short?`<span class="tag" style="background:#d23b2e;color:#fff">⚠ ${cv.short}頭分不足</span>`:`<span class="tag">カバー充足</span>`}</div>
    <div class="small">${r.desc}</div>
    ${["ins","sales","mkt","pr","fin","fac"].includes(r.id)?`<div style="margin-top:3px"><button type="button" class="btn ghost sm" data-goto-biz2="1">🏦 経営機能 第2弾（${r.id==="ins"?"馬ごとの保険":r.id==="sales"?"スポンサー契約":r.id==="mkt"||r.id==="pr"?"ファンクラブ":r.id==="fin"?"格付け・税金":"資産の貸出・売却"}）へ</button></div>`:""}
    <div class="small" style="margin-top:4px">業務量 ${cv.need} 頭相当 ／ カバー上限 <b>${cv.cap}頭</b>（実効 ${cv.covered}頭）</div><div class="winbar" style="margin-top:3px"><i style="width:${cv.need? Math.min(100,Math.round(cv.covered/Math.max(1,cv.need)*100)) : 100}%;${cv.covered<cv.need? "background:#d23b2e":""}"></i></div>
-   <div style="margin-top:6px"><span class="small">正担当</span><br>${main?`<b>${esc(main.name)}</b> <span class="tag">${r.rankName} ${compRankOf(main,r)}</span> ${rankChips(main)}${mainOthers.length?` <span class="uchip warn">正担当を兼業中（他に ${mainOthers.map(x=>esc(x.name)).join("・")}）</span>`:""}`:`<span class="small">未配置</span>`}${mainOthers.length?`<div class="small" style="background:#fffbe9;color:#7a5410;border:1px solid var(--gold);border-radius:8px;padding:4px 8px;font-weight:700;margin-top:4px">⚠ この正担当は他の枠の正担当も兼ねています。スタッフを増やすと兼業を解消できます（適正配置は兼業が最も少なくなるよう組み直します）</div>`:""}</div>
+   <div style="margin-top:6px"><span class="small">正担当</span><br>${main?`<b>${esc(main.name)}</b> <span class="tag">${r.rankName} <b>${staffRankLetter(compRankOf(main,r))}</b></span> ${rankChips(main)}${mainOthers.length?` <span class="uchip warn">正担当を兼業中（他に ${mainOthers.map(x=>esc(x.name)).join("・")}）</span>`:""}`:`<span class="small">未配置</span>`}${mainOthers.length?`<div class="small" style="background:#fffbe9;color:#7a5410;border:1px solid var(--gold);border-radius:8px;padding:4px 8px;font-weight:700;margin-top:4px">⚠ この正担当は他の枠の正担当も兼ねています。スタッフを増やすと兼業を解消できます（適正配置は兼業が最も少なくなるよう組み直します）</div>`:""}</div>
    <label class="small">正担当を変更 <select data-comp-main="${r.id}" style="max-width:100%">${opts||'<option value="">（スタッフなし）</option>'}</select></label><div class="small">他の枠の正担当の人には選択肢に「⚠他枠の正担当」と表示されます（選ぶことはできますが兼業になります）</div>
-   ${subs.length?`<details style="margin-top:4px"><summary class="small">副担当（${cur.subs.length}名）― カバーを広げる</summary>${subs.map(s=>`<label class="small" style="display:block"><input type="checkbox" data-comp-sub="${r.id}" value="${s.id}" ${cur.subs.includes(s.id)?"checked":""}> ${esc(s.name)}（${r.rankName}${compRankOf(s,r)}・+${compCapSub(r,s)}頭）</label>`).join("")}</details>`:`<div class="small">副担当候補：他のスタッフを雇用すると選べます</div>`}
+   ${subs.length?`<details style="margin-top:4px"><summary class="small">副担当（${cur.subs.length}名）― カバーを広げる</summary>${subs.map(s=>`<label class="small" style="display:block"><input type="checkbox" data-comp-sub="${r.id}" value="${s.id}" ${cur.subs.includes(s.id)?"checked":""}> ${esc(s.name)}（${r.rankName} ${staffRankLetter(compRankOf(s,r))}・+${compCapSub(r,s)}頭）</label>`).join("")}</details>`:`<div class="small">副担当候補：他のスタッフを雇用すると選べます</div>`}
   </div>`; }
 function companyPanelHTML(){ const c=S.company;
   if(!c){ const canF=(S.fame||0)>=FOUND_FAME; return reportsHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社化</h3><div class="small">経営を会社として組織化すると、事業・運営・広報・営業・採用・財務など13の担当枠に人材を配置でき、牧場イベントやファンビジネスが開けます。その上に役員（CEO／チーフイベントオフィサー／CMO／CRO／CFO）と株主総会のレイヤーもあります。人件費は継続的にかかります。</div><div class="flex mt"><button class="btn gold" id="btn-found-company" ${canF&&S.funds>=FOUND_COST?"":"disabled"}>会社を設立する（${fmt(FOUND_COST)}万円）</button>${!canF?`<span class="small">名声${FOUND_FAME}以上が必要（現在 ${S.fame||0}）</span>`:S.funds<FOUND_COST?`<span class="small">資金が不足しています</span>`:""}</div></div>`; }
@@ -16682,7 +17178,7 @@ function companyPanelHTML(){ const c=S.company;
   const rep=c.lastReport;
   const evBtns=EVENT_TYPES.map(t=>`<button class="btn sm ${compEvSel.type===t.id?"gold":""}" data-comp-evtype="${t.id}">${t.name}</button>`).join(" ");
   const szBtns=EVENT_SIZES.map(s=>`<button class="btn sm ${compEvSel.size===s.id?"gold":""}" data-comp-evsize="${s.id}" ${eventSizeAllowed(s.id)?"":"disabled"}>${s.name}（${fmt(s.cost)}万円）</button>`).join(" ");
-  const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> <span class="tag">月給 ${fmt(st.salary)}万円</span><div class="small" style="margin:3px 0">${COMP_ABILITIES.map(([k,n])=>`<span class="tag">${n}${st.ranks[k]||0}</span>`).join(" ")}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
+  const candHtml=c.candidates.length? c.candidates.map(st=>`<div class="panel" style="margin:0"><b>${esc(st.name)}</b> ${st.genius?`<span class="uchip gold">🌟 天才級</span>`:""}<span class="tag">月給 ${fmt(st.salary)}万円</span><div style="margin:4px 0">${staffAbilChipsHTML(st)}</div><button class="btn sm gold" data-comp-hire="${st.id}">雇用する（契約金 ${fmt(st.salary*2)}万円）</button></div>`).join("") : `<div class="small">候補がいません。「候補を入れ替える」で新しい候補が来ます。</div>`;
   const ovlMap=compMainOverlap(); const ovlList=Array.from(ovlMap.entries()).map(([id,rs])=>{ const s=compStaffById(id); return {name:s?s.name:"", n:rs.length, roles:rs}; });
   return reportsHTML()+mgmtDashboardHTML()+execPanelHTML()+meetingPanelHTML()+biz2PanelHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
    <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmt(sal)}万円</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmt(c.invest||0)}万円${c._lastGain?`（先月 +${fmt(c._lastGain)}万円）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span>${ovlList.length?`<span class="uchip warn">正担当を兼業中：${ovlList.map(o=>`${esc(o.name)}（${o.n}枠）`).join("、")}</span>`:`<span class="tag">正担当の兼業なし</span>`}</div>
