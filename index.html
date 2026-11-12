@@ -3407,7 +3407,7 @@ function checkCourseRecord(r, winner, rider){
   const t=winner&&winner._time; if(!(t>0)) return null;
   const prev=liveRecord(r); if(t>=prev.time) return null;
   const own=!!(winner.owner||(S.horses||[]).includes(winner));
-  const rec={time:Math.round(t*10)/10, horse:winner.name, rider:rider||"", race:r.name, y:year(), m:month(), own};
+  const rec={time:Math.round(t*10)/10, horse:winner.name, rider:rider||"", race:r.name, y:year(), m:month(), own, hid:(winner&&winner.id!=null)? winner.id : null};
   recordBook()[prev.key]=rec;
   return {rec, prev, key:prev.key};
 }
@@ -6473,7 +6473,7 @@ function horseDetailHTML(h, sugs){
  } else if(detailTab==="record"){
    const dr=dirRecOf(h); const cr=ensureCourseRec(h);
    const crTxt=Object.keys(cr).length? Object.keys(cr).map(c=>`<span class="uchip">${esc(c)} <span class="uv">${recText(cr[c])}</span></span>`).join("") : "―";
-   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<div class="uchips" style="margin:2px 0 8px"><span class="uchip">通算 <span class="uv">${h.races}戦${h.wins}勝</span></span><span class="uchip">近走 <span class="uv">${formDisp(h)}</span></span><span class="uchip">獲得賞金 <span class="uv">${fmt(h.earnings)}万円</span></span>${(()=>{ try{ const mine=Object.entries(S.records||{}).filter(([k,v])=>v&&v.horse===h.name); return mine.map(([k,v])=>{ const p=k.split("|"); return `<span class="uchip gold">🏅 レコード保持 ${esc(p[0])} ${esc(p[1])}${p[2]}m <span class="uv">${fmtTime(v.time)}</span></span>`; }).join(""); }catch(e){ return ""; } })()}</div>${recordHTML(h,true)}<details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
+   body=(titles.length?('<div class="ribbonrow" style="margin-bottom:8px">'+titles.map(tx=>'<span class="ribbon">'+tx+'</span>').join("")+'</div>'):"")+`<div class="uchips" style="margin:2px 0 8px"><span class="uchip">通算 <span class="uv">${h.races}戦${h.wins}勝</span></span><span class="uchip">近走 <span class="uv">${formDisp(h)}</span></span><span class="uchip">獲得賞金 <span class="uv">${fmt(h.earnings)}万円</span></span>${(()=>{ try{ const mine=Object.entries(S.records||{}).filter(([k,v])=>v&&v.own&&(v.hid!=null? v.hid===h.id : v.horse===h.name)); return mine.map(([k,v])=>{ const p=k.split("|"); return `<span class="uchip gold">🏅 レコード保持 ${esc(p[0])} ${esc(p[1])}${p[2]}m <span class="uv">${fmtTime(v.time)}</span></span>`; }).join(""); }catch(e){ return ""; } })()}</div>${recordHTML(h,true)}<details class="fold"><summary>成績の内訳をくわしく見る</summary><div class="foldbody"><div class="quadgrid">
    <div class="quad"><h4>全成績</h4><dl class="kv"><dt>通算</dt><dd>${h.races}戦 ${h.wins}勝（2着 ${Math.max(0,(h.top2||0)-h.wins)}回・3着 ${Math.max(0,(h.top3||0)-(h.top2||0))}回）</dd><dt>近走</dt><dd>${formDisp(h)}</dd><dt>前走</dt><dd>${esc(h.lastRace||"―")}</dd><dt>休養</dt><dd>${h.races?("前走から "+(h.restW||0)+" 週"):"未出走"}</dd></dl></div>
    <div class="quad"><h4>芝・ダート別</h4><dl class="kv"><dt>芝</dt><dd>${h.surfRec&&h.surfRec["芝"]?recText(h.surfRec["芝"]):"―"}</dd><dt>ダート</dt><dd>${h.surfRec&&h.surfRec["ダート"]?recText(h.surfRec["ダート"]):"―"}</dd><dt>重馬場</dt><dd>${h.heavyRec?recText(h.heavyRec):"―"}</dd><dt>距離帯</dt><dd>${h.distRec&&Object.keys(h.distRec).length? `<span class="uchips" style="margin:0">${Object.keys(h.distRec).map(b=>`<span class="uchip">${BAND_JP[b]} <span class="uv">${recText(h.distRec[b])}</span></span>`).join("")}</span>`:"―"}</dd></dl></div>
    <div class="quad"><h4>左右・競馬場別</h4><dl class="kv"><dt>左回り</dt><dd>${recText(dr.left.r?dr.left:(h.dirRec||{})["左"])}</dd><dt>右回り</dt><dd>${recText(dr.right.r?dr.right:(h.dirRec||{})["右"])}</dd><dt>競馬場別</dt><dd><span class="uchips" style="margin:0">${crTxt}</span></dd></dl></div>
@@ -6524,6 +6524,7 @@ function horseDetailHTML(h, sugs){
  if(detailTab==="detail") body+=`<details class="fold"><summary>能力・適性・主戦騎手などをくわしく見る</summary><div class="foldbody">${sumHTML}</div></details><details class="fold"><summary>主戦騎手・脚質・馬名・勝負服を変更する</summary><div class="foldbody">${ctlHTML}</div></details>`;
  return `<h2 class="sec">馬詳細</h2><div class="panel">
  <div class="namebar"><span class="nb-name">${esc(h.name)}</span><span class="nb-sub">${h.sex}${h.age}歳・${coatName(h)}</span>${growthChipHTML(h)}</div>
+ ${(()=>{ try{ const mine=Object.entries(S.records||{}).filter(([k,v])=>v&&v.own&&(v.hid!=null? v.hid===h.id : v.horse===h.name)); if(!mine.length) return ""; return `<div class="uchips" style="margin-top:6px"><span class="uchip dim">🏅 コースレコード保持</span>${mine.map(([k,v])=>{ const p=k.split("|"); return `<span class="uchip gold">${esc(p[0])} ${esc(p[1])}${p[2]}m <span class="uv">${fmtTime(v.time)}</span></span>`; }).join("")}</div>`; }catch(e){ return ""; } })()}
  <div class="detail-art" style="margin-top:9px">${horseArt(h, true)}</div>
  ${recordTilesHTML(h)}
  <div class="hstat"><div class="hs-row"><span class="statechip"><span class="sdot" style="background:${condState.c}"></span>${condState.t}</span>${nextChipHTML(h)}</div>
@@ -13295,7 +13296,11 @@ function finishRace(){
      挟む（表示専用。精算は完了済みで、シーンの有無は結果に影響しない） */
   raceState.winRun=null;
   try{ const wo=ownResults.find(o=>o.place===1);
-    if(r.cls>=8&&wo&&!raceState._winRunShown){ raceState.winRun={h:wo.h}; raceState.phase="winrun"; }
+    /* 観戦方法が「結果だけ」のときは祝賀シーンを挟まない：手動の結果だけ表示の
+       意味に反するうえ、オートの結果消化（autoDigestRace）では phase が
+       "winrun" のままになり、精算済みなのに「消化失敗」と誤判定して
+       オートが止まってしまうため、発動条件から除外する */
+    if(r.cls>=8&&wo&&!raceState._winRunShown&&raceState.watch!=="result"){ raceState.winRun={h:wo.h}; raceState.phase="winrun"; }
   }catch(e){}
   /* サウンド（付随処理）：失敗しても精算結果には影響させない */
   try{ if(AU.ctx){
@@ -15736,6 +15741,10 @@ function autoDigestRace(ne){
   let ok=false;
   try{
     startRace(r, runOwns[0], field);
+    /* 念のための防御：万一 phase が "winrun"（祝賀シーン待ち）で戻ってきたら、
+       精算は完了しているのでシーンを畳んで "done" として扱う（結果だけ表示の
+       消化で祝賀シーンは表示しない） */
+    if(raceState.phase==="winrun"){ raceState.winRun=null; raceState.phase="done"; }
     /* 成功の判定は phase だけでは行わない：精算（finishRace）が実際に行われ、
        エントリーが消費され、出走数が増えたことを必ず確認する。
        phase が "done" でも精算が飛ばされた場合は「成功」と扱わず失敗にする
@@ -16519,12 +16528,20 @@ function addProposal(execId, kind, title, desc, cost, data){ const c=S.company; 
      rolesState() の自動引き継ぎで空席にしない。見極め正担当の引き継ぎは
      おまかせ種付け・購入の代行担当（eyeTopTrainer）にもそのまま連動する */
 function croRetiring(id){ return !!(S.people&&S.people.retiring&&S.people.retiring["t"+id]); }
+/* CRO自身の採用・解除の履歴（週）。採用したばかりの調教師を次の判断で
+   すぐ「成績不振」と解除し、同じ人をまた採用する循環（契約金・違約金を
+   払い続けるだけのループ）を防ぐための保護期間に使う */
+function croHiredAt(id){ const m=S.company&&S.company.croHiredAt; return (m&&typeof m[id]==="number")? m[id] : null; }
+function croFiredAt(id){ const m=S.company&&S.company.croFiredAt; return (m&&typeof m[id]==="number")? m[id] : null; }
+function croRecentlyHired(id){ const w=croHiredAt(id); return w!=null && (S.week-w)<26; }
+function croRecentlyFired(id){ const w=croFiredAt(id); return w!=null && (S.week-w)<52; }
 function croTrainerAge(d){ try{ ensurePeople(); const a=(S.people.tAges||{})[d.id]; return a!=null? a : (d.age||50); }catch(e){ return d.age||50; } }
 function croTrainerScore(d){ const tot=trainerTotal(d); const age=croTrainerAge(d);
   const wins=assignedHorses(d.id).reduce((a,h)=>a+(((h.rec||{}).w)||0),0);
   return tot + Math.min(6, wins*0.3) - Math.max(0, age-62)*0.35 - trainerCost(d).upkeep*0.06; }
 function croTrainerPool(){ return TRAINER_ROSTER.filter(d=>!d.retired&&!croRetiring(d.id)&&!employedTrainers().some(x=>x.id===d.id)&&(d.region==="jp"||!!(S.overseasFarm||S.clubFarm))); }
 function croHireTrainer(d){ const cost=trainerCost(d); S.funds-=cost.hire; ledOut("trainer",cost.hire,`調教師の契約金：${d.name}（CROの判断）`);
+  if(S.company){ (S.company.croHiredAt||(S.company.croHiredAt={}))[d.id]=S.week; }
   if(!Array.isArray(S.trainers)||!S.trainers.length) S.trainers=[S.trainerId||"jp122"];
   S.trainers.push(d.id);
   const st=rolesState(); const added=[];
@@ -16533,6 +16550,7 @@ function croHireTrainer(d){ const cost=trainerCost(d); S.funds-=cost.hire; ledOu
   try{ mAct().hire++; }catch(e){}
   return {cost, added}; }
 function croFireTrainer(d){ const emps=employedTrainers(); if(emps.length<=1) return null;
+  if(S.company){ (S.company.croFiredAt||(S.company.croFiredAt={}))[d.id]=S.week; }
   const st0=rolesState(); const before={}; ROLES.forEach(r=>{ before[r.id]=st0[r.id].main; });
   S.trainers=emps.filter(x=>x.id!==d.id).map(x=>x.id);
   if(S.trainerId===d.id){ S.trainerId=S.trainers[0]; applyTrainer(); }
@@ -16556,13 +16574,13 @@ function execSmallDecision(e){ const c=S.company; const ab=execAbility(e.id); co
     c.nrBoostUntil=Math.max(c.nrBoostUntil||0, S.week+2);
     execLogPush("cmo","small",`命名権・グッズの販促施策を実施（関心の後押し2週間／CMO ${name}）`, 0); log(`🏢 CMO（${name}）：販促施策を実施（命名権・グッズの関心が2週間上がります）`); return; }
   if(e.id==="cro"){ /* 調教師人事（小さな判断は即時実行） */
-    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id));
+    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id)&&!croRecentlyHired(d.id));
     if(emps.length>3){ const scored=emps.map(d=>({d, s:croTrainerScore(d)})).sort((a,b)=>a.s-b.s); const worst=scored[0];
       if(worst.s<6 && assignedHorses(worst.d.id).length<=2){ const sev=Math.round(trainerCost(worst.d).upkeep*2);
         if(sev<=(c.exec.cro.limit||5000) && S.funds>=sev){ S.funds-=sev; ledOut("trainer",sev,`調教師の契約解除に伴う違約金：${worst.d.name}（CROの判断）`); const hand=croFireTrainer(worst.d);
           if(hand){ execLogPush("cro","small",`成績不振の調教師 ${worst.d.name} との契約を終了しました（違約金 ${fmt(sev)}万円）。役割の引き継ぎ：${hand.length?hand.join("／"):"対象の役割なし"}（CRO ${name}）`, -sev); log(`🏢 CRO（${name}）：調教師 ${worst.d.name} との契約を終了（違約金 ${fmt(sev)}万円／役割は自動で引き継ぎ）`); return; }
           S.funds+=sev; } } }
-    const young=croTrainerPool().filter(d=>croTrainerAge(d)<=45).sort((a,b)=>croTrainerScore(b)-croTrainerScore(a))[0];
+    const young=croTrainerPool().filter(d=>croTrainerAge(d)<=45&&!croRecentlyFired(d.id)).sort((a,b)=>croTrainerScore(b)-croTrainerScore(a))[0];
     if(young){ const cost=trainerCost(young); if(cost.hire<=(c.exec.cro.limit||5000) && S.funds>=cost.hire){ const r=croHireTrainer(young);
       execLogPush("cro","small",`若手調教師 ${young.name}（${croTrainerAge(young)}歳）を採用しました（契約金 ${fmt(cost.hire)}万円${r.added.length?`／カバー不足の ${r.added.join("・")} の副担当に配置`:""}）（CRO ${name}）`, -cost.hire); log(`🏢 CRO（${name}）：若手調教師 ${young.name} を採用（契約金 ${fmt(cost.hire)}万円）`); return; } }
     compRefreshCandidates(true);
@@ -16579,11 +16597,11 @@ function execBigDecision(e){ const c=S.company; const m=mgmt(); const ab=execAbi
   if(e.id==="cmo"){ if(compMain("merch")){ const lot=MERCH_LOTS[2]; addProposal("cmo","merchBig",`有名馬グッズの大量生産（${lot.units}個）`,`対象は ${c.merch.horse||(merchHorse()?merchHorse().name:"有名馬")}。在庫は週ごとに売れていきます（CMOの提案）`, lot.cost, {}); }
     else { const t=CAMP_TIERS[2]; addProposal("cmo","campaign3",`${t.name}`,`${t.weeks}週間の大規模キャンペーンです（CMOの提案）`, t.cost, {}); } return; }
   if(e.id==="cro"){ /* 調教師人事（大きな判断は総会の議案へ） */
-    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id));
+    const emps=employedTrainers().filter(d=>!d.retired&&!croRetiring(d.id)&&!croRecentlyHired(d.id));
     if(emps.length>2){ const scored=emps.map(d=>({d, s:croTrainerScore(d)})).sort((a,b)=>a.s-b.s); const worst=scored[0];
       if(worst.s<9){ const sev=Math.round(trainerCost(worst.d).upkeep*6); const isCore=ROLES.some(r=>{ const st=rolesState(); return st[r.id]&&st[r.id].main===worst.d.id; });
         if(sev>(c.exec.cro.limit||5000)||isCore){ if(addProposal("cro","trainerFire",`調教師 ${worst.d.name} との契約終了`,`担当馬の成績・能力・年齢と維持費の釣り合いを踏まえたCROの判断です。解除後は役割（調教／見極め／コンディション）を能力順に自動で引き継ぎ、見極めの代行担当も連動します（CROの提案／判断の質 ${ab}）`, sev, {tid:worst.d.id})) return; } } }
-    const star=croTrainerPool().slice().sort((a,b)=>trainerTotal(b)-trainerTotal(a))[0];
+    const star=croTrainerPool().filter(d=>!croRecentlyFired(d.id)).sort((a,b)=>trainerTotal(b)-trainerTotal(a))[0];
     if(star){ const cost=trainerCost(star); if(cost.hire>(c.exec.cro.limit||5000)){ if(addProposal("cro","trainerHire",`一流調教師 ${star.name} の招聘`,`能力合計 ${trainerTotal(star)}・維持費 ${fmt(cost.upkeep)}万円／週の実績ある調教師です（CROの提案／判断の質 ${ab}）`, cost.hire, {tid:star.id})) return; } }
     const st=genExecCandidate(); const cost=st.salary*6; addProposal("cro","headhunt",`幹部級スタッフ ${st.name} のヘッドハント`,`能力合計 ${st.total} の即戦力候補です（CROの見極め／判断の質 ${ab}）`, cost, {staff:st}); return; }
   if(e.id==="cfo"){ const cap=Math.floor(S.funds*0.30); const room=Math.max(0, cap-(c.invest||0)); const amt=Math.min(Math.floor(S.funds*0.20), room);
