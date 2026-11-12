@@ -1948,6 +1948,27 @@ html,body{ height:auto; overflow:visible; }
 #racewrap{ flex:none; }
 #racestage{ flex:none; height:clamp(280px,52dvh,520px); }
 #toast{ bottom:86px !important; }
+/* ============================================================
+   よく押すボタンの固定（2026-11-12）
+   ・下部の操作バー群（提案／オート／次週へ／タブ）は、起動直後の
+     スクリプトで #dock に集約され、画面下端に固定される。ページの
+     どこまでスクロールしても、オート開始・停止と「次の週へ」に
+     常時届く。本文の下部余白はドックの実高さ（--dockh・JSが計測）
+     に合わせ、末尾の内容がドックに隠れないようにする。
+   ・担当配置の3画面（調教師の役割分担／会社の担当枠／サッカーの
+     フロントスタッフ）では「✨ 適正配置」を .stickybar でパネル
+     上端に吸着させ、枠カードをスクロールしても押せる位置に残す。
+     吸着を効かせるため、サブパネルの overflow はスクロール
+     コンテナを作らない指定に変える（横方向のはみ出しは clip で
+     従来どおり抑える。clip 非対応環境では従来表示のまま）。
+   ============================================================ */
+#dock{ position:fixed; left:0; right:0; bottom:0; z-index:40; width:100%; max-width:1180px; margin:0 auto; display:flex; flex-direction:column; box-shadow:0 -6px 18px rgba(31,64,38,.22); }
+#dock #tabs{ position:static; width:100%; max-width:none; margin:0; }
+#app{ padding-bottom:calc(var(--dockh, 230px) + env(safe-area-inset-bottom,0px)); }
+#toast{ bottom:calc(var(--dockh, 230px) + 12px) !important; }
+.subpanel.on{ overflow-x:clip; overflow-y:visible; }
+.stickybar{ position:sticky; top:6px; z-index:8; display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--panel); border:2px solid var(--gold); border-radius:12px; padding:7px 10px; box-shadow:0 5px 14px rgba(31,64,38,.20); }
+.stickybar .sb-note{ flex:1 1 180px; min-width:0; }
 /* ===== 年末処理：写真バナー＋カード中心のレイアウト。金額・勝敗などの数字は装飾なしの素の文字で出す ===== */
 .ye-hero{ position:relative; border-radius:12px; overflow:hidden; margin-bottom:6px; text-align:left; }
 .ye-hero img{ width:100%; height:104px; object-fit:cover; display:block; }
@@ -2546,6 +2567,23 @@ tr.soczonedn td:first-child{ box-shadow: inset 3px 0 0 var(--red); }
 <script src="assets/three.min.js"></script>
 <script src="assets/gltf-loader.js"></script>
 <script src="assets/skeleton-utils.js"></script>
+<script>
+/* 下部ドックの組み立て：よく押すボタン（提案／オート開始・停止／
+   次の週へ／タブ）を画面下端の固定ドック #dock へ移し、どの画面を
+   どれだけスクロールしても常時押せるようにする。ドックの実高さは
+   CSS変数 --dockh に反映し、本文の下部余白とトースト位置を合わせる
+   （バーが隠れたり文章量が変わったりして高さが変わっても追従する） */
+(function(){
+  var app=document.getElementById("app"); if(!app) return;
+  var dock=document.createElement("div"); dock.id="dock";
+  ["actionbar","autobar","nextweekbar","tabs"].forEach(function(id){ var el=document.getElementById(id); if(el) dock.appendChild(el); });
+  app.appendChild(dock);
+  var fit=function(){ var h=dock.getBoundingClientRect().height; if(h>0) document.documentElement.style.setProperty("--dockh", Math.ceil(h)+"px"); };
+  fit();
+  if(window.ResizeObserver){ try{ new ResizeObserver(fit).observe(dock); }catch(e){} }
+  window.addEventListener("resize", fit);
+})();
+</script>
 <!-- 静的アセット・マニフェスト：全素材をリテラル参照で列挙し、単体書き出し／静的ホスティングでも漏れないようにする -->
 <div id="asset-manifest" aria-hidden="true" style="display:none">
 <img src="assets/bg-far.webp" alt=""><img src="assets/bg-grass.webp" alt=""><img src="assets/bg-mid.webp" alt="">
@@ -6862,7 +6900,7 @@ function renderTrain(){
     const rankLbl=(r,d)=>r.ranks.map(k=>`${({train:"調教",idea:"見極め",eye:"相馬眼",cond:"体調",weight:"体重"})[k]} ${d.ranks[k]||""}`).join("・");
     return `<div class="panel"><b>🎽 役割分担（3枠）</b>
     <p class="small" style="margin:4px 0">各枠は正担当1名＋副担当は制限なし。1人が複数枠を兼任できます。カバー頭数は正・副の能力で決まり、馬が増えて上限を超えた分には、その役割の効果が届きません。</p>
-    <div class="flex" style="align-items:center;gap:8px;margin:6px 0"><button class="btn gold" id="btn-role-opt">✨ 適正配置</button><span class="small">ワンタップで最適な配置に組み直します。基準：カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順（対象は契約中の調教師のみ・兼任OK）</span></div>
+    <div class="stickybar"><button class="btn gold" id="btn-role-opt">✨ 適正配置</button><span class="small sb-note">ワンタップで最適な配置に組み直します（カバー優先 → 正担当は該当能力トップ → 副担当は不足分だけ能力の高い順／対象は契約中の調教師のみ・兼任OK）</span></div>
     ${optSummaryHTML(lastTrainerOpt,"頭")}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px">
     ${ROLES.map(r=>{ const cur=st[r.id]; const main=trainerById(cur.main)||trainerData(); const cov=roleCoverage(r.id); const short=cov.total-cov.covered;
@@ -17125,7 +17163,7 @@ function soccerPanelHTML(){ socEnsureWorld(); const sc=S.soccer;
  if(soccerTab==="table"){ const tblHTML=(div)=>{ const s=socSorted(div); return `<table class="soctable"><tr><th class="num">順</th><th>クラブ</th><th class="num">試</th><th class="num">勝</th><th class="num">分</th><th class="num">敗</th><th class="num">得失</th><th class="num">勝点</th></tr>${s.map((r,i)=>{ const zone= div===1? (i>=s.length-3?"dn":"") : div===2? (i<3?"up": i>=s.length-3?"dn":"") : (i<3?"up":""); return `<tr class="${r.mine?"socmine":""}${zone==="up"?" soczoneup":""}${zone==="dn"?" soczonedn":""}"><td class="num">${i+1}</td><td>${esc(r.name)}${r.mine?"（自クラブ）":""}${sc.rival===r.name?"（ライバル）":""}${zone==="up"?` <span class="uchip xs ok">昇格圏</span>`:""}${zone==="dn"?` <span class="uchip xs ng">降格圏</span>`:""}<br><span class="small">${socTacName(r.tac)}／${esc(r.form||"4-4-2")}</span></td><td class="num">${r.p}</td><td class="num">${r.w}</td><td class="num">${r.d}</td><td class="num">${r.l}</td><td class="num">${r.gf-r.ga}</td><td class="num">${r.pts}</td></tr>`; }).join("")}</table>`; };
   h+=`<div class="panel"><h3>${SOC_DIVS[1]}</h3>${tblHTML(1)}</div><div class="panel"><h3>${SOC_DIVS[2]}</h3>${tblHTML(2)}</div>${w.d3?`<div class="panel"><h3>${SOC_DIVS[3]}</h3>${tblHTML(3)}</div>`:""}<p class="small">シーズンは20クラブの2回戦総当たり ${socTotalMD(w)}節制。各部の境で3クラブずつ入れ替わります（1部⇔2部、2部⇔3部）。現在 ${w.md}節消化（次は第${Math.min(w.md+1,socTotalMD(w))}節）。</p>`; }
  if(soccerTab==="front"){ const staff=sc.staff||[]; const cands=socEnsureStaffCands();
-  h+=`<div class="panel"><h3>フロントスタッフ（役職枠）</h3><p class="small">各枠は正担当1名＋副担当。効果は対応する経営システムに数値で効きます。</p><div class="flex" style="margin-bottom:6px"><button class="btn gold sm" data-soccer="staffopt">✨ 適正配置</button><span class="small">カバー優先→正担当の兼業最小→能力順</span></div>
+  h+=`<div class="panel"><h3>フロントスタッフ（役職枠）</h3><p class="small">各枠は正担当1名＋副担当。効果は対応する経営システムに数値で効きます。</p><div class="stickybar"><button class="btn gold" data-soccer="staffopt">✨ 適正配置</button><span class="small sb-note">カバー優先→正担当の兼業最小→能力順</span></div>
   ${SOC_ROLES.map(r=>{ const as=socAssign()[r.id]||{}; const main=as.main? socStaffById(as.main):null; const eff=Math.round(socEff(r.id)*100); return `<div class="facrow" style="cursor:default"><div style="flex:1;min-width:0"><span class="fname">${esc(r.n)}</span> <span class="small">${esc(r.d)}</span><br><span class="small">正：<b>${main?esc(main.name):"未配置"}</b>${main?`（${COMP_ABILITIES.find(([k])=>k===r.item)[1]} <span class="rankmark rank${staffRankLetter(main.ranks[r.item])}">${staffRankLetter(main.ranks[r.item])}</span>）`:""}／副：${(as.subs||[]).map(id=>esc((socStaffById(id)||{}).name||"")).filter(Boolean).join("、")||"なし"}／効果 ${eff}%</span></div></div>
   <div class="flex" style="gap:5px;margin:2px 0 8px;flex-wrap:wrap"><select data-soccer-main="${r.id}" style="max-width:220px"><option value="">正担当を選ぶ</option>${staff.map(s=>`<option value="${s.id}" ${as.main===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}</select><select data-soccer-sub="${r.id}" style="max-width:220px"><option value="">副担当を足す</option>${staff.filter(s=>s.id!==as.main&&!(as.subs||[]).includes(s.id)).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>`; }).join("")}
   <h3 style="margin-top:10px">雇用候補</h3><div class="socgrid">${cands.map(c=>`<div class="soccard"><div class="sc-name">${esc(c.name)}</div><div class="small">${c.age}歳／得意枠：${esc((SOC_ROLES.find(r=>r.id===c.roleHint)||{}).n||"")}／月給 ${fmtM(c.salary)}</div>${staffAbilChipsHTML(c)}<div class="mt"><button class="btn sm" data-soccer="hire" data-i="${c.id}">雇用する（契約金 ${fmtM(c.salary*2)}）</button></div></div>`).join("")}</div>
@@ -17734,7 +17772,7 @@ function companyPanelHTML(){ const c=S.company;
   return reportsHTML()+mgmtDashboardHTML()+execPanelHTML()+meetingPanelHTML()+biz2PanelHTML()+`<div class="panel"><h3 style="margin:0 0 4px">🏢 会社（設立 ${Math.floor((c.founded||0)/48)+1}年目〜）</h3>
    <div class="flex"><span class="tag">スタッフ ${c.staff.length}名</span><span class="tag">月給合計 ${fmtM(sal)}</span><span class="tag">業務量 ${W}頭相当</span><span class="tag">運用中 ${fmtM(c.invest||0)}${c._lastGain?`（先月 +${fmtM(c._lastGain)}）`:""}</span><span class="tag">保険 ${c.insOn?"加入中":"未加入"}</span>${ovlList.length?`<span class="uchip warn">正担当を兼業中：${ovlList.map(o=>`${esc(o.name)}（${o.n}枠）`).join("、")}</span>`:`<span class="tag">正担当の兼業なし</span>`}</div>
    ${ovlList.length?`<div class="small" style="background:#fffbe9;color:#7a5410;border:1px solid var(--gold);border-radius:8px;padding:4px 8px;font-weight:700;margin-top:4px">⚠ 正担当を兼業している人がいます（${ovlList.map(o=>`${esc(o.name)}＝${o.roles.map(x=>esc(x.name)).join("・")}`).join("／")}）。スタッフを増やすと兼業を解消できます。「✨ 適正配置」は兼業が最も少なくなる組み合わせに組み直します。</div>`:""}
-   <div class="flex" style="align-items:center;gap:8px;margin:8px 0 2px"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small">ワンタップで13枠すべてと役員レイヤーを最適な配置に組み直します。基準：カバー優先 → 正担当の兼業を最小化（できる限り別々の人を正に）→ その範囲で該当能力が高い人を正に → 副担当は不足分だけ能力の高い順（副担当の兼任は可）／役員は管轄能力トップを任命（対象は雇用中のスタッフのみ）</span></div>
+   <div class="stickybar"><button class="btn gold" id="btn-comp-opt">✨ 適正配置</button><span class="small sb-note">ワンタップで13枠すべてと役員レイヤーを最適な配置に組み直します（カバー優先 → 正担当の兼業を最小化 → その範囲で能力が高い人を正に → 副担当は不足分だけ／役員は管轄能力トップを任命。対象は雇用中のスタッフのみ）</span></div>
    ${optSummaryHTML(lastCompOpt,"頭相当")}
    ${groupsHtml}
    <div class="flex mt"><button class="btn sm" id="btn-comp-invest">余剰資金の10%を運用に回す（CFO）</button><button class="btn sm" id="btn-comp-withdraw" ${c.invest>0?"":"disabled"}>運用を全額引き出す</button><button class="btn sm" id="btn-comp-ins">${c.insOn?"競走馬保険を解約する":"競走馬保険に加入する（保険担当）"}</button></div>
