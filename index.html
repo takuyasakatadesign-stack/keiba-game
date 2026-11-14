@@ -2206,6 +2206,19 @@ html,body{ height:auto; overflow:visible; }
 .rep-line{font-size:12.5px;line-height:1.55;padding:2.5px 0 2.5px 9px;border-left:3px solid var(--bar);margin:2px 0;overflow-wrap:anywhere}
 .rep-sug{margin-top:7px;font-size:12px;background:#fffbe9;border:1.5px dashed var(--gold);border-radius:9px;padding:5px 8px;line-height:1.5}
 @media (prefers-color-scheme: dark){ .rep-sug{background:#37331c} }
+/* 報告書の月インデックス：年×月のチップから選んだ1か月分だけ本文を開く（全月分の縦積みをやめる） */
+.repindex{margin-top:8px}
+.repindex .ri-year{display:flex;align-items:flex-start;gap:8px;margin-top:7px}
+.repindex .ri-ylab{flex:none;font-size:11.5px;font-weight:900;color:var(--ink2);padding-top:10px;min-width:42px}
+.repindex .ri-chips{display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0}
+.rep-chip{position:relative;display:inline-flex;flex-direction:column;align-items:flex-start;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:4px 9px 5px;min-height:44px;cursor:pointer;font:inherit;line-height:1.3;text-align:left}
+.rep-chip b{font-size:13px}
+.rep-chip .rc-net{font-size:11px;font-weight:700;color:var(--ink2)}
+.rep-chip.on{border:2.5px solid var(--gold);background:#fffbe9;padding:3.5px 8.5px 4.5px}
+@media (prefers-color-scheme: dark){ .rep-chip.on{background:#37331c} }
+.rep-chip .rc-new{position:absolute;top:-7px;right:-5px;background:#c0392b;color:#fff;font-size:9.5px;font-weight:900;border-radius:99px;padding:0 6px;line-height:16px}
+.rep-nav{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.rep-body{margin-top:8px;border:1.5px solid var(--line);border-radius:12px;padding:10px;background:var(--panel2)}
 /* 正式書類（見積書・精算書） */
 .docpaper{background:#fffdf6;color:#232323;border:2px solid #8a7a4a;border-radius:6px;padding:16px 16px 13px;box-shadow:0 4px 16px rgba(60,50,10,.18);text-align:left;font-size:13px}
 @media (prefers-color-scheme: dark){ .docpaper{background:#f7f3e6} }
@@ -7934,7 +7947,8 @@ function worldSummaryHTML(){
     if(hist.length>1) h+=`<div class="mt"><b class="small">各年の首位</b><div class="vchips">${hist.map(e=>{ const t=e.rows[0]; return t? `<span class="vchip">${e.y}年 <b>${esc(t.name)}</b> 賞金 ${fmtM(t.prize)}</span>` : ""; }).join("")}</div></div>`;
   }
   const ch=S.chronicle||[];
-  if(ch.length) h+=`<div class="mt"><b class="small">📜 競馬界年代記</b><div class="tl34">${ch.slice(0,8).map(c=>`<div class="tl-item"><span class="tl-when">${c.y}年${c.m}月</span><div><b>${esc(c.title)}</b></div><div class="small">${esc(c.body)}</div></div>`).join("")}</div></div>`;
+  if(ch.length){ const tlItem=c=>`<div class="tl-item"><span class="tl-when">${c.y}年${c.m}月</span><div><b>${esc(c.title)}</b></div><div class="small">${esc(c.body)}</div></div>`;
+    h+=`<div class="mt"><b class="small">📜 競馬界年代記</b><div class="tl34">${ch.slice(0,8).map(tlItem).join("")}</div>${ch.length>8?`<details class="fold"><summary>過去の年代記（残り ${ch.length-8}件）</summary><div class="foldbody"><div class="tl34">${ch.slice(8).map(tlItem).join("")}</div></div></details>`:""}</div>`; }
   h+=`</div>`;
   return h;
 }
@@ -14739,6 +14753,7 @@ function renderFarm(){
  const brf=el.querySelector("#btn-comp-refresh"); if(brf) brf.addEventListener("click",()=>{ const c=compState(); if(!c) return; if(S.funds<50){ toast("資金が不足しています"); return; } S.funds-=50; ledOut("salary",50); compRefreshCandidates(); log("🏢 雇用候補を入れ替えました"); saveAuto(); renderAll(); });
  /* 経営機能と月次報告書の配線（会社パネル内で完結） */
  el.querySelectorAll("[data-reports-read]").forEach(brr=>brr.addEventListener("click",()=>{ S.reportUnread=0; saveAuto(); renderAll(); }));
+ el.querySelectorAll("[data-rep-sel]").forEach(b=>b.addEventListener("click",()=>{ const k=b.dataset.repSel; if(!k||b.disabled) return; REPSEL=k; renderAll(); setTimeout(()=>{ const ts=[...document.querySelectorAll(".repindex")]; const t=ts.find(x=>x.offsetParent!==null)||ts[0]; if(t) t.scrollIntoView({block:"start"}); },40); }));
  el.querySelectorAll("[data-budget-cap]").forEach(sel=>sel.addEventListener("change",()=>{ const m=mgmt(); if(!m) return; m.budget.caps[sel.dataset.budgetCap]=+sel.value||0; log(`📋 年間予算を設定しました：${(BUDGET_CATS.find(([k])=>k===sel.dataset.budgetCap)||[])[1]||""} ${+sel.value? fmtM(+sel.value)+"まで" : "上限なし"}（CFO）`); saveAuto(); renderAll(); }));
  const gtSel=el.querySelector("#goal-type"); if(gtSel) gtSel.addEventListener("change",()=>{ goalSel.type=gtSel.value; goalSel.target=goalTypeDef(gtSel.value).opts[1]||goalTypeDef(gtSel.value).opts[0]; renderAll(); });
  const gtaSel=el.querySelector("#goal-target"); if(gtaSel) gtaSel.addEventListener("change",()=>{ goalSel.target=+gtaSel.value||0; });
@@ -14837,7 +14852,8 @@ function worldPanelsHTML(){
   h+=ownerFinanceHTML();
   const news=S.news||[];
   if(news.length){
-    h+=`<div class="panel news-paper"><div class="news-mast"><span class="news-name">競馬新聞</span><span class="news-date">世界の動き ― ライバル・系統・市場の動向</span></div>${news.slice(0,6).map(n=>`<article class="news-item"><h3 class="news-head">${esc(n.title)}</h3><div class="news-meta">${n.y}年${n.m}月</div><p class="news-body">${esc(n.body)}</p></article>`).join("")}</div>`;
+    const art=n=>`<article class="news-item"><h3 class="news-head">${esc(n.title)}</h3><div class="news-meta">${n.y}年${n.m}月</div><p class="news-body">${esc(n.body)}</p></article>`;
+    h+=`<div class="panel news-paper"><div class="news-mast"><span class="news-name">競馬新聞</span><span class="news-date">世界の動き ― ライバル・系統・市場の動向</span></div>${news.slice(0,6).map(art).join("")}${news.length>6?`<details class="fold"><summary>過去の記事（${news.length-6}件）</summary><div class="foldbody">${news.slice(6).map(art).join("")}</div></details>`:""}</div>`;
   }
   try{
     const sts=rivalStables();
@@ -17816,22 +17832,34 @@ try{ const wl=worldReportLines(); if(wl.length) push("世界の動き", "競馬�
   log(`📬 ${ledLabel(key)}の月次報告書が届きました（収入 ${fmtM(totI)}／支出 ${fmtM(totO)}／差引 ${fmtM(totI-totO)}）`);
   if(!(typeof AUTO!=="undefined"&&AUTO.running)) toast("月次報告書が届きました");
 }
+let REPSEL=null; /* 報告書で開いている月（ledKey）。セッション限り・nullなら最新月。全月分を縦に積まず、選んだ1か月分だけ本文を開く */
 function reportsHTML(){ const reps=Array.isArray(S.reports)? S.reports : []; const un=S.reportUnread||0;
-  if(!reps.length) return `<div class="panel"><h3 style="margin:0 0 4px">📬 月次報告書</h3><div class="small">まだ報告書はありません。月の終わり（月末の週処理）に、調教師3枠と会社の各枠の正担当から、その月の実績・収支・来月の予定をまとめた報告書が届き、この「報告書」タブ（馬主タブのサブナビ）に最新24か月分が並びます。会社未設立でも、調教師3枠の報告は届きます。</div></div>`;
+  if(!reps.length) return `<div class="panel"><h3 style="margin:0 0 4px">📬 月次報告書</h3><div class="small">まだ報告書はありません。月の終わり（月末の週処理）に、調教師3枠と会社の各枠の正担当から、その月の実績・収支・来月の予定をまとめた報告書が届きます。届いたら月の一覧から選んで読めます（過去24か月分）。会社未設立でも、調教師3枠の報告は届きます。</div></div>`;
   const secCard=s=>{ const groups={act:[],money:[],plan:[]}; (s.lines||[]).forEach(t=>groups[repLineKind(t)].push(t));
     const gHTML=(key,label)=> groups[key].length? `<div class="rep-group"><span class="rep-glabel ${key}">${label}</span>${groups[key].map(t=>`<div class="rep-line">${key==="money"? negMoneyHTML(t) : esc(t)}</div>`).join("")}</div>` : "";
     return `<div class="repcard"><div class="rep-head"><span class="rep-face" style="background:${repFaceColor(s.name)}">${esc((s.name||"？").slice(0,1))}</span><div style="min-width:0"><div class="rep-name">${esc(s.name)}</div><div class="rep-role">${esc(s.role)}</div></div></div>${gHTML("act","実績")}${gHTML("money","収支")}${gHTML("plan","予定")}${s.sug?`<div class="rep-sug">💡 提案：${esc(s.sug)}</div>`:""}</div>`; };
+  let si=reps.findIndex(r=>r.key===REPSEL); if(si<0) si=0;
+  const r=reps[si], prev=reps[si+1]||null, newer=reps[si-1]||null;
+  const net=r.totI-r.totO; const trend=reps.slice(0,Math.min(reps.length,si+8)).map(x=>x.totI-x.totO).reverse();
+  const docIds=[...new Set([].concat(r.docs||[], docsState().filter(d=>d.key===r.key).map(d=>d.id)))]; const rdocs=docIds.map(id=>docsState().find(d=>d.id===id)).filter(Boolean);
+  /* 月インデックス：年ごとに月チップ（差引・新着つき）を並べる。本文は選択中の1か月分だけ */
+  const yrs=[]; const byYr={};
+  reps.forEach((x,i)=>{ const p=String(x.key||"").split("-"); const y=p[0]||"?"; if(!byYr[y]){ byYr[y]=[]; yrs.push(y); } byYr[y].push({x,i,mo:p[1]||"?"}); });
+  const idxHTML=`<div class="repindex">${yrs.map(y=>`<div class="ri-year"><span class="ri-ylab">${esc(y)}年目</span><span class="ri-chips">${byYr[y].map(({x,i,mo})=>`<button type="button" class="rep-chip ${i===si?"on":""}" data-rep-sel="${esc(x.key)}" aria-pressed="${i===si}"><b>${esc(mo)}月</b><span class="rc-net">差引 ${fmtMC(x.totI-x.totO)}</span>${i<un?`<span class="rc-new">新着</span>`:""}</button>`).join("")}</span></div>`).join("")}</div>`;
+  const navHTML=`<div class="rep-nav"><button type="button" class="btn ghost sm" data-rep-sel="${prev?esc(prev.key):""}" ${prev?"":"disabled"}>← 前の月${prev?`（${esc(prev.label)}）`:""}</button><b style="font-size:15px">${esc(r.label)}の報告書</b><button type="button" class="btn ghost sm" data-rep-sel="${newer?esc(newer.key):""}" ${newer?"":"disabled"}>次の月${newer?`（${esc(newer.label)}）`:""} →</button></div>`;
   return `<div class="panel"><div class="flex" style="justify-content:space-between;align-items:center"><h3 style="margin:0">📬 月次報告書</h3>${un?`<button class="btn sm gold" data-reports-read="1">新着 ${un}件を読む（既読にする）</button>`:`<span class="tag">新着なし</span>`}</div>
-  ${reps.map((r,i)=>{ const prev=reps[i+1]||null; const net=r.totI-r.totO; const trend=reps.slice(0,Math.min(reps.length,i+8)).map(x=>x.totI-x.totO).reverse();
-    const docIds=[...new Set([].concat(r.docs||[], docsState().filter(d=>d.key===r.key).map(d=>d.id)))]; const rdocs=docIds.map(id=>docsState().find(d=>d.id===id)).filter(Boolean);
-    return `<details ${i===0?"open":""} style="margin-top:8px;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--panel2)"><summary style="cursor:pointer;min-height:36px"><b style="font-size:14.5px">${esc(r.label)}の報告書</b> <span class="uchips" style="margin:0;display:inline-flex"><span class="uchip xs">差引 <span class="uv">${fmtMC(net)}</span></span>${prev? vizDeltaHTML(net, prev.totI-prev.totO, {label:"差引の前月比"}) : ""}</span></summary>
+  <div class="small" style="margin-top:2px">月を選ぶと、その月の報告書だけが開きます。</div>
+  ${idxHTML}
+  ${navHTML}
+  <div class="rep-body">
    <div class="kpis"><div class="kpi"><span class="kl">収入</span><span class="kv2">${fmtM(r.totI)}</span>${prev? vizDeltaHTML(r.totI, prev.totI) : `<span class="vchip dim">初回</span>`}</div><div class="kpi"><span class="kl">支出</span><span class="kv2">${fmtM(r.totO)}</span>${prev? vizDeltaHTML(r.totO, prev.totO, {invert:true}) : `<span class="vchip dim">初回</span>`}</div><div class="kpi"><span class="kl">差引</span><span class="kv2">${fmtMC(net)}</span><span class="vchip ${net>=0?"up":"dn"}">${net>=0? "黒字":"赤字"}</span></div><div class="kpi"><span class="kl">報告</span><span class="kv2">${(r.sections||[]).length}<small>名</small></span><span class="vchip dim">正担当全員＋役員</span></div></div>
    ${vizCmpHTML(r.totI, r.totO)}
    ${trend.length>1?`<div class="small" style="margin-top:2px">差引の推移（直近${trend.length}か月）</div>${vizSpark(trend, net>=0? "#1d6b3c":"#b3362b")}`:""}
    ${(r.hl||[]).length?`<div class="vchips"><span class="vchip dim">ハイライト</span>${r.hl.map(h=>`<span class="vchip warn">★ ${esc(h)}</span>`).join("")}</div>`:""}
    <div class="repgrid">${(r.sections||[]).map(secCard).join("")}</div>
    ${rdocs.length?`<div style="margin-top:8px"><b class="small">📄 この月の正式書類（精算書）</b>${rdocs.map(d=>`<div class="doc-list-row"><span>📄 ${esc(d.title)} <span class="small">${esc(d.no||"")}</span></span><span style="margin-left:auto"><b>${fmtM(d.total)}</b>${d.diff? ` <span class="vchip ${d.diff>0?"dn":"warn"}">見積との差異 ${d.diff>0?"+":""}${fmtM(d.diff)}</span>`:` <span class="vchip up">見積どおり</span>`} <button type="button" class="btn ghost sm" data-doc-open="${d.id}">精算書を見る</button></span></div>`).join("")}</div>`:""}
-   </details>`; }).join("")}
+  </div>
+  ${navHTML}
   </div>`; }
 function mgmtDashboardHTML(){ const c=S.company; if(!c) return ""; const m=mgmt();
   const L=ledger(); const depts=deptPL(L); const yl=ledYearLedger(); const yDepts=deptPL(yl);
@@ -17858,9 +17886,10 @@ function mgmtDashboardHTML(){ const c=S.company; if(!c) return ""; const m=mgmt(
    <div class="stackbar">${stackHTML}</div><div class="stackleg">${stackLeg}</div>
    ${depts.map((d,i)=>{ const net=d.inn-d.out; return `<div class="deptrow"><span class="dn2">${esc(d.name)}</span><span class="dtr"><i style="width:${Math.round(Math.abs(net)/maxNet*100)}%;background:${net>=0? "#2c8a4f":"#d2691e"}"></i></span><span class="dv">${fmtMC(net)}</span><span class="uchip xs">今年 <span class="uv">${fmtM(yDepts[i].inn-yDepts[i].out)}</span></span></div>`; }).join("")}
    <div class="deptrow" style="border-top:2px solid var(--line)"><span class="dn2">合計</span><span></span><span class="dv">${fmtMC(netM)}</span><span class="uchip xs">今年 <span class="uv">${fmtMC(netY)}</span></span></div>
-   <h4 style="margin:10px 0 2px">年間予算と実績（CFO）</h4>
+   <details class="fold"><summary>年間予算と実績（CFO）</summary><div class="foldbody">
    ${budgetBars}
    <div class="small">予算バー内の縦線は「時期の目安」（経過月ぶんの進捗）。予算は管理・報告用です（超過しても支出は自動で止まりません）。差異は月次報告書でCFOが報告します。</div>
+   </div></details>
    ${recentDocs.length?`<h4 style="margin:10px 0 2px">📄 最近の正式書類（精算書）</h4>${recentDocs.map(d=>`<div class="doc-list-row"><span>📄 ${esc(d.title)} <span class="small">${esc(d.no||"")}／${esc(d.dateLabel||"")}</span></span><span style="margin-left:auto"><b>${fmtM(d.total)}</b> <button type="button" class="btn ghost sm" data-doc-open="${d.id}">精算書を見る</button></span></div>`).join("")}`:""}
   </div>`; }
 function mgmtActionsHTML(){ const c=S.company; if(!c) return ""; const m=mgmt();
