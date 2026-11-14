@@ -13927,11 +13927,49 @@ function saveData(){ pruneWorldData(); const d={v:4, at:Date.now(), HID, funds:S
  reports:Array.isArray(S.reports)?S.reports.slice(0,24):[], reportUnread:S.reportUnread||0, monthAct:S.monthAct||null, repKey:S._repKey||"", trainerBoost:S.trainerBoost||{}, trainerTrain:S.trainerTrain||{},
  loan:S.loan||null, sponsorReadyWeek:S.sponsorReadyWeek||0, sponsorCutUntil:S.sponsorCutUntil||0, mateSpend:S.mateSpend||null, cancelNotices:Array.isArray(S.cancelNotices)?S.cancelNotices.slice(0,5):[], crownName:S.crownName||"", crownPos:S.crownPos==="post"?"post":"pre",
  records:S.records||{}, news:S.news||[], rivalStables:S.rivalStables||null, lineTrend:S.lineTrend||null, lineTrendHist:S.lineTrendHist||[], lineTrendSmooth:S.lineTrendSmooth||null, lineHeatPrev:S.lineHeatPrev||null, chronicle:S.chronicle||[], worldEco:S.worldEco||null, sirePower:S.sirePower||[], stableRankHist:S.stableRankHist||[], soldToRival:S.soldToRival||[], rivalry:S.rivalry||[], saleHist:S.saleHist||[], awardLedger:S.awardLedger||null, awardHistory:S.awardHistory||[], stablePolicies:S.stablePolicies||{}, retiredHorses:S.retiredHorses||[], transferOffers:S.transferOffers||[], transferOfferYear:S.transferOfferYear||null, ownerEvents:S.ownerEvents||[], ownerLoans:S.ownerLoans||[], ownerRel:S.ownerRel||{}, ownerEventYear:S.ownerEventYear||null, mareLeaseOut:S.mareLeaseOut||[], mareLeaseIn:S.mareLeaseIn||null, leaseFoalDue:S.leaseFoalDue||[]}; d.ck=saveChecksum(d); return d; }
-function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; } try{ /* 上書き前に、少し前の状態をバックアップへ退避する（本体が壊れた時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える） */
-  const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
-  if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
-    if(pw==null||Math.abs((S.week||0)-pw)>=4||!localStorage.getItem(SAVE_KEY+"auto_bak")){ try{ localStorage.setItem(SAVE_KEY+"auto_bak", prevRaw); }catch(e){} } }
-  localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); const el=$("#hud-saved"); if(el)el.textContent="✔ 保存済み"; }catch(e){} cloudQueuePush(); }
+/* セーブ書き込みの共通処理。ブラウザの保存容量（localStorage）超過で
+   setItem が例外を投げても、握り潰さずに復旧を試みて成否を返す。
+   従来は全ての保存経路が例外を無言で捨てていたため、容量超過になると
+   「保存済み」の表示も出ないままセーブだけが失敗し続け、利用者には
+   原因が一切見えなかった（「セーブができない」の主因）。
+   復旧の順序：①そのまま書く → ②復旧用バックアップ（auto_bak）を
+   退避して空きを作り再試行 → ③台帳の明細行（表示専用・集計値は残る）
+   を落とした軽量版で再試行。それでも駄目なら理由つきで失敗を返す */
+let saveFailToastAt=0;
+function saveFailReason(e){ const n=(e&&(e.name||e.message))||""; return /quota|QUOTA|22|1014/.test(n)? "quota" : "other"; }
+function lsWriteSave(key, json){
+  try{ localStorage.setItem(key, json); return {ok:true}; }catch(e){
+    try{ localStorage.removeItem(SAVE_KEY+"auto_bak"); }catch(e2){}
+    try{ localStorage.setItem(key, json); return {ok:true, evicted:true}; }catch(e3){
+      try{ const d=JSON.parse(json); let light=false;
+        if(d.ledger&&Array.isArray(d.ledger.details)&&d.ledger.details.length){ d.ledger.details=[]; light=true; }
+        if(Array.isArray(d.ledgerHist)) d.ledgerHist.forEach(L=>{ if(L&&Array.isArray(L.details)&&L.details.length){ L.details=[]; light=true; } });
+        if(light){ localStorage.setItem(key, JSON.stringify(d)); return {ok:true, light:true}; }
+      }catch(e4){}
+      return {ok:false, reason:saveFailReason(e3), err:e3};
+    }
+  }
+}
+function saveFailNotify(res){ const el=$("#hud-saved"); if(el){ el.textContent="⚠ 保存できませんでした"; el.style.color="#ff4b4b"; el.style.fontWeight="700"; }
+  const now=Date.now(); if(now-saveFailToastAt>30000){ saveFailToastAt=now; toast(res&&res.reason==="quota"? "保存できませんでした：ブラウザの保存容量がいっぱいです。セーブ画面で古い手動セーブを削除するか、引き継ぎコードで退避してください" : "保存できませんでした。ブラウザの保存機能が使えない状態です"); } }
+function saveOkMark(){ const el=$("#hud-saved"); if(el){ el.textContent="✔ 保存済み"; el.style.color=""; el.style.fontWeight=""; } saveFailToastAt=0; }
+function saveAuto(force){ if(!booted)return; if(!force){ if(S.autosaveFreq==="off")return; if(S.autosaveFreq==="month"&&S.week%4!==0)return; }
+  let json=null; try{ json=JSON.stringify(saveData()); }catch(e){ saveFailNotify({reason:"other"}); cloudQueuePush(); return; }
+  /* 復旧用バックアップ：上書き前に、少し前の状態を退避する（本体が壊れた
+     時の復旧用。毎回ではなく週が離れた時だけ退避し、保存容量を抑える）。
+     ただしセーブ本体が大きい場合は、バックアップが保存容量を倍に圧迫し
+     それ自体が容量超過→保存不可の原因になるため、本体が約100万字を
+     超えたらバックアップは持たない（古いバックアップも消して空ける） */
+  try{
+    if(json.length<=1000000){
+      const prevRaw=localStorage.getItem(SAVE_KEY+"auto");
+      if(prevRaw){ let pw=null; try{ pw=JSON.parse(prevRaw).week; }catch(e){}
+        if(pw==null||Math.abs((S.week||0)-pw)>=4||!localStorage.getItem(SAVE_KEY+"auto_bak")){ try{ localStorage.setItem(SAVE_KEY+"auto_bak", prevRaw); }catch(e){} } }
+    } else { try{ localStorage.removeItem(SAVE_KEY+"auto_bak"); }catch(e){} }
+  }catch(e){}
+  const res=lsWriteSave(SAVE_KEY+"auto", json);
+  if(res.ok) saveOkMark(); else saveFailNotify(res);
+  cloudQueuePush(); }
 /* ============ アカウント連携（名前＋パスワード／クラウド保存） ============
    サーバー側は同一オリジンの /api（Vercel Functions）が担う：
    ・POST /api/register {name,password} → {token, name} / {error}
@@ -14204,7 +14242,7 @@ async function acctPostExternalLogin(){
     const sv=acctParseSave(r.data&&r.data.save);
     if(sv){ confirm2("クラウドのセーブを読み込みますか？",`ログインしました。クラウドにセーブがあります（保存日時：${acctDate(r.data.updatedAt)||"不明"}）。読み込むと今のデータは置き換わります。読み込まない場合は、今のデータで遊び続けます（オートセーブでクラウド側も今のデータに更新されます）。`,()=>acctApplyCloud(sv),()=>{ try{ acctTrace("done"); acctLastCrashStage=""; }catch(e){} try{ renderAcctLauncher(); }catch(e){} }); }
     else { toast("ログインしました"); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; } }); }
-  }catch(e){ cloudAvail=false; toast("ログインしました（クラウドには接続できませんでした）"); }
+  }catch(e){ if(e&&e.message==="noapi") cloudAvail=false; toast("ログインしました（クラウドには接続できませんでした）"); }
 }
 /* 起動直後の「つづきから」画面などが閉じてから、ログイン直後処理を始める */
 function acctScheduleExternalLogin(){ if(!acctExtLoginPending) return; let n=0;
@@ -14216,14 +14254,23 @@ function acctScheduleExternalLogin(){ if(!acctExtLoginPending) return; let n=0;
     setTimeout(chk,800); };
   setTimeout(chk,600);
 }
-async function acctApi(path, body, token){
+async function acctApi(path, body, token, timeoutMs){
   const ctl=("AbortController" in window)? new AbortController():null;
-  const to=ctl? setTimeout(()=>ctl.abort(), 9000):null;
+  const to=ctl? setTimeout(()=>ctl.abort(), timeoutMs||9000):null;
   try{
     const res=await fetch(path,{method:"POST", headers:Object.assign({"Content-Type":"application/json"}, token?{"Authorization":"Bearer "+token}:{}), body:JSON.stringify(body||{}), signal:ctl?ctl.signal:undefined});
     const text=await res.text();
     let data=null; try{ data=JSON.parse(text); }catch(e){}
-    if(data==null) throw new Error("noapi"); /* JSONで返らない＝APIの無い環境 */
+    if(data==null){
+      /* 404/405 は API 自体が無い環境（Muse表示内など）として従来どおり扱う。
+         それ以外の HTTP エラー（413＝送信データが大きすぎる、500等）は
+         「APIが無い」と誤判定せず、エラーとして呼び出し側へ返す。
+         従来は一律 noapi 扱いで、413 でも「この環境ではクラウド保存を
+         使えません」になり、保存が止まって見えた */
+      if(res.status===404||res.status===405) throw new Error("noapi");
+      if(res.status>=400) return {status:res.status, data:{error:"サーバーエラー（HTTP "+res.status+"）"}};
+      throw new Error("noapi"); /* JSONで返らない＝APIの無い環境 */
+    }
     return {status:res.status, data};
   } finally { if(to) clearTimeout(to); }
 }
@@ -14236,14 +14283,18 @@ function acctApplyCloud(sv){ const d=acctParseSave(sv); if(!d){ toast("クラウ
   acctTrace("done"); acctLastCrashStage="";
   if(document.body.classList.contains("lite")){ try{ closeAcctScreen(); }catch(e){} }
   applySave(d); booted=true; raceState.phase="idle"; const ov=$("#overlay"); if(ov) ov.style.display="none"; renderAll();
-  try{ localStorage.setItem(SAVE_KEY+"auto", JSON.stringify(saveData())); }catch(e){}
+  try{ const res=lsWriteSave(SAVE_KEY+"auto", JSON.stringify(saveData())); if(res.ok) saveOkMark(); else saveFailNotify(res); }catch(e){ saveFailNotify({reason:"other"}); }
   toast("クラウドのセーブを読み込みました"); }
 async function cloudPushNow(manual){ const a=acctGet(); if(!a) return false;
-  try{ const r=await acctApi("/api/save",{save:saveData()},a.token);
+  /* セーブ送信は本体が数MB級になり得るため、既定の9秒ではモバイル回線で
+     タイムアウトしやすい。60秒まで待つ（従来は中断→例外→cloudAvail=false
+     化して、その後は自動保存のたびの送信自体が止まっていた） */
+  try{ const r=await acctApi("/api/save",{save:saveData()},a.token,60000);
     if(r.status===401){ acctSet(null); acctMsg="ログインが切れました。もう一度ログインしてください"; renderAcctBox(); return false; }
     if(r.data&&r.data.ok){ if(r.data.updatedAt){ a.cloudAt=r.data.updatedAt; acctSet(a); } if(manual) toast("クラウドに保存しました"); return true; }
-    if(manual) toast((r.data&&r.data.error)||"クラウド保存に失敗しました"); return false;
-  }catch(e){ cloudAvail=false; if(manual){ toast("サーバーに接続できず、クラウド保存できませんでした"); renderAcctBox(); } return false; } }
+    if(manual) toast(r.status===413? "セーブデータが大きすぎて、クラウドに保存できませんでした" : ((r.data&&r.data.error)||"クラウド保存に失敗しました")); return false;
+  }catch(e){ if(e&&e.message==="noapi") cloudAvail=false; /* 通信エラー・タイムアウトは一時的なものとして扱い、次回の自動保存で再送する */
+    if(manual){ toast(e&&e.message==="noapi"? "この環境ではクラウド保存を使えません" : "サーバーに接続できず、クラウド保存できませんでした（通信環境をご確認ください）"); renderAcctBox(); } return false; } }
 function cloudQueuePush(){ /* オートセーブのタイミングで、ログイン中ならクラウドへも保存する（連続保存は間引く） */
   if(!acctGet()||cloudAvail===false) return;
   if(acctPushTimer) clearTimeout(acctPushTimer);
@@ -14289,7 +14340,7 @@ async function acctDoAuth(mode, name, password){
         else { await acctWaitSafe(); toast("ログインしました"); renderAcctBox(); acctTrace("cloud_push"); cloudPushNow(false).then(ok=>{ if(ok){ acctTrace("done"); acctLastCrashStage=""; renderAcctBox(); } }); }
       }
     } else acctMsgSet((r.data&&r.data.error)||(isReg?"登録できませんでした":"ログインできませんでした"));
-  }catch(e){ acctBusy=false; acctSetBusyUI(false); cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log(isReg?"⚠ アカウント登録で接続エラーが発生しました":"⚠ アカウントのログインで接続エラーが発生しました"); }catch(e2){} renderAcctBox(); }
+  }catch(e){ acctBusy=false; acctSetBusyUI(false); if(e&&e.message==="noapi") cloudAvail=false; acctMsg="サーバーに接続できませんでした"; try{ log(isReg?"⚠ アカウント登録で接続エラーが発生しました":"⚠ アカウントのログインで接続エラーが発生しました"); }catch(e2){} renderAcctBox(); }
 }
 /* ===== 代替経路：1項目ずつ入力（表示される入力欄は常に1つだけ） =====
    ブラウザ標準ダイアログ（prompt）はアプリ内ブラウザ（iframe）では
@@ -14355,7 +14406,7 @@ function renderAcctBox(){ const box=$("#acct-screen-box"); if(!box) return;
         if(!sv){ toast("クラウドにセーブデータがありません"); return; }
         if(r.data.updatedAt){ acc.cloudAt=r.data.updatedAt; acctSet(acc); }
         confirm2("クラウドのセーブを読み込みますか？",`クラウドの保存日時：${acctDate(r.data.updatedAt)||"不明"}。今のデータはクラウドの内容で置き換わります。`,()=>acctApplyCloud(sv),()=>{ renderAcctBox(); });
-      }catch(e){ acctBusy=false; cloudAvail=false; renderAcctBox(); } });
+      }catch(e){ acctBusy=false; if(e&&e.message==="noapi") cloudAvail=false; renderAcctBox(); } });
     $("#acct-logout").addEventListener("click",()=>{ acctSet(null); acctMsg=""; toast("ログアウトしました（この端末のセーブはそのまま残ります）"); renderAcctBox(); });
     return; }
   if(acctFlow){ acctRenderStep(box); return; }
@@ -15099,6 +15150,7 @@ function applySave(d){
 /* セーブ文字列の検証つきパース：JSONとして読めない／主要データが無い／
    チェックサムが合わない場合は null（＝壊れている）を返す */
 function parseSaveChecked(raw){ if(!raw) return null; let d=null; try{ d=JSON.parse(raw); }catch(e){ return null; } if(!d||!Array.isArray(d.horses)) return null; if(!saveCkOk(d)) return null; return d; }
+function saveSizeNote(){ try{ const n=JSON.stringify(saveData()).length; return `現在のデータ容量は約 ${(n/1024).toFixed(0)}KB です。`; }catch(e){ return ""; } }
 function saveInfo(key){
   try{ const raw=localStorage.getItem(SAVE_KEY+key); if(!raw)return null; const d=JSON.parse(raw);
     return {date:new Date(d.at).toLocaleString("ja-JP"), label:`${Math.floor(d.week/48)+1}年目 ${Math.floor((d.week%48)/4)+1}月 第${(d.week%4)+1}週／資金${fmtM(d.funds)}／${(d.horses||[]).length}頭`};
@@ -15162,7 +15214,7 @@ function showSavePanel(){
   <button class="btn gold sm" id="tc-restore">引き継ぎ（復元）</button>
   <label class="btn ghost sm" style="cursor:pointer">ファイルから復元<input type="file" id="tc-file" accept=".json,.txt,text/plain" style="display:none"></label></div>
   <p class="small" id="tc-msg" style="color:#ff4b4b;font-weight:700"></p></div>`;
-  showOverlay(`<h2>セーブ／ロード</h2><div class="ov-body">${rows}${tcHTML}<p class="small">保存先はこの端末のブラウザ内です。ブラウザのデータを消すとセーブも消えます。</p></div><div class="ov-foot"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
+  showOverlay(`<h2>セーブ／ロード</h2><div class="ov-body">${rows}${tcHTML}<p class="small">保存先はこの端末のブラウザ内です。ブラウザのデータを消すとセーブも消えます。${saveSizeNote()}保存に失敗したときは、画面上部に「⚠ 保存できませんでした」と理由が表示されます。</p></div><div class="ov-foot"><button class="btn ghost" onclick="document.getElementById('overlay').style.display='none'">閉じる</button></div>`);
   const tcMsg=t=>{ const m=$("#tc-msg"); if(m)m.textContent=t; };
   const tcIssue=$("#tc-issue"); if(tcIssue) tcIssue.addEventListener("click", async()=>{ tcMsg(""); try{ $("#tc-code").value=await issueTransferCode(($("#tc-pass").value||"").trim()); toast("引き継ぎコードを発行しました"); }catch(e){ tcMsg("発行に失敗しました: "+e.message); } });
   const tcCopy=$("#tc-copy"); if(tcCopy) tcCopy.addEventListener("click", async()=>{ const v=($("#tc-code").value||"").trim(); if(!v){ tcMsg("先にコードを発行してください"); return; } try{ await navigator.clipboard.writeText(v); toast("コードをコピーしました"); }catch(e){ $("#tc-code").select(); document.execCommand&&document.execCommand("copy"); toast("コードをコピーしました"); } });
@@ -15173,7 +15225,7 @@ function showSavePanel(){
   const tcFile=$("#tc-file"); if(tcFile) tcFile.addEventListener("change", async()=>{ const f=tcFile.files[0]; if(!f)return; tcMsg(""); const text=await f.text();
     try{ let d; if(text.trim().startsWith("KMG1")) d=await parseTransferCode(text, ($("#tc-pass2").value||"").trim()); else { d=JSON.parse(text); if(!d||!Array.isArray(d.horses)) throw new Error("セーブデータではありません"); }
       confirm2("現在のデータをファイルのデータで上書きします。よろしいですか？","ファイルの内容で、今のプレイ記録が置き換わります。",()=>restoreSaveObject(d)); }catch(e){ tcMsg(e.message); } });
-  document.querySelectorAll("[data-sv-save]").forEach(b=>b.addEventListener("click",()=>{ try{localStorage.setItem(SAVE_KEY+b.dataset.svSave, JSON.stringify(saveData()));}catch(e){} showSavePanel(); }));
+  document.querySelectorAll("[data-sv-save]").forEach(b=>b.addEventListener("click",()=>{ let res; try{ res=lsWriteSave(SAVE_KEY+b.dataset.svSave, JSON.stringify(saveData())); }catch(e){ res={ok:false, reason:"other"}; } if(res.ok){ toast("保存しました"); saveOkMark(); } else saveFailNotify(res); showSavePanel(); }));
   document.querySelectorAll("[data-sv-load]").forEach(b=>b.addEventListener("click",()=>{ const d=parseSaveChecked(localStorage.getItem(SAVE_KEY+b.dataset.svLoad)); if(d){ try{ applySave(d); }catch(e){ toast("セーブを読み込めませんでした"); return; } booted=true; raceState.phase="idle"; $("#overlay").style.display="none"; renderAll(); } else toast("セーブを読み込めませんでした（データが壊れている可能性があります）"); }));
   document.querySelectorAll("[data-sv-del]").forEach(b=>b.addEventListener("click",()=>{ localStorage.removeItem(SAVE_KEY+b.dataset.svDel); showSavePanel(); }));
 }
