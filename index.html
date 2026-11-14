@@ -14702,6 +14702,7 @@ function renderFarm(){
  el.querySelectorAll("[data-exec-limit]").forEach(sel=>sel.addEventListener("change",()=>setExecLimit(sel.dataset.execLimit, sel.value)));
  el.querySelectorAll("[data-prop-approve]").forEach(b=>b.addEventListener("click",()=>approveProposal(+b.dataset.propApprove)));
  el.querySelectorAll("[data-prop-reject]").forEach(b=>b.addEventListener("click",()=>rejectProposal(+b.dataset.propReject)));
+ el.querySelectorAll("[data-meeting-policy]").forEach(sel=>sel.addEventListener("change",()=>{ autoCfg().meetingPolicy=sel.value; log(`🏛 オート中の株主総会の方針を「${meetingPolicyDef(sel.value).name}」に設定しました`); saveAuto(); renderAll(); }));
  const bma2=el.querySelector("#btn-meeting-approve-all"); if(bma2) bma2.addEventListener("click",()=>approveAllProposals());
  const bgm3=el.querySelector("#btn-goto-meeting"); if(bgm3) bgm3.addEventListener("click",()=>{ const t=document.getElementById("meeting-panel"); if(t) t.scrollIntoView({block:"start"}); });
  el.querySelectorAll("[data-merch-prod]").forEach(b=>b.addEventListener("click",()=>produceMerch(+b.dataset.merchProd,false)));
@@ -14901,7 +14902,7 @@ function showSettings(){
 <div class="rulecard"><b>経営機能 第2弾（保険／スポンサー契約／ファンクラブ／格付けと融資／資産の貸出・売却／税金）</b><p>会社パネルの「経営機能 第2弾」に集約し、各担当枠のカードからも辿れます。<br>・<b>馬ごとの保険</b>（保険・リスク担当）：馬ごとに故障プラン／故障・死亡プラン／プレミアムプランへ加入できます。掛金は馬の評価額とプランで決まる毎月の継続支出、給付は故障の発生時に一度だけ（休養週数連動）。5週以上の重度故障・死亡時は上位プランで評価額の50〜80%が給付されます。従来の一括（団体）保険も併用できます。保険・リスク担当（正）が配置されていると、担当者が未加入の主力馬（評価額の高い順・最大4頭）を選んでプランを決め、12か月分の掛金の見積つきで<b>株主総会に議案を提出</b>します。承認するとその馬たちが加入します（加入時の一時金はなく、掛金は月次で流れます）。手動での加入・解約も従来どおり可能です。<br>・<b>スポンサー契約</b>（営業担当）：複数年契約（年額は名声・実績・営業力で変動）を結ぶと、月額の契約料が継続収入になります。成果条項として重賞勝利・G1勝利のたびにボーナスが出る一方、契約によっては賞金の数%を分配します。期間中の露出（イベント来場・勝利）と実績で、満了時の更新条件が変わります。<br>・<b>ファンクラブ有料会員</b>（マーケティング・広報）：開設費3,000万円。会員数は有名馬の実績と名声で変動し、月額料金（300／600／1,000円）×会員数が毎月の継続収入になります。イベントの来場は会員増に、会員はグッズの先行販売でマーチャンダイジングの売れ行きを押し上げます。<br>・<b>融資と信用格付け</b>（CFO）：融資は短期（12週）／長期（48週・金利高め）／担保つき（48週・金利低め・総資産の裏付けが必要）の3種から資金繰り画面で選べます。信用格付け（S〜D）は総資産・賞金収入・名声・G1実績・借入比率・延滞履歴で変動し、金利と借入枠に効きます。<br>・<b>資産の貸出・売却</b>（施設管理・CFO）：施設を24週間貸し出すと月額の貸出収入が入りますが、貸出中はその施設の効果が止まります。施設の売却（取得費の約半額）と土地の一部売却（購入額の7割）で即資金化もできます。<br>・<b>年次の税金精算</b>（CFO）：年末に、その年の利益へ 10%（1億円まで）／20%（超過分）の税金が自動で精算されます。赤字年は税金なし。結果はCFOの月次報告書と決算（月次明細の「法人税・税金精算」）に載ります。<br>いずれも会社設立が前提で、担当の正配置と費用が要る段階制です。各機能の判断結果は月次報告書と月次明細に反映されます。</p></div>
 <div class="rulecard"><b>月次明細の内訳</b><p>月次明細の各カテゴリはタップで開閉でき、内訳（どの馬の保険か・どのイベントか・誰の給与か・どのグッズか・どのスポンサーか等）が1件ずつ見られます。既定は閉じた状態でカテゴリ合計だけの簡潔な表示で、開閉状態は再描画やオート進行中も保持されます。内訳の合計＋「内訳の記録なし分」＝カテゴリ合計となり、明細全体の合計は台帳・資金の動きと一致します。過去の月も同じ形で内訳を開けます。</p></div>
 <div class="rulecard"><b>新人騎手・調教師の成長と天才</b><p>新人騎手と新規開業の調教師は、一人ひとり「到達できる上限（伸びしろ）」が違い、年を追って能力が伸びていきます。騎手は若いうち（20〜30代前半）に速く伸び、40代でピークを過ぎると緩やかに衰えます。調教師はもっと遅く、50〜60代まで伸び続けます。成長は実績に連動します：騎手はその年の騎乗数と勝利数、調教師は担当馬の出走数と勝利数が伸びを後押しし、乗らない・結果が出ない年は伸びが鈍ります（完全な自動成長ではありません）。上限に達した人はそれ以上伸びず、ベテランは年齢による衰えだけが残ります。騎手の詳細では「伸びしろ（大／中／小）」が分かります。<br>まれに（数%以下）「天才」が現れます：新人騎手なら初年度から能力85前後の逸材、新進調教師なら開業時から2能力がA級の逸材で、上限も一流まで届きます。デビュー時は新聞と記録に「🌟 期待の新人／期待の新進」と出ます。引退と新人の補充ペースは従来どおりで、総数と年齢分布が長期で崩れないように保たれます。</p></div>
-<div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会はオートの停止条件にもなります（停止設定「株主総会」、初期値は「止まる」）。ONのときは四半期末に未決の議案があるとオートが止まって総会の知らせが出ます（画面へ強制遷移はしません）。OFFのときは議案が次の総会まで持ち越され、自動承認はされません。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
+<div class="rulecard"><b>役員（C○O）と株主総会・マーチャンダイジング</b><p>会社の担当枠の上に役員レイヤーがあります。<b>CEO</b>（全体統括：予算・経営目標・土地など大きな判断）、<b>チーフイベントオフィサー</b>（イベントの意思決定：事業・運営を統括）、<b>CMO</b>（マーケティングの意思決定：マーケティング・広報・マーチャンダイジングを統括）、<b>CRO</b>（採用の意思決定：採用を統括）、<b>CFO</b>（財務の役員。財務担当枠とは別に役員としての判断も行う）の5役職で、雇用済みスタッフから任命します（担当枠の正担当との兼任OK）。役員の能力（管轄能力の平均）は意思決定の質に効きます。<br>役員は管轄分野の判断を自律的に行います。小さな判断（<b>権限額</b>以内。権限額は会社画面で役員ごとに設定でき、初期値あり）は即時実行され、月次報告書に載ります。大きな判断（大規模イベント、土地、大きなキャンペーン、幹部級の採用、多額の商品制作など権限額を超えるもの）は<b>株主総会の議案</b>として積み上がります。<br><b>株主総会は年4回</b>（四半期ごと＝3・6・9・12月の末）です。議案は役員ごとのカードで提示され、オーナーは個別に承認／却下でき、一括承認もできます。承認された議案だけが実行され、却下された議案は実行されません（役員が次の四半期に組み直して再提出することがあります）。総会画面は会社パネルからいつでも開けます。<br>株主総会にはオート中の方針を設定できます（オートの停止条件画面か、総会パネルで変更）。方針は「手動で決める（従来どおり：停止設定ONなら四半期末に未決の議案があるとオートが止まって総会の知らせが出ます。画面へ強制遷移はしません。OFFなら次の総会まで持ち越し）」「全部承認」「全部拒否」「資産の1%／5%／10%未満の議案は承認（しきい値は総会時点の総資産で判定し、しきい値以上の議案は残してオートが止まります）」から選べます。自動承認しようとして実行できない議案（資金不足など）があった場合も、オートは止まって知らせます。<br><b>マーチャンダイジング担当</b>（13番目の枠、CMOが統括）は有名馬のグッズを企画・制作します。制作には制作費がかかり、できた在庫は週ごとに売れていきます（売れ行きは馬の人気とマーケティングで変動）。役員レイヤーとマーチャンダイジング枠は「適正配置」ボタンの対象です。</p></div>
 <div class="rulecard"><b>月次報告書</b><p>月の終わりに、正担当の全員（調教師3枠＋会社の13枠）と役員（C○O）が報告書を提出します。内容はその月の実データから作られ、今月やったこと（代行した購入・種付け、開催したイベントの集客と収支、雇用と研修、建設の進捗、保険の給付、CFOの月次収支の総括、グッズの売上と制作費など）、関係する収支、来月の予定が数行で読めます。役員の報告には、その月に実行した小さな判断と、株主総会へ回した議案も載ります。動きのなかった担当は「特記事項なし＋来月の予定」の短い報告になります。報告書は馬主タブ→「報告書」で読め（サブナビに未読件数が出ます。会社・イベントの先頭にも同じものがあります）、過去24か月分を遡れます。月が替わると知らせが出ますが、オート進行は報告書では止まりません（未読件数だけが分かります）。</p></div>
 <div class="rulecard"><b>デザインと正式書類（§34）</b><p>画面の列挙はチップ、数値の大小はバー／ゲージ、推移はミニグラフと前月比チップ、状態はバッジとドットで表します（数字そのものには装飾を付けません。調教師コメント等の文章として読むものは文章のままです）。<br>・<b>月次報告書</b>：冒頭に会社の月次サマリ（収入・支出の比較バー、前月比、差引の推移グラフ、ハイライトのチップ）を置き、担当ごとの報告は顔つきカードで「実績／収支／予定」に構造化して表示します。過去の報告書も同じ形式です。経営ダッシュボードとCFO報告も同じ設計言語（KPIタイル／部門別バー／予算バーと時期の目安線）で揃えています。<br>・<b>見積書</b>：株主総会の金額のある議案（土地・大規模イベント・キャンペーン・グッズ大量生産・幹部採用・大口運用など）には、文書番号・日付・発行者（担当役員）・宛先・明細（項目・数量・単価・金額）・小計／消費税（10%・内税）／合計・備考を備えた見積書が添付され、議案カードから開けます。<br>・<b>精算書</b>：議案を実行すると精算書が発行され、見積額と精算額の差異が分かります。精算額は台帳の支出記録から算出するので、書類の合計＝台帳の記録＝資金の動きと一致します。精算書は翌月に読む月次報告書と、その月の月次明細に添付されます。プレイヤーが自分で起こす大きな支出（施設建設・拡張、海外牧場の開設、会社設立、馬の購入、広告キャンペーン、イベント開催、グッズ制作など）にも、実行前に同額の見積を発行したうえで精算書が残り、経営ダッシュボードと月次明細から開けます。月次明細の内訳（1,000万円以上の支出）からも、その1件の精算書を生成して開けます。</p></div>
 <div class="rulecard"><b>メイン画面のデザイン一新（§35）</b><p>プレイヤーが常時見るメイン画面群の見た目そのものを作り替えました（デザインシステム＝サカタケ配色・ゴシック体・chunky なカードとボタンは土台として維持。重い画像アセットは追加せず、既存イラストとCSS／DOMで構成）。<br>・<b>見出しと面</b>：全画面の見出しを「緑の帯見出し（白太字＋下辺）」に統一し、面は画面地／主カード（白・太枠）／カード内セクション（面色・影なし）の3層に整理しました。<br>・<b>厩舎ホーム</b>：「次の手」を大きなヒーロー面にし、提案カードは顔写真を大きくした縦型カード（理由→ボタンの順、ボタンはカード内下部）で並べます。<br>・<b>所有馬一覧・馬カード</b>：馬のイラスト面を拡大し、「名前→状態→戦績タイル→能力」の視覚的階層を固定しました。馬詳細は名前プレート（緑の帯）＋大イラスト＋大きめの能力ゲージで見せます。<br>・<b>血統</b>：文字列の列挙ではなく家系図（本馬を頂点に父系＝青の帯／母系＝赤の帯へ枝分かれするツリー、各ノードに系統・因子のチップ）として図式化しました。<br>・<b>市場・セール・繁殖</b>：セールカードは金の上帯つきの大きなカードに、父母カードと配合評価も面と余白を作り直しました。<br>・<b>出馬表・作戦・馬券</b>：出馬表の見出し行を緑の帯にし、作戦パネルは大イラストつき、馬券は破線の券面デザインで見せます。<br>・<b>レース画面</b>：タイトル帯は白地に大きなレース名、残り距離は大きく緑で、実況は券面色のボックス、順位チップは白ピル＋ゼッケン円で表示します。結果画面のイラストも拡大しました。<br>・<b>表彰式と新聞</b>：表彰式は金枠の式次第プログラムの体裁に作り込み、競馬新聞は題字・二重罫・見出し・日付を持つ紙面デザインにしました。<br>・<b>牧場マップと施設</b>：マップ上の施設マーカーは建設済み＝緑の面にレベル分のピップ（●）を表示し、未建設とひと目で区別できます。施設一覧もレベルピップを大きく表示します。<br>・<b>決勝柱</b>：3Dレースのゴール目印は実物のJRA決勝柱に合わせ、内ラチ側（真横カメラでは馬の向こう側）に立つ背の高い細身の柱（土台・赤い帯つき、約5.2m）の頂部に、厚みと赤いリムのある大きな円盤（直径約1.5m、両面に赤と白の同心円）を載せた立体造形にしました。馬を遮らない位置・大きさは従来どおりです。2D表示でも遠ラチの向こうに同じ決勝柱（柱＋同心円盤）を描きます。<br>・<b>コースレコード</b>：全条件（コース×馬場×距離）に、当ゲームの時計生成に合わせて較正した基準レコードを用意しました（実在レコードが確認できる条件は保持馬・レースを引き継ぎ、タイムのみ較正）。条件戦や通常の重賞では届かず、トップクラスが良馬場・好条件で揃ったときにだけ、年に数件程度の頻度で更新される水準です。勝ち時計が記録を破ると（世界の馬でも更新されます）、結果画面に大きな更新バナーが出て表彰され、新聞にも載ります。記録は馬名・タイム・日付・騎手つきで保存され、自厩舎馬の詳細には「レコード保持」の印が付き、自厩舎の記録が他馬に破られたときは知らせます。それ以降、その条件の出馬表（パドック欄）とコース情報に現在のレコードが表示され、記録タブの「レコードブック」で全条件の保持者を一覧できます。<br>・<b>ウイニングラン</b>：G1で自分の馬が1着になったときだけ、ゴール後の減速ランの後、結果画面の前に祝賀シーンが入ります。勝ち馬がスタンド前をパレードし、観客の拍手とカメラフラッシュ、紙吹雪、G1ファンファーレで祝福します（約10秒、タップまたはボタンでスキップ可能）。演出は表示専用で、精算や結果には影響しません。<br>・<b>CROの管轄拡張（調教師人事）</b>：CROは社員だけでなく調教師の雇用・契約解除も判断します。権限額以内の若手採用と成績不振者の解除は即時実行して月次報告書に載せ、高額な一流調教師の招聘と主力の解除は株主総会の議案（契約金・違約金の見積書つき）にします。判断は担当馬の成績・能力・年齢と衰え・維持費の釣り合いで行います。解除時は担当馬を付け替え、役割（調教・見極め・コンディションの正・副）を能力順に自動で引き継いで空席を作らず、見極め正担当の引き継ぎはおまかせ種付け・購入の代行にも連動します。引退表明済みの調教師は二重に解除しません。<br>・<b>社員の能力項目とG〜Sランク</b>：社員は14項目（企画力・運営力・広報力・交渉力・採用力・財務力・法務力・販促力・施設力・国際力・保険力・分析力・実行力・人脈）をG〜Sの8段階で持ち、会社パネルと雇用候補にチップで表示します。各担当枠の効果は対応項目の値で決まり、役員は管轄項目の組み合わせで判断の質が決まります。適正配置と役員任命は項目値に基づき、研修で項目が伸びます。まれにS項目を持つ天才級の社員が候補に現れます。旧セーブの能力（0〜5）は移行で8段階に変換し、効果は正規化するため移行で誰も弱くなりません。</p></div>
@@ -15639,10 +15640,16 @@ function autoCfg(){
   if(typeof S.autoCfg.stopOfferLoan!=="boolean") S.autoCfg.stopOfferLoan=true;
   if(typeof S.autoCfg.stopOfferBuy!=="boolean") S.autoCfg.stopOfferBuy=true;
   if(typeof S.autoCfg.stopOfferLease!=="boolean") S.autoCfg.stopOfferLease=true;
-  /* 株主総会の停止設定（stopMeeting）：四半期末に議案が積み上がっているとき
-     オートを止めて総会の知らせを出す。既定はON（止まる）。OFFのときは議案が
-     次の総会まで持ち越されるだけで、自動承認は絶対にしない */
+  /* 株主総会の停止設定（stopMeeting）：方針（meetingPolicy）が manual のときに
+     効く。四半期末に議案が積み上がっているときオートを止めて総会の知らせを
+     出す。既定はON（止まる）。OFFのときは議案が次の総会まで持ち越される */
   if(typeof S.autoCfg.stopMeeting!=="boolean") S.autoCfg.stopMeeting=true;
+  /* 株主総会の方針（meetingPolicy）：オート中に四半期末の総会で議案をどう
+     扱うか。manual＝従来どおり stopMeeting に従う／approveAll＝全部承認／
+     rejectAll＝全部拒否／lt1・lt5・lt10＝見積額が総資産の1%・5%・10%未満の
+     議案だけ自動承認し、しきい値以上は止めて手動判断を待つ。
+     旧セーブには無いため manual で補完し、従来の挙動をそのまま引き継ぐ */
+  if(!["manual","approveAll","rejectAll","lt1","lt5","lt10"].includes(S.autoCfg.meetingPolicy)) S.autoCfg.meetingPolicy="manual";
   /* 旧フィールド stopTransferOffer は「馬主系オファーのいずれかで止まる」の
      集約として同期しておく（旧コード経路との互換用） */
   S.autoCfg.stopTransferOffer = !!(S.autoCfg.stopOfferTransfer||S.autoCfg.stopOfferLoan||S.autoCfg.stopOfferBuy||S.autoCfg.stopOfferLease);
@@ -15653,6 +15660,55 @@ function autoCfg(){
   /* 旧フィールド stopSale は「いずれかのセールで止まる」の集約として同期しておく */
   S.autoCfg.stopSale = !!(S.autoCfg.stopSaleYoung||S.autoCfg.stopSaleMare||S.autoCfg.stopSaleOverseas);
   return S.autoCfg;
+}
+/* ============ 株主総会の方針（オート中） ============
+   四半期末の総会で未決の議案をどう扱うかを autoCfg.meetingPolicy で決める。
+   承認は手動承認と同じ経路（execProposal＋精算書）を通し、却下も手動却下と
+   同じ記録・再提出の扱いにする。しきい値は総会時点の総資産
+   （stableAssetValue：資金＋馬・施設などの資産評価）に対する割合で、
+   「未満」は見積額がしきい値より strictly 小さいことを指す */
+const MEETING_POLICIES=[
+ {id:"manual", name:"手動で決める（従来どおり）"},
+ {id:"approveAll", name:"全部承認する"},
+ {id:"rejectAll", name:"全部拒否する"},
+ {id:"lt1", name:"資産の1%未満の議案は承認する", pct:1},
+ {id:"lt5", name:"資産の5%未満の議案は承認する", pct:5},
+ {id:"lt10", name:"資産の10%未満の議案は承認する", pct:10}
+];
+function meetingPolicyDef(id){ return MEETING_POLICIES.find(x=>x.id===(id||autoCfg().meetingPolicy))||MEETING_POLICIES[0]; }
+function meetingThreshold(){ const d=meetingPolicyDef(); if(!d.pct) return 0; let a=0; try{ a=stableAssetValue(); }catch(e){} return Math.floor(a*d.pct/100); }
+/* 1件の議案に対する方針の判断：approve（自動承認）／reject（自動却下）／hold（手動判断待ち） */
+function meetingDecisionFor(p,cfg){ const pol=(cfg||autoCfg()).meetingPolicy||"manual";
+  if(pol==="approveAll") return "approve";
+  if(pol==="rejectAll") return "reject";
+  const d=meetingPolicyDef(pol); if(d.pct) return (p.cost||0)<meetingThreshold()? "approve" : "hold";
+  return "hold"; }
+/* オート用：四半期末の総会で、未決の議案を設定中の方針どおりに一括処理する。
+   実行できなかった承認（資金不足など）は議案を残して failed に数え、
+   呼び出し側（autoStepBody）が止めて知らせる */
+function autoProcessMeeting(cfg){
+  const c=execState(); const res={approved:0,rejected:0,held:0,failed:0,heldTitles:[],failTitles:[]};
+  if(!c||!c.proposals.length) return res;
+  const pol=meetingPolicyDef((cfg||autoCfg()).meetingPolicy);
+  c.proposals.slice().forEach(p=>{
+    const dec=meetingDecisionFor(p,cfg);
+    if(dec==="hold"){ res.held++; res.heldTitles.push(p.title); return; }
+    const i=c.proposals.findIndex(x=>x.id===p.id); if(i<0) return;
+    if(dec==="reject"){
+      c.proposals.splice(i,1);
+      execLogPush(p.exec,"rejected",`株主総会で却下（オート方針「${pol.name}」）：${p.title}（実行されません）`, p.cost);
+      log(`🏛 オート方針「${pol.name}」で議案を却下しました：${p.title}（実行されません）`);
+      if(Math.random()<0.4) c.deferred.push({p, due:S.week+12});
+      res.rejected++; return;
+    }
+    const _db4=docLedOutSnap(); const r=execProposal(p);
+    if(r.ok){ c.proposals.splice(i,1); try{ docSettleProposal(p, docLedOutDelta(_db4)); }catch(e){}
+      execLogPush(p.exec,"approved",`株主総会で承認・実行（オート方針「${pol.name}」）：${p.title} ― ${r.msg}`, p.cost);
+      log(`🏛 オート方針「${pol.name}」で議案を承認・実行しました：${p.title} ― ${r.msg}`); res.approved++; }
+    else { res.failed++; res.failTitles.push(`${p.title}（${r.msg}）`); log(`🏛 オート方針「${pol.name}」で承認しようとしましたが実行できませんでした：${p.title} ― ${r.msg}`); }
+  });
+  if(res.approved||res.rejected) log(`🏛 株主総会（オート方針「${pol.name}」）：承認 ${res.approved}件／却下 ${res.rejected}件${res.held?`／保留 ${res.held}件（しきい値以上）`:""}${res.failed?`／実行不可 ${res.failed}件`:""}`);
+  return res;
 }
 /* セールの種類と、それぞれのオート停止設定キーの対応。
    開催週は farmWeekly の saleDef 判定（8月第1週／10月第1週／12月第3週）と一致させる */
@@ -16182,12 +16238,26 @@ function autoStepBody(){
   /* 年末処理を跨ぐ週送りでは必ず止まる：年末処理（引退判断・明け2歳の処遇・
      お守り交換・クラブ処理）にはプレイヤーの意思決定が含まれるため自動消化しない。
      48週オートでも、年が替わる手前で停止して年末処理を済ませてもらう */
-  /* 株主総会（四半期末）：議案が積み上がっていて停止設定がONなら、四半期を
-     跨ぐ前に止めて総会の知らせを出す（画面へは強制遷移しない）。OFFなら
-     議案は次の総会まで持ち越され、自動承認はしない */
-  if([11,23,35].includes(S.week%48) && cfg.stopMeeting!==false){
+  /* 株主総会（四半期末）：方針（meetingPolicy）が manual 以外なら、四半期末の
+     総会で方針どおりに自動処理する（全部承認／全部拒否／資産の○%未満は承認）。
+     しきい値以上の議案が残った場合と、承認を実行できなかった場合は止めて
+     知らせる。manual のときは従来どおり、停止設定がONなら四半期を跨ぐ前に
+     止めて総会の知らせを出す（画面へは強制遷移しない）。OFFなら議案は次の
+     総会まで持ち越される。年末週（47週目）は方針の処理だけ先に行い、
+     停止は直後の年末処理の停止に任せる */
+  if([11,23,35,47].includes(S.week%48)){
     let pendN=0; try{ const cc=execState(); pendN=cc? (cc.proposals||[]).length : 0; }catch(e){}
-    if(pendN>0){ autoStop(`株主総会の時期です（四半期末）。議案が ${pendN} 件 積み上がっています。馬主タブ→「会社・イベント」の株主総会で承認／却下を決めてください（停止条件：株主総会）`); return; }
+    if(pendN>0){
+      const pol=meetingPolicyDef(cfg.meetingPolicy);
+      if(pol.id!=="manual"){
+        const res=autoProcessMeeting(cfg);
+        if(res.failed>0){ autoStop(`株主総会の議案を方針「${pol.name}」で承認しようとしましたが、実行できない議案が ${res.failed} 件あります（${res.failTitles.join("／")}）。資金などを確認して、株主総会で判断してください`); return; }
+        if(res.held>0 && S.week%48!==47){ autoStop(`株主総会の時期です（四半期末）。資産の${pol.pct}%（${fmtM(meetingThreshold())}）以上の議案が ${res.held} 件あるため止まりました（${res.heldTitles.join("／")}）。方針で自動承認した議案は実行済みです。残りは株主総会で承認／却下を決めてください`); return; }
+        AUTO.label=`株主総会：方針「${pol.name}」で承認 ${res.approved}件／却下 ${res.rejected}件を処理しました${res.held?`（${res.held}件はしきい値以上のため保留）`:""}`;
+      } else if(cfg.stopMeeting!==false && S.week%48!==47){
+        autoStop(`株主総会の時期です（四半期末）。議案が ${pendN} 件 積み上がっています。馬主タブ→「会社・イベント」の株主総会で承認／却下を決めてください（停止条件：株主総会）`); return;
+      }
+    }
   }
   if((S.week+1)%48===0){ autoStop("年末処理の週です。年末処理（引退判断・世代更新など）を確認してから、必要ならオートを再開してください"); return; }
   AUTO.steps++; AUTO.weeksDone++; AUTO.label="次の週へ（調教は定常指示が自動実行）";
@@ -16222,6 +16292,12 @@ function renderAutoBar(){
 function showAutoSettings(){
   if(typeof AUTO!=="undefined"&&AUTO.running) autoStop("オート設定を開いたため停止しました");
   const cfg=autoCfg();
+  const mpDef=meetingPolicyDef(cfg.meetingPolicy);
+  const mpAssets=(()=>{ try{ return stableAssetValue(); }catch(e){ return 0; } })();
+  const mpDesc= mpDef.id==="manual"? "四半期末に未決の議案があるときの扱いは、下の「株主総会で止まる」設定に従います（ON＝止まって手動で判断／OFF＝次の総会まで持ち越し）。自動で承認・却下はしません。"
+    : mpDef.id==="approveAll"? "四半期末の総会で、未決の議案をすべて承認して実行します。資金不足などで実行できない議案があったときは、止まって知らせます。"
+    : mpDef.id==="rejectAll"? "四半期末の総会で、未決の議案をすべて却下します（実行されません。役員が次の四半期に組み直して再提出することがあります）。"
+    : `四半期末の総会で、見積額が総資産の${mpDef.pct}%未満の議案だけを自動で承認・実行します。しきい値（現在 ${fmtM(Math.floor(mpAssets*mpDef.pct/100))}）以上の議案があるときは、その議案を残してオートを止め、手動の判断を待ちます。`;
   const offerStopNames=OFFER_STOP_DEFS.filter(d=>cfg[d.key]!==false).map(d=>d.name);
   const tog=(key,label)=>`<div class="ticket"><b>${label}</b><div class="mt"><button class="btn sm ${cfg[key]?"gold":"ghost"}" data-autog="${key}">${cfg[key]?"ON（止まる）":"OFF（止まらない）"}</button></div></div>`;
   /* おまかせ状況サマリー：有効中の自動処理と停止条件をチップで一覧し、
@@ -16229,8 +16305,8 @@ function showAutoSettings(){
   const fixedN=(S.horses||[]).filter(h=>h.planFixed).length;
   const chip=(on,label,jump)=>`<button class="planchip ${on?"fixed":""}" data-omkjump="${jump||""}" style="margin:2px 2px 2px 0">${on?"●":"○"} ${label}</button>`;
   const summary=`<div class="ticket" style="border-color:var(--gold)"><b>🤝 おまかせ状況（いま任せていること）</b>
-  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(mateOmakaseOn(),`おまかせ種づけ（担当：${(delegationAssignee("mateOmakase")||{}).name||"なし"}${delegationProvisional("mateOmakase")?"・暫定":""}）`,"trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmtM(cfg.mateBudgetSeason||0)}／シーズン（使用済み ${fmtM(mateSeasonSpent())}）`,"mate")} ${chip(buyYoungOmakaseOn(),`幼駒のおまかせ購入（担当：${(delegationAssignee("buyYoungOmakase")||{}).name||"なし"}${delegationProvisional("buyYoungOmakase")?"・暫定":""}）`,"trainer")} ${chip(buyMareOmakaseOn(),`繁殖牝馬のおまかせ購入（担当：${(delegationAssignee("buyMareOmakase")||{}).name||"なし"}${delegationProvisional("buyMareOmakase")?"・暫定":""}）`,"trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
-  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", !mateOmakaseOn()?"種付け":"", cfg.stopMeeting!==false?"株主総会（四半期末・議案あり）":"", "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
+  <div class="mt">${chip(true,`定常指示で自動調教（全${(S.horses||[]).length}頭・固定${fixedN}頭）`,"")} ${chip(!!S.omakase,`調教師のおまかせ見直し${S.omakase?"（"+TRAINER.name+"）":""}`,"omakase")} ${chip(!!S.omakase,"レース逆算調整・最終調整","omakase")} ${chip(true,`エントリー方針：${policyName()}`,"policy")} ${chip(true,"出走の自動取消し（方針管理分）","policy")} ${chip(!!cfg.facOmakase,"建設おまかせ","fac")} ${chip(mateOmakaseOn(),`おまかせ種づけ（担当：${(delegationAssignee("mateOmakase")||{}).name||"なし"}${delegationProvisional("mateOmakase")?"・暫定":""}）`,"trainer")} ${chip((cfg.mateBudgetSeason||0)>0,`種付け予算上限 ${fmtM(cfg.mateBudgetSeason||0)}／シーズン（使用済み ${fmtM(mateSeasonSpent())}）`,"mate")} ${chip(buyYoungOmakaseOn(),`幼駒のおまかせ購入（担当：${(delegationAssignee("buyYoungOmakase")||{}).name||"なし"}${delegationProvisional("buyYoungOmakase")?"・暫定":""}）`,"trainer")} ${chip(buyMareOmakaseOn(),`繁殖牝馬のおまかせ購入（担当：${(delegationAssignee("buyMareOmakase")||{}).name||"なし"}${delegationProvisional("buyMareOmakase")?"・暫定":""}）`,"trainer")} ${(()=>{ try{ const un=uncoveredHorses().length; return un? chip(false,`⚠ おまかせ対象外の馬 ${un}頭（担当なし・上限超過）`,"trainer") : ""; }catch(e){ return ""; } })()} ${chip(!!cfg.tacMaster,"得意作戦を極める（調教師への指示）","trainer")} ${chip(cfg.meetingPolicy!=="manual",`株主総会の方針：${meetingPolicyDef(cfg.meetingPolicy).name}`,"meeting")} ${chip(+S.betPct>0,`自動馬券（資金の${+S.betPct||0}%）`,"bet")}</div>
+  <div class="small" style="margin-top:4px">止まる条件<span class="uchips" style="margin:0 0 0 4px">${[cfg.stopInjury?"故障":"", (cfg.stopSaleYoung||cfg.stopSaleMare||cfg.stopSaleOverseas)?"セール":"", ...(offerStopNames.length? offerStopNames.map(n=>"オファー："+n) : ["オファーは全て見送り"]), cfg.facOmakase?"":(cfg.stopFacility?"施設":""), cfg.stopFinance?"資金繰り":"", !mateOmakaseOn()?"種付け":"", (()=>{ const mp=meetingPolicyDef(cfg.meetingPolicy); if(mp.id==="approveAll"||mp.id==="rejectAll") return ""; if(mp.pct) return "株主総会（資産の"+mp.pct+"%以上の議案で停止）"; return cfg.stopMeeting!==false? "株主総会（四半期末・議案あり）" : ""; })(), "年末（表彰式・年末処理）", "資金マイナス", "確認画面"].filter(Boolean).map(t=>`<span class="uchip">${esc(t)}</span>`).join("")}</span></div></div>`;
   showOverlay(`<h2>🤖 オートの停止条件</h2><div class="ov-body"><div style="text-align:left">
   ${summary}<div class="ticket"><b>💤 スリープ防止</b><br><span class="small">オート実行中は画面スリープを防止します（Wake Lock API${"wakeLock" in navigator?"に対応しています":"未対応の環境では無音動画で防止を試みます"}）。オートを止めると解放されます。</span></div>
   <label class="small">進める週数（この週数ぶん週送りしたら停止）<br><select id="auto-weeks" style="width:100%">${[1,2,4,8,12,24,36,48].map(w=>`<option value="${w}" ${cfg.weeks===w?"selected":""}>${w}週</option>`).join("")}</select></label><br><br>
@@ -16252,8 +16328,10 @@ function showAutoSettings(){
   ${tog("stopOfferLoan","貸付の申し出で止まる（OFFなら見送ります。勝手に貸しません）")}
   ${tog("stopOfferBuy","相手からの売却打診で止まる（OFFなら見送ります。勝手に買いません）")}
   ${tog("stopOfferLease","繁殖牝馬の貸し借りで止まる（OFFなら見送ります。勝手に貸したり借りたりしません）")}
-  <p class="small mt"><b>株主総会で止まるか</b><br>ONなら四半期末（3・6・9・12月の末）に未決の議案があるときオートを止めて総会の知らせを出します（画面へは強制遷移しません）。OFFなら議案は次の総会まで持ち越されます。どちらの場合も議案が自動で承認されることはありません。</p>
-  ${tog("stopMeeting","株主総会で止まる（四半期末・未決の議案があるとき）")}
+  <p class="small mt" id="auto-meeting-ticket"><b>🏛 株主総会の方針（オート中）</b><br>四半期末（3・6・9・12月の末）の総会で、未決の議案をどう扱うかを決めます。会社の株主総会パネルからも変更できます。金額のしきい値は総会時点の総資産で判定します（現在の総資産 ${fmtM(mpAssets)}：1%＝${fmtM(Math.floor(mpAssets*0.01))}／5%＝${fmtM(Math.floor(mpAssets*0.05))}／10%＝${fmtM(Math.floor(mpAssets*0.10))}）。</p>
+  <label class="small" style="display:block;margin:4px 0">方針<br><select id="auto-meeting-policy" style="width:100%">${MEETING_POLICIES.map(p=>`<option value="${p.id}" ${cfg.meetingPolicy===p.id?"selected":""}>${p.name}</option>`).join("")}</select></label>
+  <p class="small" style="margin:4px 0 8px">${esc(mpDesc)}</p>
+  ${mpDef.id==="manual"? tog("stopMeeting","株主総会で止まる（四半期末・未決の議案があるとき）") : `<div class="ticket"><b>株主総会で止まる</b><p class="small" style="margin-top:4px">方針が「手動で決める」以外のときは、四半期末に方針どおり自動で処理するため、この停止設定は使いません。</p></div>`}
   <p class="small" style="margin:4px 0 8px">セールのおまかせ購入（現在：幼駒 <b>${buyYoungOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyYoungOmakase").name)+"）" : "OFF"}</b>／繁殖牝馬 <b>${buyMareOmakaseOn()? "ON（担当："+esc(delegationAssignee("buyMareOmakase").name)+"）" : "OFF"}</b>）は調教師への指示で決めます（担当は見極め担当（正）が務めます）。ONのセール種別は、止まらず通過する時に担当の評価 ☆・◎ の個体だけを自動で買います（ガードつき）。</p>
   <div class="ticket" id="auto-mate-ticket"><b>種付けの代行について</b><p class="small" style="margin-top:4px">種付けをオートで代行させるかどうかは、調教師の画面の「調教師への指示」で決めます（現在：<b>${mateOmakaseOn()? "おまかせ種づけする（担当："+esc(delegationAssignee("mateOmakase").name)+"）" : "代行しない（繁殖シーズンに止まります）"}</b>）。種付けは取り消せないため同意制です。</p><div class="mt"><button class="btn sm" data-omkjump="trainer">調教師の画面で設定する</button></div>
   <label class="small" style="display:block;margin-top:10px">代行種付けのシーズン予算上限（5〜6月の合計金額。手動の種付けには適用されません）<br><select id="auto-mate-budget" style="width:100%">${[[0,"上限なし"],[1000,"1,000万円まで"],[2000,"2,000万円まで"],[3000,"3,000万円まで"],[5000,"5,000万円まで"],[10000,"1億円まで"]].map(([v,l])=>`<option value="${v}" ${cfg.mateBudgetSeason===v?"selected":""}>${l}</option>`).join("")}</select></label><p class="small" style="margin-top:4px">今シーズンの代行種付けの使用済み：${fmtM(mateSeasonSpent())}</p></div>
@@ -16266,6 +16344,7 @@ function showAutoSettings(){
   document.querySelectorAll("[data-omkjump]").forEach(b=>b.addEventListener("click",()=>{ const j=b.dataset.omkjump;
     if(j==="fac"){ const t=$("#auto-fac-omakase"); if(t) t.scrollIntoView({block:"center"}); }
     else if(j==="mate"){ const t=$("#auto-mate-ticket"); if(t) t.scrollIntoView({block:"center"}); }
+    else if(j==="meeting"){ const t=$("#auto-meeting-ticket"); if(t) t.scrollIntoView({block:"center"}); }
     else if(j==="trainer"){ $("#overlay").style.display="none"; UI.train="trainer"; switchView("train"); renderAll(); }
     else if(j==="policy"){ const t=$("#auto-policy"); if(t) t.scrollIntoView({block:"center"}); }
     else if(j==="omakase"){ $("#overlay").style.display="none"; switchView("train"); }
@@ -16275,6 +16354,7 @@ function showAutoSettings(){
   const ar=$("#auto-racestop"); if(ar) ar.addEventListener("change",e=>{ S.autoCfg.raceStop=e.target.value; S.autoCfg.stopRace=e.target.value!=="none"; saveAuto(true); });
   const af=$("#auto-funds"); if(af) af.addEventListener("change",e=>{ S.autoCfg.fundsMin=+e.target.value; saveAuto(true); });
   const amb=$("#auto-mate-budget"); if(amb) amb.addEventListener("change",e=>{ S.autoCfg.mateBudgetSeason=+e.target.value; saveAuto(true); showAutoSettings(); });
+  const amp=$("#auto-meeting-policy"); if(amp) amp.addEventListener("change",e=>{ S.autoCfg.meetingPolicy=e.target.value; saveAuto(true); log(`🏛 オート中の株主総会の方針を「${meetingPolicyDef(e.target.value).name}」に設定しました`); showAutoSettings(); });
   const apol=$("#auto-policy"); if(apol) apol.addEventListener("change",e=>{ entryPolicy().id=e.target.value; saveAuto(true); showAutoSettings(); });
   const cl=$("#auto-set-close"); if(cl) cl.addEventListener("click",()=>{ $("#overlay").style.display="none"; });
   const sta=$("#auto-set-start"); if(sta) sta.addEventListener("click",()=>{ $("#overlay").style.display="none"; autoStart(); });
@@ -17232,8 +17312,15 @@ function execPanelHTML(){ const c=S.company; if(!c) return ""; execState();
 function meetingPanelHTML(){ const c=S.company; if(!c) return ""; execState(); const pend=c.proposals;
   const groups=EXEC_ROLES.map(e=>({e, ps:pend.filter(p=>p.exec===e.id)})).filter(g=>g.ps.length);
   const totCost=pend.reduce((a,p)=>a+(p.cost||0),0);
+  const mpD=meetingPolicyDef(); const mpA=(()=>{ try{ return stableAssetValue(); }catch(e){ return 0; } })();
+  const mpNote= mpD.id==="manual"? (autoCfg().stopMeeting!==false? "方針は手動です：四半期末に未決の議案があるとオートが止まって知らせが出ます（止まるかどうかはオートの停止条件で変更できます）。" : "方針は手動です：議案は次の総会まで持ち越され、自動では処理されません（止まるかどうかはオートの停止条件で変更できます）。")
+    : mpD.id==="approveAll"? "オート中は四半期末の総会で、未決の議案をすべて自動で承認・実行します（実行できない議案があったときはオートが止まって知らせます）。"
+    : mpD.id==="rejectAll"? "オート中は四半期末の総会で、未決の議案をすべて自動で却下します。"
+    : `オート中は四半期末の総会で、見積額が総資産の${mpD.pct}%未満の議案だけを自動で承認・実行します。しきい値は現在の総資産 ${fmtM(mpA)} の${mpD.pct}%＝${fmtM(Math.floor(mpA*mpD.pct/100))} です（総会時点の総資産で判定）。しきい値以上の議案があるときはオートが止まります。`;
   return `<div class="panel" id="meeting-panel" style="border:2px solid #c9a227"><h3 style="margin:0 0 4px">🏛 株主総会（年4回・四半期ごと）</h3>
-   <div class="small">次回開催：${nextMeetingLabel()}。役員の大きな判断は議案として積み上がり、ここでオーナーが最終承認します（この画面でいつでも承認／却下できます）。承認された議案だけが実行されます。各議案には見積書が添付されています。却下された議案は実行されず、役員が次の四半期に組み直して再提出することがあります。オートの停止条件で「株主総会」をONにすると、四半期末に議案があるときオートが止まって知らせが出ます（OFFのときは議案が次の総会まで持ち越され、自動承認はしません）。</div>
+   <div class="small">次回開催：${nextMeetingLabel()}。役員の大きな判断は議案として積み上がり、ここでオーナーが最終承認します（この画面でいつでも承認／却下できます）。承認された議案だけが実行されます。各議案には見積書が添付されています。却下された議案は実行されず、役員が次の四半期に組み直して再提出することがあります。オート中の議案の扱いは下の「方針」で決められます。</div>
+   <div class="flex" style="margin-top:6px;align-items:center;gap:6px;flex-wrap:wrap"><span class="small"><b>オート中の方針</b></span><select data-meeting-policy="1" style="flex:1;min-width:180px">${MEETING_POLICIES.map(p=>`<option value="${p.id}" ${autoCfg().meetingPolicy===p.id?"selected":""}>${p.name}</option>`).join("")}</select></div>
+   <div class="small" style="margin-top:3px">${mpNote}</div>
    ${pend.length?`<div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><span class="kl">未決の議案</span><span class="kv2">${pend.length}<small>件</small></span></div><div class="kpi"><span class="kl">議案の合計（見積・税込）</span><span class="kv2">${fmtM(totCost)}</span></div><div class="kpi"><span class="kl">現在の資金</span><span class="kv2">${fmtM(S.funds)}</span><span class="vchip ${S.funds>=totCost?"up":"dn"}">${S.funds>=totCost? "全件承認しても資金は足ります":"全件承認には資金が不足します"}</span></div></div><div class="flex" style="margin:6px 0"><button class="btn gold sm" id="btn-meeting-approve-all">議案を一括承認する（${pend.length}件）</button></div>`:`<div class="small" style="margin-top:6px">現在、未決の議案はありません。役員の大きな判断が積み上がると、ここに役員ごとのカードで出ます。</div>`}
    ${groups.map(g=>`<h4 style="margin:10px 0 4px">${esc(g.e.title)}（${esc(execHolder(g.e.id)?execHolder(g.e.id).name:"空席")}）の議案</h4>${g.ps.map(p=>{ const sp=docSplit(p.cost||0); return `<div class="panel" style="margin:0 0 8px"><div class="flex" style="justify-content:space-between;align-items:flex-start;gap:8px"><b style="font-size:14.5px">${esc(p.title)}</b><span class="uchip gold">見積（税込） <span class="uv">${fmtM(p.cost)}</span></span></div><div class="vchips"><span class="vchip">提出：${Math.floor((p.week||0)/48)+1}年目${Math.floor(((p.week||0)%48)/4)+1}月</span><span class="vchip">小計 ${fmtM(sp.sub)}</span><span class="vchip">消費税（10%） ${fmtM(sp.tax)}</span><span class="vchip ${S.funds>=(p.cost||0)?"up":"dn"}">${S.funds>=(p.cost||0)? "資金で賄えます":"資金が不足しています"}</span></div><div class="small">${esc(p.desc)}</div><div class="flex" style="margin-top:6px;flex-wrap:wrap"><button class="btn ghost sm" data-doc-est="${p.id}">📄 見積書を見る</button><button class="btn gold sm" data-prop-approve="${p.id}">承認する（実行）</button><button class="btn sm" data-prop-reject="${p.id}">却下する</button></div><div class="small" style="margin-top:3px">承認すると実行され、翌月の月次報告書と月次明細に精算書（見積との差異つき）が添付されます。</div></div>`; }).join("")}`).join("")}
   </div>`; }
